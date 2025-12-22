@@ -1,0 +1,87 @@
+<!DOCTYPE HTML>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>Highcharts Example</title>
+
+		<style type="text/css">
+#container {
+    min-width: 300px;
+    max-width: 800px;
+    margin: 1em auto;
+    border: 1px solid silver;
+}
+
+#container h4 {
+    text-transform: none;
+    font-size: 14px;
+    font-weight: normal;
+}
+#container p {
+    font-size: 13px;
+    line-height: 16px;
+}
+		</style>
+	</head>
+	<body>
+<script src="../../code/highcharts.js"></script>
+<script src="../../code/modules/sankey.js"></script>
+<script src="../../code/modules/organization.js"></script>
+<script src="../../code/modules/exporting.js"></script>
+
+<div id="container"></div>
+
+
+
+
+		<script type="text/javascript">
+Highcharts.chart('container', {
+
+    chart: {
+        height: 1000,
+        inverted: true
+    },
+
+    title: {
+        text: 'Highcharts Org Chart'
+    },
+
+    series: [{
+        type: 'organization',
+        name: 'Sección',
+        keys: ['from', 'to'],
+        data: [
+            ['Shareholders', 'Board'],
+            ['Board', 'CEO'],
+            ['CEO', 'CTO'],
+            ['CEO', 'CPO'],
+            ['CEO', 'CSO'],
+            ['CEO', 'CMO'],
+            ['CEO', 'HR'],
+            ['CTO', 'Product'],
+            ['CTO', 'Web'],
+            ['CSO', 'Sales'],
+            ['CMO', 'Market']
+        ],
+        colorByPoint: true,
+        // color: '#007ad0',
+        dataLabels: {
+            color: 'white'
+        },
+        borderColor: 'white',
+        nodeWidth: 40
+    }],
+    tooltip: {
+        outside: true
+    },
+    exporting: {
+        allowHTML: true,
+        sourceWidth: 800,
+        sourceHeight: 600
+    }
+
+});
+		</script>
+	</body>
+</html>
