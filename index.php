@@ -104,7 +104,7 @@
 			<div class="form-footer">
 				<div class="row">
 					<div class="col-xs-12 col-sm-12 col-md-12">
-						<p>IQ-Instituto Colombiano de Bienestar Familiar<br>Gestión Integrada de Servicios | &copy; Copyright 2020</p> 
+						<p>IQ-Instituto Colombiano de Bienestar Familiar<br>Gestión Integrada de Servicios | &copy; Copyright 2026</p> 
 					</div>
 				</div>
 			</div>
