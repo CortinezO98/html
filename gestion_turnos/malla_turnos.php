@@ -1,4 +1,19 @@
 <?php
+
+    // === DEBUG TEMPORAL (quitar cuando se resuelva) ===
+    ini_set('display_errors', '1');        // mostrar en pantalla (temporal)
+    ini_set('display_startup_errors', '1');
+    ini_set('log_errors', '1');            // también loguea
+    ini_set('error_log', __DIR__ . '/php_error_malla_turnos.log'); // log local
+    error_reporting(E_ALL);
+
+    // Marcador para saber si ejecutó
+    error_log("==== DEBUG malla_turnos.php iniciado: " . date('Y-m-d H:i:s') . " ====");
+
+
+
+
+
     //Validación de permisos del usuario para el módulo
     $modulo_plataforma="Gestión Turnos-Malla";
 
