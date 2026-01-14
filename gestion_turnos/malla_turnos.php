@@ -1,11 +1,7 @@
 <?php
-// =============================================================================
-// DEBUG TEMPORAL (quitar cuando se resuelva)
-// - NO cambia la funcionalidad del módulo, solo registra errores.
-// - Crea un log local: gestion_turnos/php_error_malla_turnos.log
-// =============================================================================
-ini_set('display_errors', '1');        // puede estar bloqueado por el servidor (php_admin_value)
-ini_set('display_startup_errors', '1');
+// Habilitar el registro de errores para depuración
+ini_set('display_errors', '0');
+ini_set('display_startup_errors', '0');
 ini_set('log_errors', '1');
 ini_set('error_log', __DIR__ . '/php_error_malla_turnos.log');
 error_reporting(E_ALL);
@@ -37,8 +33,8 @@ $data_consulta=array();
 $data_consulta_supervisor=array();
 $data_consulta_usuarios=array();
 
-$filtro_usuario_operacion = ""; // <-- evita "Undefined variable" cuando operacion = Todas
-$filtro_buscar = "";            // <-- evita "Undefined variable" cuando id = null
+$filtro_usuario_operacion = ""; 
+$filtro_buscar = "";            
 $filtro_supervisor = "";
 
 $array_turno_programado = [];
@@ -63,11 +59,7 @@ if ($filtro_operacion!='Todas') {
     array_push($data_consulta_usuarios, $filtro_operacion);
 }
 
-// =============================================================================
-// FIX DEL 500 (principal):
-// $FechaInicio viene como "YYYY-Www" (ej: 2026-W03). Tu strtotime() original no lo parsea bien
-// y termina generando fechas inválidas -> SQL falla -> mysqli_fetch_all(false) rompe (fatal).
-// =============================================================================
+
 $dias_semana = array();
 if (preg_match('/^(\d{4})-W(\d{2})$/', (string)$FechaInicio, $m)) {
     $year = (int)$m[1];
