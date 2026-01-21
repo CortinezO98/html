@@ -8,7 +8,7 @@
 <link rel="stylesheet" type="text/css" href="../css/notificaciones/alertify.css?v=2">
 <link rel="stylesheet" type="text/css" href="../css/notificaciones/themes_default.css?v=2">
 
-<script type="text/javascript" src="../js/jquery-3.4.1.min.js?v=2"></script>
+<script type="text/javascript" src="../js/jquery-3.7.1.min.js?v=2"></script>
 <script type="text/javascript" src="../js/bootstrap4-toggle.js?v=2"></script>
 <script type="text/javascript" src="../js/jquery-ui.js?v=2"></script>
 <script type="text/javascript" src="../js/validaciones_seguridad.js?v=2"></script>

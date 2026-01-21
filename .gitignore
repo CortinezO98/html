@@ -37,4 +37,4 @@ coverage/
 backup/
 backups/
 *.bak
-*.old
+*.old/vendor/
