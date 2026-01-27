@@ -1,0 +1,11 @@
+# ============================================
+# Cron ICBF - Notificaciones Central
+# Ejecuta cada minuto
+# ============================================
+* * * * * flock -n /tmp/icbf_notificaciones_central.lock timeout 55s /usr/bin/php /var/www/icbf/html/config_robots/notificaciones_central.php >> /var/log/icbf_notificaciones_central.log 2>&1
+
+# ============================================
+# Cron ICBF - Alertas Robot
+# Ejecuta cada minuto
+# ============================================
+* * * * * flock -n /tmp/icbf_alertas_robot.lock timeout 55s /usr/bin/php /var/www/icbf/html/gestion_alertas/gestion_alertas_notificacion_robot.php >> /var/log/icbf_alertas_robot.log 2>&1

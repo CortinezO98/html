@@ -408,7 +408,7 @@
                         $nc_reply_to="";
                         $nc_subject="Monitoreo Auditoría | ".$inser_consecutivo;
                         $nc_body=str_replace("'", '"', $contenido_correo);
-                        $nc_embeddedimage_ruta="/var/www/html/images/firma-verde.png";
+                        $nc_embeddedimage_ruta="/var/www/icbf/html/images/firma-verde.png";
                         $nc_embeddedimage_nombre="logo_firma_verde";
                         $nc_embeddedimage_tipo="image/png";
                         $nc_intentos="";

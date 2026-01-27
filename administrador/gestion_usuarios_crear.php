@@ -11,6 +11,198 @@
     $pagina=validar_input($_GET['pagina']);
     $filtro_permanente=validar_input($_GET['id']);
 
+    // Asegura la variable de control (sin cambiar el flujo)
+    if (!isset($_SESSION['registro_creado'])) {
+        $_SESSION['registro_creado'] = 0;
+    }
+
+    // -------------------- CONFIG CORREO (encolado) --------------------
+    // Root del proyecto (robusto)
+    $ROOT = realpath(__DIR__ . "/..");
+    if ($ROOT === false) { $ROOT = "/var/www/html"; }
+
+    // Si no hay BASE_URL en env, usa la que tú vienes usando
+
+    $BASE_URL = getenv('APP_URL') ?: (getenv('BASE_URL') ?: "https://modulocalidad.grupoasd.com/");
+    $BASE_URL = rtrim($BASE_URL, '/') . '/';
+
+    $SETFROM_ID = 1;                 // tb_notificaciones_central_remitente.ncr_id
+    $MODULO_ID  = 1;                 // nc_id_modulo (ajusta si tu módulo real es otro)
+    $PRIORIDAD  = "Alta";
+    $SUBJECT    = "Restablecer Contraseña - IQ-ICBF | Gestión Integrada de Servicios";
+
+    // Embedded images (se guardan en BD y el robot las embebe si existen)
+    $img_firma = $ROOT . "/images/firma-verde.png";
+    $img_logo  = $ROOT . "/images/logo.png";
+    $img_logo2 = $ROOT . "/images/logo_notificacion_correo.png";
+
+    $emb_ruta   = $img_firma . ";" . $img_logo . ";" . $img_logo2;
+    $emb_nombre = "firma_verde;logo;logo_notificacion_correo";
+    $emb_tipo   = "image/png;image/png;image/png";
+
+    function build_body_user($baseUrl, $token, $nombres) {
+        $baseUrl = rtrim((string)$baseUrl, "/") . "/";
+        $url = $baseUrl . "recuperar_contrasena_confirmar.php?token=" . urlencode((string)$token);
+
+        $nombresSafe = htmlspecialchars((string)$nombres, ENT_QUOTES, "UTF-8");
+
+        return '
+        <div style="font-family: Arial, sans-serif; font-size: 14px; color:#222;">
+          <div style="text-align:center; margin-bottom:10px;">
+            <img src="cid:logo_notificacion_correo" alt="Logo" style="max-width:260px;">
+          </div>
+
+          <p>Hola <b>'.$nombresSafe.'</b>,</p>
+
+          <p>Se ha generado una solicitud para <b>restablecer tu contraseña</b> en el portal
+          <b>IQ-ICBF | Gestión Integrada de Servicios</b>.</p>
+
+          <p><b>Código:</b> '.htmlspecialchars((string)$token, ENT_QUOTES, "UTF-8").'</p>
+
+          <p>Puedes continuar desde este enlace:</p>
+          <p><a href="'.$url.'">'.$url.'</a></p>
+
+          <hr style="border:none;border-top:1px solid #ddd;margin:18px 0;">
+
+          <div style="text-align:center;">
+            <img src="cid:firma_verde" alt="Firma" style="max-width:260px;">
+          </div>
+          <div style="text-align:center; margin-top:8px;">
+            <img src="cid:logo" alt="IQ" style="max-width:160px;">
+          </div>
+        </div>';
+    }
+
+    function encolar_correo_usuario(
+        $db,
+        $usu_id,
+        $correo,
+        $nombre,
+        $moduloId,
+        $prioridad,
+        $setFromId,
+        $subject,
+        $baseUrl,
+        $embRuta,
+        $embNombre,
+        $embTipo,
+        &$errorMsg
+    ) {
+        $errorMsg = "";
+
+        $correo = (string)$correo;
+        $usu_id = (string)$usu_id;
+
+        if (!filter_var($correo, FILTER_VALIDATE_EMAIL)) {
+            $errorMsg = "Correo inválido: " . $correo;
+            return false;
+        }
+
+        // Evita duplicado por (usuario + subject)
+        $qDup = "SELECT COUNT(nc_id) c FROM tb_notificaciones_central WHERE nc_usuario_registro=? AND nc_subject=?";
+        $stDup = $db->prepare($qDup);
+        if (!$stDup) {
+            $errorMsg = "Prepare duplicado: " . $db->error;
+            return false;
+        }
+        $stDup->bind_param("ss", $usu_id, $subject);
+        $stDup->execute();
+        $row = $stDup->get_result()->fetch_assoc();
+        $c = isset($row['c']) ? (int)$row['c'] : 0;
+        $stDup->close();
+
+        // Si ya existe, no vuelve a encolar (no rompe la creación)
+        if ($c > 0) {
+            return true;
+        }
+
+        // Token 6 dígitos
+        try {
+            $token = (string)random_int(100000, 999999);
+        } catch (Throwable $e) {
+            // Fallback muy raro, pero evita romper el flujo
+            $token = (string)mt_rand(100000, 999999);
+        }
+
+        $body = build_body_user($baseUrl, $token, $nombre);
+
+        // Transacción: token + notificación
+        $db->begin_transaction();
+        try {
+            // Inactivar tokens previos
+            $stTokOff = $db->prepare("UPDATE tb_administrador_token SET tk_estado='Inactivo' WHERE tk_usuario=? AND tk_estado='Activo'");
+            if ($stTokOff) {
+                $stTokOff->bind_param("s", $usu_id);
+                $stTokOff->execute();
+                $stTokOff->close();
+            }
+
+            // Insert token (según tu implementación que ya funciona en backfill)
+            $stTok = $db->prepare("INSERT INTO tb_administrador_token (tk_usuario, tk_token, tk_estado) VALUES (?, ?, 'Activo')");
+            if (!$stTok) {
+                throw new Exception("Prepare token: " . $db->error);
+            }
+            $stTok->bind_param("ss", $usu_id, $token);
+            $stTok->execute();
+            $stTok->close();
+
+            // Insert notificación
+            $nc_address    = $correo . "|" . $correo;
+            $nc_cc         = "";
+            $nc_bcc        = "";
+            $nc_reply      = "";
+            $nc_intentos   = "0";
+            $nc_eliminar   = "0";
+            $nc_estado     = "Pendiente";
+            $nc_fecha_envio= "";
+
+            $stNc = $db->prepare("
+                INSERT INTO tb_notificaciones_central
+                (nc_id_modulo, nc_prioridad, nc_id_set_from, nc_address, nc_cc, nc_bcc, nc_reply_to,
+                 nc_subject, nc_body, nc_embeddedimage_ruta, nc_embeddedimage_nombre, nc_embeddedimage_tipo,
+                 nc_intentos, nc_eliminar, nc_estado_envio, nc_fecha_envio, nc_usuario_registro)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ");
+            if (!$stNc) {
+                throw new Exception("Prepare notificación: " . $db->error);
+            }
+
+            // Tipos: i(s)i(s)(s)(s)(s)(s)(s)(s)(s)(s)(s)(s)(s)(s)(s)
+            $types = "isissssssssssssss";
+            $stNc->bind_param(
+                $types,
+                $moduloId,
+                $prioridad,
+                $setFromId,
+                $nc_address,
+                $nc_cc,
+                $nc_bcc,
+                $nc_reply,
+                $subject,
+                $body,
+                $embRuta,
+                $embNombre,
+                $embTipo,
+                $nc_intentos,
+                $nc_eliminar,
+                $nc_estado,
+                $nc_fecha_envio,
+                $usu_id
+            );
+            $stNc->execute();
+            $stNc->close();
+
+            $db->commit();
+            return true;
+
+        } catch (Throwable $e) {
+            $db->rollback();
+            $errorMsg = $e->getMessage();
+            error_log("encolar_correo_usuario error usu_id={$usu_id}: " . $errorMsg);
+            return false;
+        }
+    }
+
     if(isset($_POST["guardar_registro"])){
         $documento_identidad=validar_input($_POST['documento_identidad']);
         $nombres_apellidos=validar_input($_POST['nombres_apellidos']);
@@ -29,7 +221,7 @@
         $inicio_sesion=0;
 
         if($_SESSION['registro_creado']!=1){
-            $salt = substr(base64_encode(openssl_random_pseudo_bytes('30')), 0, 22);
+            $salt = substr(base64_encode(openssl_random_pseudo_bytes(30)), 0, 22);
             $salt = strtr($salt, array('+' => '.'));
             $contrasena = crypt($documento_identidad, '$2y$10$' . $salt);
 
@@ -41,24 +233,50 @@
             $resultado_registros_duplicados = $consulta_registros_duplicados->get_result()->fetch_all(MYSQLI_NUM);
 
             if ($resultado_registros_duplicados[0][0]==0) {
-                
+
                 // Prepara la sentencia
                 $sentencia_insert = $enlace_db->prepare("INSERT INTO `tb_administrador_usuario`(`usu_id`, `usu_acceso`, `usu_contrasena`, `usu_nombres_apellidos`, `usu_correo_corporativo`, `usu_fecha_incorporacion`, `usu_campania`, `usu_usuario_red`, `usu_cargo_rol`, `usu_sede`, `usu_ciudad`, `usu_estado`, `usu_supervisor`, `usu_lider_calidad`, `usu_inicio_sesion`, `usu_piloto`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
 
                 // Agrega variables a sentencia preparada
                 $sentencia_insert->bind_param('ssssssssssssssss', $documento_identidad, $usuario_acceso, $contrasena, $nombres_apellidos, $correo_corporativo, $fecha_ingreso, $campania, $usuario_red, $cargo_rol, $ubicacion, $ciudad, $estado, $supervisor, $lider_calidad, $inicio_sesion, $primer_empleo);
-                
+
                 if ($sentencia_insert->execute()) {
-                    $respuesta_accion = "<script type='text/javascript'>alertify.success('¡Registro creado exitosamente!', 0);</script>";
-                  $_SESSION['registro_creado']=1;
+
+                    // Encolar correo (sin romper el flujo si falla)
+                    $err = "";
+                    $encolado_ok = encolar_correo_usuario(
+                        $enlace_db,
+                        $documento_identidad,
+                        $correo_corporativo,
+                        $nombres_apellidos,
+                        $MODULO_ID,
+                        $PRIORIDAD,
+                        $SETFROM_ID,
+                        $SUBJECT,
+                        $BASE_URL,
+                        $emb_ruta,
+                        $emb_nombre,
+                        $emb_tipo,
+                        $err
+                    );
+
+                    if ($encolado_ok) {
+                        // Mantiene estilo de mensaje (success) sin tocar diseño
+                        $respuesta_accion = "<script type='text/javascript'>alertify.success('¡Registro creado exitosamente!', 0);</script>";
+                    } else {
+                        $msg = htmlspecialchars((string)$err, ENT_QUOTES, 'UTF-8');
+                        $respuesta_accion = "<script type='text/javascript'>alertify.warning('¡Registro creado, pero no se pudo encolar correo! Detalle: {$msg}', 0);</script>";
+                    }
+
+                    $_SESSION['registro_creado']=1;
+
                 } else {
-                  $respuesta_accion = "<script type='text/javascript'>alertify.warning('¡Problemas al crear el registro, por favor verifique e intente nuevamente!', 0);</script>";
+                    $respuesta_accion = "<script type='text/javascript'>alertify.warning('¡Problemas al crear el registro, por favor verifique e intente nuevamente!', 0);</script>";
                 }
             } else {
                 $respuesta_accion = "<script type='text/javascript'>alertify.warning('¡Usuario duplicado, por favor verifique e intente nuevamente!', 0);</script>";
             }
-            
-            
+
         } else {
             $respuesta_accion = "<script type='text/javascript'>alertify.success('¡Registro creado exitosamente, haga clic en <b>Finalizar</b> para salir!', 0);</script>";
         }
@@ -178,7 +396,7 @@
                             <label for="ciudad">Ciudad</label>
                             <select class="form-control form-control-sm" name="ciudad" id="ciudad" <?php if($_SESSION['registro_creado']==1) { echo 'disabled'; } ?> required>
                                 <option value="">Seleccione</option>
-                                <?php for ($i=0; $i < count($resultado_registros_ciudad); $i++): ?> 
+                                <?php for ($i=0; $i < count($resultado_registros_ciudad); $i++): ?>
                                     <option value="<?php echo $resultado_registros_ciudad[$i][0]; ?>" <?php if(isset($_POST["guardar_registro"]) AND $ciudad==$resultado_registros_ciudad[$i][0]){ echo "selected"; } ?>><?php echo $resultado_registros_ciudad[$i][2].", ".$resultado_registros_ciudad[$i][1]; ?></option>
                                 <?php endfor; ?>
                             </select>
@@ -189,7 +407,7 @@
                             <label for="ubicacion">Ubicación</label>
                             <select class="form-control form-control-sm" name="ubicacion" id="ubicacion" <?php if($_SESSION['registro_creado']==1) { echo 'disabled'; } ?> required>
                                 <option value="">Seleccione</option>
-                                <?php for ($i=0; $i < count($resultado_registros_ubicacion); $i++): ?> 
+                                <?php for ($i=0; $i < count($resultado_registros_ubicacion); $i++): ?>
                                     <option value="<?php echo $resultado_registros_ubicacion[$i][0]; ?>" <?php if(isset($_POST["guardar_registro"]) AND $ubicacion==$resultado_registros_ubicacion[$i][0]){ echo "selected"; } ?>><?php echo $resultado_registros_ubicacion[$i][1]; ?></option>
                                 <?php endfor; ?>
                             </select>
@@ -200,7 +418,7 @@
                             <label for="campania">Campaña</label>
                             <select class="form-control form-control-sm" name="campania" id="campania" <?php if($_SESSION['registro_creado']==1) { echo 'disabled'; } ?> required>
                                 <option value="">Seleccione</option>
-                                <?php for ($i=0; $i < count($resultado_registros_campania); $i++): ?> 
+                                <?php for ($i=0; $i < count($resultado_registros_campania); $i++): ?>
                                     <option value="<?php echo $resultado_registros_campania[$i][0]; ?>" <?php if(isset($_POST["guardar_registro"]) AND $campania==$resultado_registros_campania[$i][0]){ echo "selected"; } ?>><?php echo $resultado_registros_campania[$i][1]; ?></option>
                                 <?php endfor; ?>
                             </select>
@@ -227,7 +445,7 @@
                             <label for="supervisor">Supervisor</label>
                             <select class="form-control form-control-sm" name="supervisor" id="supervisor" <?php if($_SESSION['registro_creado']==1) { echo 'disabled'; } ?> required>
                                 <option value="">Seleccione</option>
-                                <?php for ($i=0; $i < count($resultado_registros_supervisor); $i++): ?> 
+                                <?php for ($i=0; $i < count($resultado_registros_supervisor); $i++): ?>
                                     <option value="<?php echo $resultado_registros_supervisor[$i][0]; ?>" <?php if(isset($_POST["guardar_registro"]) AND $supervisor==$resultado_registros_supervisor[$i][0]){ echo "selected"; } ?>><?php echo $resultado_registros_supervisor[$i][1]; ?></option>
                                 <?php endfor; ?>
                             </select>
@@ -238,7 +456,7 @@
                             <label for="lider_calidad">Líder de calidad</label>
                             <select class="form-control form-control-sm" name="lider_calidad" id="lider_calidad" <?php if($_SESSION['registro_creado']==1) { echo 'disabled'; } ?>>
                                 <option value="">Seleccione</option>
-                                <?php for ($i=0; $i < count($resultado_registros_calidad); $i++): ?> 
+                                <?php for ($i=0; $i < count($resultado_registros_calidad); $i++): ?>
                                     <option value="<?php echo $resultado_registros_calidad[$i][0]; ?>" <?php if(isset($_POST["guardar_registro"]) AND $lider_calidad==$resultado_registros_calidad[$i][0]){ echo "selected"; } ?>><?php echo $resultado_registros_calidad[$i][1]; ?></option>
                                 <?php endfor; ?>
                             </select>
@@ -260,7 +478,7 @@
             </div>
         </div>
         </form>
-            
+
     </div>
     <?php
         include("../footer.php");

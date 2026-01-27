@@ -1,18 +1,5 @@
 <?php
-    // --- Sesion segura (cookie Secure en HTTPS) ---
-    $isHttps = (!empty($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] !== "off")
-        || (isset($_SERVER["SERVER_PORT"]) && (int)$_SERVER["SERVER_PORT"] === 443)
-        || (!empty($_SERVER["HTTP_X_FORWARDED_PROTO"]) && $_SERVER["HTTP_X_FORWARDED_PROTO"] === "https");
-
-    ini_set("session.cookie_httponly", "1");
-    ini_set("session.cookie_samesite", "Lax");
-    if ($isHttps) {
-        ini_set("session.cookie_secure", "1");
-    }
-
-    if (session_status() !== PHP_SESSION_ACTIVE) {
-        session_start();
-    }
+	session_start();
     error_reporting(0);
     
 	//validaciones de seguridad

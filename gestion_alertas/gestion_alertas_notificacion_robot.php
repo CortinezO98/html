@@ -14,15 +14,16 @@ ini_set('display_errors', '0');
 ini_set('log_errors', '1');
 ini_set('error_log', __DIR__ . '/php_error_gestion_alertas_notificacion_robot.log');
 
-require_once("/var/www/html/config/conexion_db.php");
+$BASE = realpath(__DIR__ . "/.."); // /var/www/icbf/html
+require_once($BASE . "/config/conexion_db.php");
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 use PHPMailer\PHPMailer\SMTP;
 
-require '/var/www/html/PHPMailer-master/src/Exception.php';
-require '/var/www/html/PHPMailer-master/src/PHPMailer.php';
-require '/var/www/html/PHPMailer-master/src/SMTP.php';
+require $BASE . "/PHPMailer-master/src/Exception.php";
+require $BASE . "/PHPMailer-master/src/PHPMailer.php";
+require $BASE . "/PHPMailer-master/src/SMTP.php";
 
 /* =========================
    Helpers de seguridad

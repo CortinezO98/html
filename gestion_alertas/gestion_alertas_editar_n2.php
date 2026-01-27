@@ -337,7 +337,7 @@
                             $nc_bcc = "";
                             $nc_subject = "Retroalimentación Alerta de N2";
                             $nc_body = str_replace("'", '"', $contenido_correo); // se conserva por compatibilidad con el flujo existente
-                            $nc_embeddedimage_ruta = "/var/www/html/images/firma-verde.png";
+                            $nc_embeddedimage_ruta = "/var/www/icbf/html/images/firma-verde.png";
                             $nc_embeddedimage_nombre = "logo_firma_verde";
                             $nc_embeddedimage_tipo = "image/png";
                             $nc_adjuntos_nombre = "";
@@ -474,7 +474,7 @@
                             $nc_bcc="";
                             $nc_subject="Escalamiento Alerta a Regional";
                             $nc_body=str_replace("'", '"', $contenido_correo);
-                            $nc_embeddedimage_ruta="/var/www/html/images/firma-verde.png";
+                            $nc_embeddedimage_ruta="/var/www/icbf/html/images/firma-verde.png";
                             $nc_embeddedimage_nombre="logo_firma_verde";
                             $nc_embeddedimage_tipo="image/png";
                             $nc_adjuntos_nombre="";

@@ -1,3 +1,3 @@
 #!/bin/bash
-# -*- ENCODING: UTF-8 -*-
-php /var/www/html/config_robots/notificaciones_central.php
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+php "$DIR/notificaciones_central.php"

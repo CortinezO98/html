@@ -282,7 +282,7 @@
                     $nc_bcc="";
                     $nc_subject="Retroalimentación Alerta de N1";
                     $nc_body=str_replace("'", '"', $contenido_correo);
-                    $nc_embeddedimage_ruta="/var/www/html/images/firma-verde.png";
+                    $nc_embeddedimage_ruta="/var/www/icbf/html/images/firma-verde.png";
                     $nc_embeddedimage_nombre="logo_firma_verde";
                     $nc_embeddedimage_tipo="image/png";
                     $nc_adjuntos_nombre="";
@@ -434,7 +434,7 @@
                     $nc_bcc="mariostiv@hotmail.com|mariostiv@hotmail.com";
                     $nc_subject="Escalamiento Alerta a N2";
                     $nc_body=str_replace("'", '"', $contenido_correo);
-                    $nc_embeddedimage_ruta="/var/www/html/images/firma-verde.png";
+                    $nc_embeddedimage_ruta="/var/www/icbf/html/images/firma-verde.png";
                     $nc_embeddedimage_nombre="logo_firma_verde";
                     $nc_embeddedimage_tipo="image/png";
                     $nc_adjuntos_nombre="";
