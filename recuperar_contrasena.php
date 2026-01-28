@@ -1,276 +1,282 @@
 <?php
-    require_once("config/validaciones_seguridad_raiz.php");
-    require_once("config/conexion_db.php");
+require_once("config/validaciones_seguridad_raiz.php");
+require_once("config/conexion_db.php");
 
-    // =========================
-    // Helpers (sin romper flujo)
-    // =========================
-    function tokenTableHasEstado(mysqli $db): bool {
-        try {
-            $rs = $db->query("SHOW COLUMNS FROM tb_administrador_token LIKE 'tk_estado'");
-            return ($rs && $rs->num_rows > 0);
-        } catch (Throwable $e) {
-            return false;
-        }
+// =========================
+// Helpers (sin romper flujo)
+// =========================
+function tokenTableHasEstado(mysqli $db): bool {
+    try {
+        $rs = $db->query("SHOW COLUMNS FROM tb_administrador_token LIKE 'tk_estado'");
+        return ($rs && $rs->num_rows > 0);
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+function getBaseUrl(): string {
+    // 1) Prioridad: APP_URL / BASE_URL (si ya lo estás manejando en entorno)
+    $u = getenv('APP_URL') ?: getenv('BASE_URL');
+
+    // 2) Fallback: URL actual del host (recomendado para evitar IP hardcodeada)
+    if (!$u) {
+        $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+                   || (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443)
+                   || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+
+        $proto = $isHttps ? 'https' : 'http';
+        $host  = $_SERVER['HTTP_HOST'] ?? 'modulocalidad.grupoasd.com';
+        $u = $proto . '://' . $host . '/';
     }
 
-    function getBaseUrl(): string {
-        // 1) Prioridad: APP_URL / BASE_URL (si ya lo estás manejando en entorno)
-        $u = getenv('APP_URL') ?: getenv('BASE_URL');
+    $u = trim($u);
+    if ($u === '') $u = 'https://modulocalidad.grupoasd.com/';
 
-        // 2) Fallback: URL actual del host (recomendado para evitar IP hardcodeada)
-        if (!$u) {
-            $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-                       || (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443)
-                       || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
-
-            $proto = $isHttps ? 'https' : 'http';
-            $host  = $_SERVER['HTTP_HOST'] ?? 'modulocalidad.grupoasd.com';
-            $u = $proto . '://' . $host . '/';
-        }
-
-        $u = trim($u);
-        if ($u === '') $u = 'https://modulocalidad.grupoasd.com/';
-
-        // Si viene sin esquema, forzamos https (evita links tipo "52.188.206.38")
-        if (!preg_match('~^https?://~i', $u)) {
-            $u = 'https://' . $u;
-        }
-
-        return rtrim($u, '/') . '/';
+    // Si viene sin esquema, forzamos https (evita links tipo "52.188.206.38")
+    if (!preg_match('~^https?://~i', $u)) {
+        $u = 'https://' . $u;
     }
 
-    //Si sesion esta iniciada se redirige al contenido, sino muestra index de logueo//
-    if(isset($_SESSION["usu_id"]) AND $_SESSION['usu_inicio_sesion']!=0){
-        header("Location:contenido.php");
-        exit;
-    } else {
+    return rtrim($u, '/') . '/';
+}
 
-        if(isset($_POST["form_recovery"])){
+//Si sesion esta iniciada se redirige al contenido, sino muestra index de logueo//
+if (isset($_SESSION["usu_id"]) && (int)($_SESSION['usu_inicio_sesion'] ?? 0) != 0) {
+    header("Location:contenido.php");
+    exit;
+} else {
 
-            //obtiene variable de captcha
-            $captcha_validacion_recovery = validar_input($_POST['captcha_validacion_recovery'] ?? '');
-            $captcha_original = validar_input($_COOKIE['captcha'] ?? '');
+    if (isset($_POST["form_recovery"])) {
 
-            //obtiene variable usuario y contraseña
-            $doc_identidad  = validar_input($_POST['doc_identidad'] ?? '');
-            $correo_usuario = validar_input($_POST['correo_usuario'] ?? '');
+        //obtiene variable de captcha
+        $captcha_validacion_recovery = validar_input($_POST['captcha_validacion_recovery'] ?? '');
+        $captcha_original = validar_input($_COOKIE['captcha'] ?? '');
 
-            //valida el captcha correcto
-            if ($captcha_original !== '' && $captcha_original == sha1($captcha_validacion_recovery)) {
+        //obtiene variable usuario y contraseña
+        $doc_identidad  = validar_input($_POST['doc_identidad'] ?? '');
+        $correo_usuario = validar_input($_POST['correo_usuario'] ?? '');
 
-                $consulta_string = "SELECT `usu_id`, `usu_acceso`, `usu_contrasena`, `usu_nombres_apellidos`, `usu_correo_corporativo`, `usu_estado`, `usu_inicio_sesion`, `usu_campania`
-                                    FROM `tb_administrador_usuario`
-                                    WHERE `usu_id`=? AND `usu_correo_corporativo`=?";
+        //valida el captcha correcto
+        if ($captcha_original !== '' && $captcha_original == sha1($captcha_validacion_recovery)) {
 
-                $consulta_registros = $enlace_db->prepare($consulta_string);
-                $consulta_registros->bind_param("ss", $doc_identidad, $correo_usuario);
-                $consulta_registros->execute();
-                $resultado_registros = $consulta_registros->get_result()->fetch_all(MYSQLI_NUM);
+            $consulta_string = "SELECT `usu_id`, `usu_acceso`, `usu_contrasena`, `usu_nombres_apellidos`, `usu_correo_corporativo`, `usu_estado`, `usu_inicio_sesion`, `usu_campania`
+                                FROM `tb_administrador_usuario`
+                                WHERE `usu_id`=? AND `usu_correo_corporativo`=?";
 
-                if (count($resultado_registros)>0) {
+            $consulta_registros = $enlace_db->prepare($consulta_string);
+            $consulta_registros->bind_param("ss", $doc_identidad, $correo_usuario);
+            $consulta_registros->execute();
+            $resultado_registros = $consulta_registros->get_result()->fetch_all(MYSQLI_NUM);
 
-                    if($resultado_registros[0][5]=='Activo'){
+            if (count($resultado_registros) > 0) {
 
-                        // Token 6 dígitos (mantiene la lógica original, solo más limpio)
-                        $token_hex = (string)random_int(100000, 999999);
+                if ($resultado_registros[0][5] == 'Activo') {
 
-                        // (MEJORA) Inactivar tokens activos previos si existe tk_estado
-                        $hasEstado = tokenTableHasEstado($enlace_db);
-                        if ($hasEstado) {
+                    // Token 6 dígitos (mantiene la lógica original, solo más limpio)
+                    $token_hex = (string)random_int(100000, 999999);
+
+                    // (MEJORA) Inactivar tokens activos previos si existe tk_estado
+                    $hasEstado = tokenTableHasEstado($enlace_db);
+                    if ($hasEstado) {
+                        try {
+                            $st_off = $enlace_db->prepare("UPDATE tb_administrador_token SET tk_estado='Inactivo' WHERE tk_usuario=? AND tk_estado='Activo'");
+                            $st_off->bind_param("s", $resultado_registros[0][0]);
+                            $st_off->execute();
+                        } catch (Throwable $e) {
+                            // No rompemos flujo si falla
+                        }
+                    }
+
+                    // Inserta token (misma tabla, misma idea)
+                    if ($hasEstado) {
+                        $sentencia_insert_token = $enlace_db->prepare("INSERT INTO `tb_administrador_token`(`tk_usuario`, `tk_token`, `tk_estado`) VALUES (?,?,'Activo')");
+                        $sentencia_insert_token->bind_param('ss', $resultado_registros[0][0], $token_hex);
+                    } else {
+                        // Fallback si el esquema no tiene tk_estado
+                        $sentencia_insert_token = $enlace_db->prepare("INSERT INTO `tb_administrador_token`(`tk_usuario`, `tk_token`) VALUES (?,?)");
+                        $sentencia_insert_token->bind_param('ss', $resultado_registros[0][0], $token_hex);
+                    }
+
+                    if ($sentencia_insert_token->execute()) {
+
+                        /* ================================
+                           NOTIFICACIÓN: MISMO FLUJO LEGACY
+                           ================================ */
+
+                        // URL sin IP hardcodeada
+                        $baseUrl = getBaseUrl();
+
+                        // ✅ NUEVO: link directo al confirmar (para que el usuario sí tenga dónde validar el código)
+                        $confirmUrl = $baseUrl
+                            . "recuperar_contrasena_confirmar.php?u=" . urlencode(base64_encode($resultado_registros[0][0]))
+                            . "&e=" . urlencode(base64_encode($resultado_registros[0][4]));
+
+                        // Rutas embebidas correctas (evita /var/www/html)
+                        $imagesDir = realpath(__DIR__ . '/images');
+                        if ($imagesDir === false) {
+                            // fallback seguro (tu estructura real)
+                            $imagesDir = '/var/www/icbf/html/images';
+                        }
+
+                        $nc_embeddedimage_ruta = $imagesDir . "/firma-verde.png;"
+                                               . $imagesDir . "/logo.png;"
+                                               . $imagesDir . "/logo_notificacion_correo.png";
+
+                        // Contenido: mismo look & feel, ahora con botón al confirmar
+                        $contenido_correo = "<center><table style='width:100%; max-width: 600px; font-size: 13px; font-family: Lato, Arial, sans-serif;'>
+                                    <tr>
+                                        <td style='padding: 5px 5px 5px 5px;'><img src='cid:logo' style='width: 160px;'></img></td>
+                                        <td style='padding: 5px 5px 5px 5px; text-align: right;'><img src='cid:logo_notificacion_correo'></td>
+                                    </tr>
+                                </table>
+                                <table style='width:100%; max-width: 600px; font-family: Lato, Arial, sans-serif;'>
+                                    <tr>
+                                        <td style='padding: 5px 5px 5px 5px;'>
+                                            <p style='font-size: 13px;padding: 0px 5px 0px 5px;color: #666666;'><b>Restablecer Contraseña</b></p>
+                                            <br>
+                                            <p style='font-size: 12px;padding: 0px 5px 0px 5px; color: #666666;'>Cordial saludo,<br><br>¡Hemos recibido una solicitud para restablecer la contraseña de tu cuenta!<br>Si no es tuya, ignora este correo electrónico.</p>
+                                            <br>
+                                            <center>
+                                                <p style='font-size: 12px;padding: 0px 5px 0px 5px; color: #666666;'><b>Código: {$token_hex}</b></p>
+                                            </center>
+                                            <br>
+                                            <p style='font-size: 12px;padding: 0px 5px 0px 5px; color: #666666;'>Ingresa el código anterior para continuar con el proceso de restauración de contraseña.</p>
+                                            <center>
+                                                <a href='" . htmlspecialchars($confirmUrl, ENT_QUOTES, "UTF-8") . "' target='_blank' style='border-radius:4px; color:#ffffff; font-size:12px; padding: 5px 5px 5px 5px; text-align:center; text-decoration:none!important; width:50%; display: block; background-color: #72BF44'>Continuar Restablecimiento</a>
+                                            </center>
+                                            <br>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <table style='width: 100%; max-width: 600px; background: #666666; font-family: Lato, Arial, sans-serif;'>
+                                    <tr>
+                                        <td style='font-size: 12px; padding: 5px 10px 5px 10px; color: #FFFFFF'>
+                                            <center>IQ-ICBF | Gestión Integrada de Servicios | &copy; Copyright 2020 Todos los derechos reservados.</center>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <table style='width:100%; max-width: 600px; font-family: Lato, Arial, sans-serif;'>
+                                    <tr>
+                                        <td style='padding: 5px 5px 5px 5px;'>
+                                            <center>
+                                                <p style='font-size: 12px;font-family: Lato, Arial, sans-serif; color: #666666;'>Te recordamos que este correo electrónico es utilizado solamente para el envío de notificaciones automáticas.
+                                                    <br>Por favor no respondas con consultas personales ya que no podrán ser respondidas.
+                                                </p>
+                                            </center>
+                                        </td>
+                                    </tr>
+                                </table>
+                                <center>
+                                    <table style='max-width: 600px; font-family: Lato, Arial, sans-serif;'>
+                                        <tr>
+                                            <td style='width: 45px;'><img src='cid:firma-verde' style='margin: 5px; width: 45px;'></td>
+                                            <td>
+                                                <p style='font-size: 11px; color: #196F3D; font-family: Lato, Arial, sans-serif;'><br>No imprima este mensaje de no ser necesario;<br>de ésta manera aportamos al cuidado del planeta.</p>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </center>
+                                <table style='width:100%; max-width: 600px; font-family: Lato, Arial, sans-serif;'>
+                                    <tr>
+                                        <td style='padding: 5px 5px 5px 5px;'>
+                                            <center>
+                                                <i><p style='font-size: 11px;font-family: Lato, Arial, sans-serif; color: #666666;'>AVISO LEGAL (o AVISO DE CONFIDENCIALIDAD): El contenido de este mensaje y sus anexos pueden contener información confidencial o legalmente protegida de propiedad de la ENTIDAD REMITENTE, y no podrá ser utilizada ni divulgada bajo ningún aspecto por personas diferentes a su destinatario. Cualquier uso, divulgación, copia, distribución, impresión o actos originados con ocasión al conocimiento de este mensaje sin autorización de la ENTIDAD REMITENTE será sancionado de acuerdo con las normas legales vigentes y la ENTIDAD REMITENTE no asumiría ninguna responsabilidad. El destinatario del mensaje, o cualquier otra persona que lo reciba, tendrá bajo su custodia la información aquí contenida y deberá velar por mantener su confidencialidad, integridad y privacidad. Las opiniones contenidas en este mensaje electrónico no relacionadas con la actividad de la ENTIDAD REMITENTE, no necesariamente representan la opinión de la ENTIDAD REMITENTE como empresa. Si por error, recibe este mensaje, deberá dar aviso inmediatamente a su remitente y destruir toda copia que tenga del mismo. Cualquier persona que ilícitamente elimine, esconda, cambie, destruya, intercepte, divulgue, controle o impida de otra forma que esta comunicación llegue de manera íntegra y oportuna a su destinatario, estará sujeto a las sanciones penales correspondientes. Aunque la ENTIDAD REMITENTE ha tomado las medidas preventivas para protegerse de virus y otros programas maliciosos, el destinatario debe verificar la presencia de este tipo de programas que tenga el correo o cualquier anexo a él, y por esta razón la ENTIDAD REMITENTE no se hace responsable de los daños causados por virus o cualquier otro programa malicioso transmitido por este medio.
+                                                </p></i>
+                                            </center>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </center>";
+
+                        $nc_id_set_from = "1";
+                        $nc_address = $correo_usuario . '|' . $correo_usuario;
+                        $nc_cc = "";
+                        $nc_bcc = "";
+                        $nc_reply_to = "";
+                        $nc_subject = "Restablecer Contraseña - IQ-ICBF | Gestión Integrada de Servicios";
+                        $nc_body = str_replace("'", '"', $contenido_correo);
+
+                        $nc_embeddedimage_nombre = "firma-verde;logo;logo_notificacion_correo";
+                        $nc_embeddedimage_tipo = "image/png;image/png;image/png";
+
+                        $nc_intentos = "";
+                        $nc_eliminar = "Si";
+                        $nc_estado_envio = "Pendiente";
+                        $nc_fecha_envio = "";
+                        $nc_usuario_registro = $doc_identidad;
+
+                        // Insert seguro con prepared statement (misma funcionalidad, sin concatenación)
+                        $verifica_notificacion = 0;
+
+                        $stNotif = $enlace_db->prepare("
+                            INSERT INTO `tb_notificaciones_central`
+                            (`nc_id_modulo`, `nc_prioridad`, `nc_id_set_from`, `nc_address`, `nc_cc`, `nc_bcc`, `nc_reply_to`,
+                             `nc_subject`, `nc_body`, `nc_embeddedimage_ruta`, `nc_embeddedimage_nombre`, `nc_embeddedimage_tipo`,
+                             `nc_intentos`, `nc_eliminar`, `nc_estado_envio`, `nc_fecha_envio`, `nc_usuario_registro`)
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                        ");
+
+                        // Mantenemos el “reintento” original (10 veces) sin romper lógica
+                        for ($i = 0; $i < 10; $i++) {
                             try {
-                                $st_off = $enlace_db->prepare("UPDATE tb_administrador_token SET tk_estado='Inactivo' WHERE tk_usuario=? AND tk_estado='Activo'");
-                                $st_off->bind_param("s", $resultado_registros[0][0]);
-                                $st_off->execute();
-                            } catch (Throwable $e) {
-                                // No rompemos flujo si falla
-                            }
-                        }
+                                $nc_id_modulo = 1;
+                                $nc_prioridad = "Alta";
 
-                        // Inserta token (misma tabla, misma idea)
-                        if ($hasEstado) {
-                            $sentencia_insert_token = $enlace_db->prepare("INSERT INTO `tb_administrador_token`(`tk_usuario`, `tk_token`, `tk_estado`) VALUES (?,?,'Activo')");
-                            $sentencia_insert_token->bind_param('ss', $resultado_registros[0][0], $token_hex);
-                        } else {
-                            // Fallback si el esquema no tiene tk_estado
-                            $sentencia_insert_token = $enlace_db->prepare("INSERT INTO `tb_administrador_token`(`tk_usuario`, `tk_token`) VALUES (?,?)");
-                            $sentencia_insert_token->bind_param('ss', $resultado_registros[0][0], $token_hex);
-                        }
+                                $types = "isissssssssssssss";
+                                $stNotif->bind_param(
+                                    $types,
+                                    $nc_id_modulo,
+                                    $nc_prioridad,
+                                    $nc_id_set_from,
+                                    $nc_address,
+                                    $nc_cc,
+                                    $nc_bcc,
+                                    $nc_reply_to,
+                                    $nc_subject,
+                                    $nc_body,
+                                    $nc_embeddedimage_ruta,
+                                    $nc_embeddedimage_nombre,
+                                    $nc_embeddedimage_tipo,
+                                    $nc_intentos,
+                                    $nc_eliminar,
+                                    $nc_estado_envio,
+                                    $nc_fecha_envio,
+                                    $nc_usuario_registro
+                                );
 
-                        if ($sentencia_insert_token->execute()) {
+                                if ($stNotif->execute()) {
+                                    $verifica_notificacion = 1;
+                                    registro_log($enlace_db, 'Login', 'notificacion', $nc_subject, 'NULL', $doc_identidad);
 
-                            /* ================================
-                               NOTIFICACIÓN: MISMO FLUJO LEGACY
-                               ================================ */
-
-                            // URL sin IP hardcodeada
-                            $baseUrl = getBaseUrl();
-
-                            // Rutas embebidas correctas (evita /var/www/html)
-                            $imagesDir = realpath(__DIR__ . '/images');
-                            if ($imagesDir === false) {
-                                // fallback seguro (tu estructura real)
-                                $imagesDir = '/var/www/icbf/html/images';
-                            }
-
-                            $nc_embeddedimage_ruta = $imagesDir . "/firma-verde.png;"
-                                                   . $imagesDir . "/logo.png;"
-                                                   . $imagesDir . "/logo_notificacion_correo.png";
-
-                            // Contenido: se mantiene el look & feel, solo se reemplaza el enlace fijo por $baseUrl
-                            $contenido_correo="<center><table style='width:100%; max-width: 600px; font-size: 13px; font-family: Lato, Arial, sans-serif;'>
-                                        <tr>
-                                            <td style='padding: 5px 5px 5px 5px;'><img src='cid:logo' style='width: 160px;'></img></td>
-                                            <td style='padding: 5px 5px 5px 5px; text-align: right;'><img src='cid:logo_notificacion_correo'></td>
-                                        </tr>
-                                    </table>
-                                    <table style='width:100%; max-width: 600px; font-family: Lato, Arial, sans-serif;'>
-                                        <tr>
-                                            <td style='padding: 5px 5px 5px 5px;'>
-                                                <p style='font-size: 13px;padding: 0px 5px 0px 5px;color: #666666;'><b>Restablecer Contraseña</b></p>
-                                                <br>
-                                                <p style='font-size: 12px;padding: 0px 5px 0px 5px; color: #666666;'>Cordial saludo,<br><br>¡Hemos recibido una solicitud para restablecer la contraseña de tu cuenta!<br>Si no es tuya, ignora este correo electrónico.</p>
-                                                <br>
-                                                <center>
-                                                    <p style='font-size: 12px;padding: 0px 5px 0px 5px; color: #666666;'><b>Código: ".$token_hex."</b></p>
-                                                </center>
-                                                <br>
-                                                <p style='font-size: 12px;padding: 0px 5px 0px 5px; color: #666666;'>Ingresa el código anterior para continuar con el proceso de restauración de contraseña.</p>
-                                                <center>
-                                                    <a href='".htmlspecialchars($baseUrl, ENT_QUOTES, "UTF-8")."' target='_blank' style='border-radius:4px; color:#ffffff; font-size:12px; padding: 5px 5px 5px 5px; text-align:center; text-decoration:none!important; width:50%; display: block; background-color: #72BF44'>Ir a IQGIS-ICBF</a>
-                                                </center>
-                                                <br>
-                                            </td>
-                                        </tr>
-                                    </table>
-                                    <table style='width: 100%; max-width: 600px; background: #666666; font-family: Lato, Arial, sans-serif;'>
-                                        <tr>
-                                            <td style='font-size: 12px; padding: 5px 10px 5px 10px; color: #FFFFFF'>
-                                                <center>IQ-ICBF | Gestión Integrada de Servicios | &copy; Copyright 2020 Todos los derechos reservados.</center>
-                                            </td>
-                                        </tr>
-                                    </table>
-                                    <table style='width:100%; max-width: 600px; font-family: Lato, Arial, sans-serif;'>
-                                        <tr>
-                                            <td style='padding: 5px 5px 5px 5px;'>
-                                                <center>
-                                                    <p style='font-size: 12px;font-family: Lato, Arial, sans-serif; color: #666666;'>Te recordamos que este correo electrónico es utilizado solamente para el envío de notificaciones automáticas.
-                                                        <br>Por favor no respondas con consultas personales ya que no podrán ser respondidas.
-                                                    </p>
-                                                </center>
-                                            </td>
-                                        </tr>
-                                    </table>
-                                    <center>
-                                        <table style='max-width: 600px; font-family: Lato, Arial, sans-serif;'>
-                                            <tr>
-                                                <td style='width: 45px;'><img src='cid:firma-verde' style='margin: 5px; width: 45px;'></td>
-                                                <td>
-                                                    <p style='font-size: 11px; color: #196F3D; font-family: Lato, Arial, sans-serif;'><br>No imprima este mensaje de no ser necesario;<br>de ésta manera aportamos al cuidado del planeta.</p>
-                                                </td>
-                                            </tr>
-                                        </table>
-                                    </center>
-                                    <table style='width:100%; max-width: 600px; font-family: Lato, Arial, sans-serif;'>
-                                        <tr>
-                                            <td style='padding: 5px 5px 5px 5px;'>
-                                                <center>
-                                                    <i><p style='font-size: 11px;font-family: Lato, Arial, sans-serif; color: #666666;'>AVISO LEGAL (o AVISO DE CONFIDENCIALIDAD): El contenido de este mensaje y sus anexos pueden contener información confidencial o legalmente protegida de propiedad de la ENTIDAD REMITENTE, y no podrá ser utilizada ni divulgada bajo ningún aspecto por personas diferentes a su destinatario. Cualquier uso, divulgación, copia, distribución, impresión o actos originados con ocasión al conocimiento de este mensaje sin autorización de la ENTIDAD REMITENTE será sancionado de acuerdo con las normas legales vigentes y la ENTIDAD REMITENTE no asumirá ninguna responsabilidad. El destinatario del mensaje, o cualquier otra persona que lo reciba, tendrá bajo su custodia la información aquí contenida y deberá velar por mantener su confidencialidad, integridad y privacidad. Las opiniones contenidas en este mensaje electrónico no relacionadas con la actividad de la ENTIDAD REMITENTE, no necesariamente representan la opinión de la ENTIDAD REMITENTE como empresa. Si por error, recibe este mensaje, deberá dar aviso inmediatamente a su remitente y destruir toda copia que tenga del mismo. Cualquier persona que ilícitamente elimine, esconda, cambie, destruya, intercepte, divulgue, controle o impida de otra forma que esta comunicación llegue de manera íntegra y oportuna a su destinatario, estará sujeto a las sanciones penales correspondientes. Aunque la ENTIDAD REMITENTE ha tomado las medidas preventivas para protegerse de virus y otros programas maliciosos, el destinatario debe verificar la presencia de este tipo de programas que tenga el correo o cualquier anexo a él, y por esta razón la ENTIDAD REMITENTE no se hace responsable de los daños causados por virus o cualquier otro programa malicioso transmitido por este medio.
-                                                    </p></i>
-                                                </center>
-                                            </td>
-                                        </tr>
-                                    </table>
-                                </center>";
-
-                            $nc_id_set_from="1";
-                            $nc_address=$correo_usuario.'|'.$correo_usuario;
-                            $nc_cc="";
-                            $nc_bcc="";
-                            $nc_reply_to="";
-                            $nc_subject="Restablecer Contraseña - IQ-ICBF | Gestión Integrada de Servicios";
-                            $nc_body=str_replace("'", '"', $contenido_correo);
-
-                            $nc_embeddedimage_nombre="firma-verde;logo;logo_notificacion_correo";
-                            $nc_embeddedimage_tipo="image/png;image/png;image/png";
-
-                            $nc_intentos="";
-                            $nc_eliminar="Si";
-                            $nc_estado_envio="Pendiente";
-                            $nc_fecha_envio="";
-                            $nc_usuario_registro=$doc_identidad;
-
-                            // Insert seguro con prepared statement (misma funcionalidad, sin concatenación)
-                            $verifica_notificacion=0;
-
-                            $stNotif = $enlace_db->prepare("
-                                INSERT INTO `tb_notificaciones_central`
-                                (`nc_id_modulo`, `nc_prioridad`, `nc_id_set_from`, `nc_address`, `nc_cc`, `nc_bcc`, `nc_reply_to`,
-                                 `nc_subject`, `nc_body`, `nc_embeddedimage_ruta`, `nc_embeddedimage_nombre`, `nc_embeddedimage_tipo`,
-                                 `nc_intentos`, `nc_eliminar`, `nc_estado_envio`, `nc_fecha_envio`, `nc_usuario_registro`)
-                                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                            ");
-
-                            // Mantenemos el “reintento” original (10 veces) sin romper lógica
-                            for ($i=0; $i < 10; $i++) {
-                                try {
-                                    $nc_id_modulo = 1;
-                                    $nc_prioridad = "Alta";
-
-                                    $types = "isissssssssssssss";
-                                    $stNotif->bind_param(
-                                        $types,
-                                        $nc_id_modulo,
-                                        $nc_prioridad,
-                                        $nc_id_set_from,
-                                        $nc_address,
-                                        $nc_cc,
-                                        $nc_bcc,
-                                        $nc_reply_to,
-                                        $nc_subject,
-                                        $nc_body,
-                                        $nc_embeddedimage_ruta,
-                                        $nc_embeddedimage_nombre,
-                                        $nc_embeddedimage_tipo,
-                                        $nc_intentos,
-                                        $nc_eliminar,
-                                        $nc_estado_envio,
-                                        $nc_fecha_envio,
-                                        $nc_usuario_registro
-                                    );
-
-                                    if ($stNotif->execute()) {
-                                        $verifica_notificacion=1;
-                                        registro_log($enlace_db, 'Login', 'notificacion', $nc_subject, 'NULL', $doc_identidad);
-
-                                        header("Location: recuperar_contrasena_confirmar.php?1=".base64_encode($resultado_registros[0][0])."&2=".base64_encode($resultado_registros[0][4])."");
-                                        exit;
-                                    }
-                                } catch (Throwable $e) {
-                                    continue;
+                                    // Mantengo tu redirect UI (usuario ya dentro del flujo web)
+                                    header("Location: recuperar_contrasena_confirmar.php?1=" . base64_encode($resultado_registros[0][0]) . "&2=" . base64_encode($resultado_registros[0][4]) . "");
+                                    exit;
                                 }
+                            } catch (Throwable $e) {
+                                continue;
                             }
+                        }
 
-                            if ($verifica_notificacion != 1) {
-                                $respuesta_accion = "<p class='alert alert-danger p-1 font-size-13'>¡No fue posible encolar la notificación, intente nuevamente!</p>";
-                            }
-
-                        } else {
-                            $respuesta_accion = "<p class='alert alert-danger p-1 font-size-13'>¡Problemas al generar el token, por favor intente más tarde!</p>";
+                        if ($verifica_notificacion != 1) {
+                            $respuesta_accion = "<p class='alert alert-danger p-1 font-size-13'>¡No fue posible encolar la notificación, intente nuevamente!</p>";
                         }
 
                     } else {
-                        $respuesta_accion = "<p class='alert alert-danger p-1 font-size-13'>¡Usuario inactivo, por favor comuníquese con el administrador!</p>";
+                        $respuesta_accion = "<p class='alert alert-danger p-1 font-size-13'>¡Problemas al generar el token, por favor intente más tarde!</p>";
                     }
 
                 } else {
-                    $respuesta_accion = "<p class='alert alert-danger p-1 font-size-13'>¡Los datos ingresados no coinciden con nuestros registros, inténtalo de nuevo!</p>";
+                    $respuesta_accion = "<p class='alert alert-danger p-1 font-size-13'>¡Usuario inactivo, por favor comuníquese con el administrador!</p>";
                 }
 
             } else {
-                $respuesta_accion = "<p class='alert alert-danger p-1 font-size-13'>¡Problema al validar los datos ingresados, verifique e intente nuevamente!</p>";
+                $respuesta_accion = "<p class='alert alert-danger p-1 font-size-13'>¡Los datos ingresados no coinciden con nuestros registros, inténtalo de nuevo!</p>";
             }
+
+        } else {
+            $respuesta_accion = "<p class='alert alert-danger p-1 font-size-13'>¡Problema al validar los datos ingresados, verifique e intente nuevamente!</p>";
         }
+    }
 ?>
 <!DOCTYPE html>
 <html lang="ES">
@@ -285,58 +291,58 @@
     <title>IQ-ICBF | Gestión Integrada de Servicios</title>
 </head>
 <body>
-    <div class="container-fluid">
-        <div class="login-form">
-            <div class="form-header">
-                <img src="images/header_dian.png" class="img-fluid" style="width: 80%;">
+<div class="container-fluid">
+    <div class="login-form">
+        <div class="form-header">
+            <img src="images/header_dian.png" class="img-fluid" style="width: 80%;">
+        </div>
+        <form id="login-form" method="post" class="form-signin fluid" role="form" action="">
+            <div class="row">
+                <div class="col-md-12">
+                    <h4 class="form-titulo">Olvidé mi contraseña</h4>
+                    <h6 class="font-weight-normal">Para restablecer la contraseña, registra la siguiente información:</h6>
+                    <?php if (!empty($respuesta_accion)) { echo $respuesta_accion; } ?>
+                </div>
+                <div class="col-md-12">
+                    <input name="doc_identidad" id="doc_identidad" type="text" class="form-control"
+                           value="<?php if(isset($_POST["form_recovery"])){ echo validar_output($doc_identidad); } ?>"
+                           placeholder="Doc. identidad" maxlength="50" autofocus autocomplete="off" required>
+                </div>
+                <div class="col-md-12">
+                    <input name="correo_usuario" id="correo_usuario" type="email" class="form-control"
+                           placeholder="Email" maxlength="50" autocomplete="off" required>
+                </div>
             </div>
-            <form id="login-form" method="post" class="form-signin fluid" role="form" action="">
-                <div class="row">
-                    <div class="col-md-12">
-                        <h4 class="form-titulo">Olvidé mi contraseña</h4>
-                        <h6 class="font-weight-normal">Para restablecer la contraseña, registra la siguiente información:</h6>
-                        <?php if (!empty($respuesta_accion)) {echo $respuesta_accion;} ?>
-                    </div>
-                    <div class="col-md-12">
-                        <input name="doc_identidad" id="doc_identidad" type="text" class="form-control"
-                               value="<?php if(isset($_POST["form_recovery"])){ echo validar_output($doc_identidad); } ?>"
-                               placeholder="Doc. identidad" maxlength="50" autofocus autocomplete="off" required>
-                    </div>
-                    <div class="col-md-12">
-                        <input name="correo_usuario" id="correo_usuario" type="email" class="form-control"
-                               placeholder="Email" maxlength="50" autocomplete="off" required>
-                    </div>
+            <div class="row pt-1">
+                <div class="col-md-9">
+                    <input name="captcha_validacion_recovery" id="captcha_validacion_recovery" type="text" class="form-control"
+                           placeholder="Escriba los caracteres de la imagen" maxlength="5" autocomplete="off" required>
                 </div>
-                <div class="row pt-1">
-                    <div class="col-md-9 ">
-                        <input name="captcha_validacion_recovery" id="captcha_validacion_recovery" type="text" class="form-control"
-                               placeholder="Escriba los caracteres de la imagen" maxlength="5" autocomplete="off" required>
-                    </div>
-                    <div class="col-md-3">
-                        <center><img src="captcha_imagen.php" title="Código aleatorio"></center>
-                    </div>
-                    <div class="col-md-12 pt-1">
-                        <button class="btn btn-block btn-success" type="submit" name="form_recovery" id="submit_btn" data-loading-text="Iniciando....">Restablecer</button>
-                        <a href="index.php" class="btn btn-block btn-danger mt-1">Regresar</a>
-                    </div>
+                <div class="col-md-3">
+                    <center><img src="captcha_imagen.php" title="Código aleatorio"></center>
                 </div>
-            </form>
-            <div class="form-footer">
-                <div class="row">
-                    <div class="col-xs-12 col-sm-12 col-md-12">
-                        <p>IQ-Instituto Colombiano de Bienestar Familiar<br>Gestión Integrada de Servicios | &copy; Copyright 2020</p>
-                    </div>
+                <div class="col-md-12 pt-1">
+                    <button class="btn btn-block btn-success" type="submit" name="form_recovery" id="submit_btn">Restablecer</button>
+                    <a href="index.php" class="btn btn-block btn-danger mt-1">Regresar</a>
+                </div>
+            </div>
+        </form>
+        <div class="form-footer">
+            <div class="row">
+                <div class="col-xs-12 col-sm-12 col-md-12">
+                    <p>IQ-Instituto Colombiano de Bienestar Familiar<br>Gestión Integrada de Servicios | &copy; Copyright 2020</p>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- ✅ jQuery actualizado -->
-    <script src="js/jquery-3.7.1.min.js?v=3.7.1"></script>
-    <script src="js/popper.min.js"></script>
-    <script src="js/bootstrap.min.js"></script>
+<!-- ✅ jQuery actualizado -->
+<script src="js/jquery-3.7.1.min.js?v=3.7.1"></script>
+<script src="js/popper.min.js"></script>
+<script src="js/bootstrap.min.js"></script>
 </body>
 </html>
 <?php
-    }
+}
 ?>

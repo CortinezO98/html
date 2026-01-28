@@ -1,33 +1,67 @@
 <?php
+
+
     require_once("config/validaciones_seguridad_raiz.php");
+
+
     //Si sesion esta iniciada se redirige al contenido, sino muestra index de logueo//
     if(!isset($_SESSION["usu_id"]) OR $_SESSION["usu_id"]==null OR $_SESSION["usu_id"]==""){
         header("Location:index.php");
+        exit; // ✅ IMPORTANTE: corta ejecución
     }
+
     require_once("config/conexion_db.php");
     require_once("config/validar_festivos.php");
+
     // error_reporting(E_ALL);
     // ini_set('display_errors', '1');
+
     unset($_SESSION['contrasena_actualizada']);
     unset($_SESSION['dashboard_registro_creado_dash']);
     unset($_SESSION['dashboard_registro_eliminado_dashboard']);
     unset($_SESSION['session_turnop_id']);
     unset($_SESSION['mturno_cambioturno_crear']);
 
-    //CONSULTA PERMISOS MÓDULOS
-        $consulta_string_permisos="SELECT `per_id`, `per_usuario`, `per_modulo`, `per_perfil`, `mod_modulo_nombre` FROM `tb_configuracion_perfil_usu_mod` LEFT JOIN `tb_configuracion_modulo` ON `tb_configuracion_perfil_usu_mod`.`per_modulo`=`tb_configuracion_modulo`.`mod_id` WHERE `per_usuario`=?";
+    // ✅ Limpia permisos viejos de sesión (evita “basura” de sesiones anteriores)
+    foreach ($_SESSION as $k => $v) {
+        if (strpos($k, 'perm_') === 0 || strpos($k, 'mod_') === 0) {
+            unset($_SESSION[$k]);
+        }
+    }
+    unset($_SESSION['modulos_acceso_permisos']);
+
+    // ✅ Salvavidas: si por alguna razón no está el rol en sesión, lo recupera de BD
+    if (!isset($_SESSION['usu_cargo_rol']) || $_SESSION['usu_cargo_rol'] === '') {
+        $stmtRol = $enlace_db->prepare("SELECT `usu_cargo_rol` FROM `tb_administrador_usuario` WHERE `usu_id`=? LIMIT 1");
+        if ($stmtRol) {
+            $stmtRol->bind_param("s", $_SESSION["usu_id"]);
+            $stmtRol->execute();
+            $rowRol = $stmtRol->get_result()->fetch_row();
+            $_SESSION['usu_cargo_rol'] = $rowRol[0] ?? '';
+        }
+    }
+
+    //CONSULTA PERMISOS MÓDULOS (✅ robusto: por usu_id o por usu_acceso)
+        $usu_id     = $_SESSION['usu_id'] ?? '';
+        $usu_acceso = $_SESSION['usu_acceso'] ?? '';
+
+        $consulta_string_permisos="
+            SELECT p.`per_id`, p.`per_usuario`, p.`per_modulo`, p.`per_perfil`, m.`mod_modulo_nombre`
+            FROM `tb_configuracion_perfil_usu_mod` p
+            LEFT JOIN `tb_configuracion_modulo` m ON p.`per_modulo` = m.`mod_id`
+            WHERE p.`per_usuario` IN (?, ?)
+        ";
 
         $consulta_registros_permisos = $enlace_db->prepare($consulta_string_permisos);
-        $consulta_registros_permisos->bind_param("s", $_SESSION["usu_id"]);
+        $consulta_registros_permisos->bind_param("ss", $usu_id, $usu_acceso);
         $consulta_registros_permisos->execute();
         $resultado_modulos_usuario = $consulta_registros_permisos->get_result()->fetch_all(MYSQLI_NUM);
-        
-        unset($_SESSION['modulos_acceso_permisos']);
-        
+
         for ($i=0; $i < count($resultado_modulos_usuario); $i++) {
-            $_SESSION['modulos_acceso_permisos'][$resultado_modulos_usuario[$i][4]]=$resultado_modulos_usuario[$i][3];
+            $_SESSION['modulos_acceso_permisos'][$resultado_modulos_usuario[$i][4]] = $resultado_modulos_usuario[$i][3];
         }
     //CONSULTA PERMISOS MÓDULOS
+
     if ((isset($_SESSION['modulos_acceso_permisos']['Administrador-Dashboard']) AND $_SESSION['modulos_acceso_permisos']['Administrador-Dashboard']!="") OR (isset($_SESSION['modulos_acceso_permisos']['Encuestas']) AND $_SESSION['modulos_acceso_permisos']['Encuestas']!="")) {
         //Validación de permisos del usuario para el módulo
         $modulo_plataforma="Administrador-Dashboard";
@@ -65,17 +99,17 @@
             // Agrega variables a sentencia preparada
             $consulta_actualizar_turno_cierre->bind_param('sss', $fecha_turno_cierre, $duracion_turno_cierre, $id_turno_cierre);
 
-            for ($i=0; $i < count($resultado_inicio_turnos_cierre); $i++) { 
+            for ($i=0; $i < count($resultado_inicio_turnos_cierre); $i++) {
                 $fecha_turno_cierre=$resultado_inicio_turnos_cierre[$i][4];
                 $duracion_turno_cierre=dateDiff($resultado_inicio_turnos_cierre[$i][12],$fecha_turno_cierre);
                 $id_turno_cierre=$resultado_inicio_turnos_cierre[$i][11];
-                
+
                 // Ejecuta sentencia preparada
                 $consulta_actualizar_turno_cierre->execute();
             }
         //PROCESO ACTUALIZA CIERRE TURNOS ABIERTOS VENCIDOS
 
-        //fecha y hora de servidor actual a variable de sesión para control turno 
+        //fecha y hora de servidor actual a variable de sesión para control turno
         $_SESSION['session_turno_hora_actual']=date("Y-m-d H:i:s");
 
         //CONSULTA MALLA DE TURNOS
@@ -85,7 +119,7 @@
             $consulta_inicio_turnos_programados = mysqli_query($enlace_db, "SELECT `cotm_id`, `cotm_usuario`, `cotm_tipo`, `cotm_inicio`, `cotm_fin`, `cotm_duracion`, `cotm_jornada`, `cotm_observaciones_inicio`, `cotm_observaciones_fin`, `cotm_registro_fecha`, TU.`usu_nombres_apellidos`, TR.`cot_id`, TR.`cot_inicio`, TR.`cot_fin` FROM `tb_control_turno_malla` LEFT JOIN `tb_administrador_usuario` AS TU ON `tb_control_turno_malla`.`cotm_usuario`=TU.`usu_id` LEFT JOIN `tb_control_turno` AS TR ON `tb_control_turno_malla`.`cotm_id`=TR.`cot_turno_malla` WHERE `cotm_usuario`='".$_SESSION['usu_id']."' AND `cotm_inicio`>='".$fecha_minimo."' ORDER BY `cotm_usuario`, `cotm_inicio`");
             $resultado_inicio_turnos_programados = mysqli_fetch_all($consulta_inicio_turnos_programados);
 
-            for ($i=0; $i < count($resultado_inicio_turnos_programados); $i++) { 
+            for ($i=0; $i < count($resultado_inicio_turnos_programados); $i++) {
                 $fecha_turno=date('Y-m-d', strtotime($resultado_inicio_turnos_programados[$i][3]));
                 $array_turno_programado[$fecha_turno]['turno_tipo']=$resultado_inicio_turnos_programados[$i][2];
                 $array_turno_programado[$fecha_turno]['turno_id']=$resultado_inicio_turnos_programados[$i][0];
@@ -106,21 +140,6 @@
         //CONSULTA MALLA DE TURNOS
 
         //CONSULTA CONTROL TURNOS
-            // $consulta_inicio_turno_control = mysqli_query($enlace_db, "SELECT `cot_turno_inicio`, `cot_turno_fin` FROM `tb_control_turno` WHERE `cot_usuario`='".$_SESSION['usu_id']."' AND `cot_logueo_inicial` LIKE '".date('Y-m-d')."%'");
-            // $resultado_inicio_turno_control = mysqli_fetch_all($consulta_inicio_turno_control);
-
-            // if ($resultado_inicio_turno_control[0][1]=="") {
-            //     $fecha_actual_control = date("Y-m-d H:i:s");
-            //     $duracion_turno_control = dateDiff($resultado_inicio_turno_control[0][0],$fecha_actual_control);
-            //     if ($duracion_turno_control>28000) {
-            //          $notificar_cierre=1;
-            //     } else {
-            //         $notificar_cierre=0;
-            //     }
-            // } else {
-            //     $notificar_cierre=0;
-            // }
-            
             $consulta_string_turnos="SELECT `cot_id`, `cot_usuario`, `cot_tipo`, `cot_inicio`, `cot_fin`, `cot_duracion`, `cot_fuente`, `cot_observaciones_inicio`, `cot_observaciones_fin`, `cot_registro_fecha`, `cot_turno_malla`, TM.`cotm_inicio`, TM.`cotm_fin` FROM `tb_control_turno` LEFT JOIN `tb_control_turno_malla` AS TM ON `tb_control_turno`.`cot_turno_malla`=TM.`cotm_id` WHERE `cot_usuario`='".$_SESSION['usu_id']."' AND `cot_fin`='' ORDER BY `cot_inicio` DESC";
             $consulta_registros_turnos = $enlace_db->prepare($consulta_string_turnos);
             $consulta_registros_turnos->execute();
@@ -133,7 +152,7 @@
             $_SESSION['session_turnop_fin']='';
 
             if (count($resultado_registros_turnos)>0) {
-                for ($i=0; $i < count($resultado_registros_turnos); $i++) { 
+                for ($i=0; $i < count($resultado_registros_turnos); $i++) {
                     if ($resultado_registros_turnos[$i][2]=='turno') {
                         $_SESSION['session_turno_inicio']=$resultado_registros_turnos[$i][3];
                         $_SESSION['session_turno_fin']=$resultado_registros_turnos[$i][4];
@@ -192,7 +211,7 @@
                     $array_turnos_id[$resultado_registros_turno_realizado[$i][1]][]=$resultado_registros_turno_realizado[$i][0];
                     $array_turnos[$resultado_registros_turno_realizado[$i][1]][$resultado_registros_turno_realizado[$i][0]]['tipo']=$resultado_registros_turno_realizado[$i][2];
                     $array_turnos[$resultado_registros_turno_realizado[$i][1]][$resultado_registros_turno_realizado[$i][0]]['inicio']=$resultado_registros_turno_realizado[$i][3];
-                    
+
                     if ($resultado_registros_turno_realizado[$i][4]!='') {
                         $array_turnos[$resultado_registros_turno_realizado[$i][1]][$resultado_registros_turno_realizado[$i][0]]['fin']=$resultado_registros_turno_realizado[$i][4];
                     } else {
@@ -629,69 +648,7 @@
                             categories: map(series, function (s) {
                                 return s.duracion_turno;
                             })
-                        }, 
-                        // {
-                        //     title: {
-                        //         text: 'Break',
-                        //         align: 'left',
-                        //         style: {
-                        //             fontSize: '9px'
-                        //         },
-                        //         rotation: -90,
-                        //     },
-                        //     categories: map(series, function (s) {
-                        //         return s.duracion_break;
-                        //     })
-                        // }, {
-                        //     title: {
-                        //         text: 'Almuerzo',
-                        //         align: 'left',
-                        //         style: {
-                        //             fontSize: '9px'
-                        //         },
-                        //         rotation: -90,
-                        //     },
-                        //     categories: map(series, function (s) {
-                        //         return s.duracion_almuerzo;
-                        //     })
-                        // }, {
-                        //     title: {
-                        //         text: 'Pausa Activa',
-                        //         align: 'left',
-                        //         style: {
-                        //             fontSize: '9px'
-                        //         },
-                        //         rotation: -90,
-                        //     },
-                        //     categories: map(series, function (s) {
-                        //         return s.duracion_pausa;
-                        //     })
-                        // }, {
-                        //     title: {
-                        //         text: 'Capacitación',
-                        //         align: 'left',
-                        //         style: {
-                        //             fontSize: '9px'
-                        //         },
-                        //         rotation: -90,
-                        //     },
-                        //     categories: map(series, function (s) {
-                        //         return s.duracion_capacitacion;
-                        //     })
-                        // }, {
-                        //     title: {
-                        //         text: 'Retroalimentación',
-                        //         align: 'left',
-                        //         style: {
-                        //             fontSize: '9px',
-                        //         },
-                        //         rotation: -90,
-                        //     },
-                        //     categories: map(series, function (s) {
-                        //         return s.duracion_retroalimentacion;
-                        //     })
-                        // }
-                        ]
+                        }]
                     }
                 }
             });

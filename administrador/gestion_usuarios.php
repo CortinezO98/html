@@ -5,6 +5,7 @@
 	require_once("../config/validaciones_seguridad.php");
     require_once("../config/conexion_db.php");
 
+
     /*DEFINICIÓN DE VARIABLES*/
 
     $titulo_header = "Gestión Usuarios";

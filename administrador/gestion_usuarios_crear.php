@@ -3,7 +3,7 @@
     $modulo_plataforma="Administrador";
 
     require_once("../config/validaciones_seguridad.php");
-	require_once("../config/conexion_db.php");
+    require_once("../config/conexion_db.php");
 
     /*DEFINICIÓN DE VARIABLES*/
 
@@ -22,7 +22,6 @@
     if ($ROOT === false) { $ROOT = "/var/www/html"; }
 
     // Si no hay BASE_URL en env, usa la que tú vienes usando
-
     $BASE_URL = getenv('APP_URL') ?: (getenv('BASE_URL') ?: "https://modulocalidad.grupoasd.com/");
     $BASE_URL = rtrim($BASE_URL, '/') . '/';
 
@@ -40,11 +39,24 @@
     $emb_nombre = "firma_verde;logo;logo_notificacion_correo";
     $emb_tipo   = "image/png;image/png;image/png";
 
-    function build_body_user($baseUrl, $token, $nombres) {
+    /**
+     * ✅ FIX A) Link correcto: u/e + t=act + token opcional
+     * ✅ NUEVO: incluir usuario de acceso en el cuerpo del correo (usu_acceso)
+     * (NO cambia la lógica del confirmador; solo hace que el enlace llegue completo y el correo muestre el usuario)
+     */
+    function build_body_user($baseUrl, $token, $nombres, $usu_id, $correo, $usuarioAcceso) {
         $baseUrl = rtrim((string)$baseUrl, "/") . "/";
-        $url = $baseUrl . "recuperar_contrasena_confirmar.php?token=" . urlencode((string)$token);
 
-        $nombresSafe = htmlspecialchars((string)$nombres, ENT_QUOTES, "UTF-8");
+        // ✅ Link correcto (lo que recuperar_contrasena_confirmar.php realmente entiende)
+        $url = $baseUrl . "recuperar_contrasena_confirmar.php"
+            . "?u=" . urlencode(base64_encode((string)$usu_id))
+            . "&e=" . urlencode(base64_encode((string)$correo))
+            . "&t=act" // opcional: fuerza modo activación (tu confirmador ya lo soporta)
+            . "&token=" . urlencode((string)$token); // opcional: para autollenar el campo
+
+        $nombresSafe  = htmlspecialchars((string)$nombres, ENT_QUOTES, "UTF-8");
+        $usuarioSafe  = htmlspecialchars((string)$usuarioAcceso, ENT_QUOTES, "UTF-8");
+        $tokenSafe    = htmlspecialchars((string)$token, ENT_QUOTES, "UTF-8");
 
         return '
         <div style="font-family: Arial, sans-serif; font-size: 14px; color:#222;">
@@ -57,7 +69,8 @@
           <p>Se ha generado una solicitud para <b>restablecer tu contraseña</b> en el portal
           <b>IQ-ICBF | Gestión Integrada de Servicios</b>.</p>
 
-          <p><b>Código:</b> '.htmlspecialchars((string)$token, ENT_QUOTES, "UTF-8").'</p>
+          <p><b>Usuario:</b> '.$usuarioSafe.'<br>
+             <b>Código:</b> '.$tokenSafe.'</p>
 
           <p>Puedes continuar desde este enlace:</p>
           <p><a href="'.$url.'">'.$url.'</a></p>
@@ -78,6 +91,7 @@
         $usu_id,
         $correo,
         $nombre,
+        $usuarioAcceso, // ✅ NUEVO: para mostrar usuario en el correo
         $moduloId,
         $prioridad,
         $setFromId,
@@ -98,8 +112,18 @@
             return false;
         }
 
-        // Evita duplicado por (usuario + subject)
-        $qDup = "SELECT COUNT(nc_id) c FROM tb_notificaciones_central WHERE nc_usuario_registro=? AND nc_subject=?";
+        /**
+         * ✅ FIX B) Anti-duplicado: NO bloquear para siempre.
+         * Solo evita duplicar si hay un PENDIENTE reciente (últimas 24h).
+         */
+        $qDup = "
+          SELECT COUNT(nc_id) c
+          FROM tb_notificaciones_central
+          WHERE nc_usuario_registro=?
+            AND nc_subject=?
+            AND nc_estado_envio='Pendiente'
+            AND nc_fecha_registro >= (NOW() - INTERVAL 24 HOUR)
+        ";
         $stDup = $db->prepare($qDup);
         if (!$stDup) {
             $errorMsg = "Prepare duplicado: " . $db->error;
@@ -111,7 +135,7 @@
         $c = isset($row['c']) ? (int)$row['c'] : 0;
         $stDup->close();
 
-        // Si ya existe, no vuelve a encolar (no rompe la creación)
+        // Si ya existe un pendiente reciente, no vuelve a encolar (no rompe la creación)
         if ($c > 0) {
             return true;
         }
@@ -120,11 +144,12 @@
         try {
             $token = (string)random_int(100000, 999999);
         } catch (Throwable $e) {
-            // Fallback muy raro, pero evita romper el flujo
             $token = (string)mt_rand(100000, 999999);
         }
 
-        $body = build_body_user($baseUrl, $token, $nombre);
+        // ✅ Llama con usu_id y correo para armar link correcto
+        // ✅ NUEVO: pasa usuarioAcceso para mostrarlo en el correo
+        $body = build_body_user($baseUrl, $token, $nombre, $usu_id, $correo, $usuarioAcceso);
 
         // Transacción: token + notificación
         $db->begin_transaction();
@@ -137,7 +162,7 @@
                 $stTokOff->close();
             }
 
-            // Insert token (según tu implementación que ya funciona en backfill)
+            // Insert token
             $stTok = $db->prepare("INSERT INTO tb_administrador_token (tk_usuario, tk_token, tk_estado) VALUES (?, ?, 'Activo')");
             if (!$stTok) {
                 throw new Exception("Prepare token: " . $db->error);
@@ -167,7 +192,6 @@
                 throw new Exception("Prepare notificación: " . $db->error);
             }
 
-            // Tipos: i(s)i(s)(s)(s)(s)(s)(s)(s)(s)(s)(s)(s)(s)(s)(s)
             $types = "isissssssssssssss";
             $stNc->bind_param(
                 $types,
@@ -249,6 +273,7 @@
                         $documento_identidad,
                         $correo_corporativo,
                         $nombres_apellidos,
+                        $usuario_acceso, // ✅ NUEVO: enviar usuario al cuerpo del correo
                         $MODULO_ID,
                         $PRIORIDAD,
                         $SETFROM_ID,
@@ -261,7 +286,6 @@
                     );
 
                     if ($encolado_ok) {
-                        // Mantiene estilo de mensaje (success) sin tocar diseño
                         $respuesta_accion = "<script type='text/javascript'>alertify.success('¡Registro creado exitosamente!', 0);</script>";
                     } else {
                         $msg = htmlspecialchars((string)$err, ENT_QUOTES, 'UTF-8');

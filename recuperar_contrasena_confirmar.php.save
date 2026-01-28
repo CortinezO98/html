@@ -1,58 +1,3 @@
-<?php
-require_once("config/validaciones_seguridad_raiz.php");
-require_once("config/conexion_db.php");
-
-// Fuerza errores de MySQLi a excepciones
-mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-
-error_reporting(E_ALL);
-ini_set('display_errors', '0');
-ini_set('log_errors', '1');
-
-$requestId = bin2hex(random_bytes(6));
-
-/**
- * Logger: SIEMPRE intenta escribir en storage/logs (SELinux-friendly).
- * Fallback: error_log del vhost (Apache).
- */
-function log_line(string $msg, string $requestId = ''): void {
-    $path = __DIR__ . '/storage/logs/modulocalidad_php_errors.log';
-    $line = "[" . date('c') . "][" . ($requestId ?: '-') . "] " . $msg . PHP_EOL;
-
-    if (@file_put_contents($path, $line, FILE_APPEND | LOCK_EX) !== false) {
-        return;
-    }
-
-    error_log($line);
-}
-
-// Log de entrada (sirve para confirmar que está escribiendo)
-log_line("HIT recuperar_contrasena_confirmar.php URI=" . ($_SERVER['REQUEST_URI'] ?? ''), $requestId);
-
-// Header para confirmar ejecución del archivo
-if (!headers_sent($hsFile, $hsLine)) {
-    header("X-Req-Id: {$requestId}");
-} else {
-    log_line("headers_sent en {$hsFile}:{$hsLine} (no se pudo enviar X-Req-Id)", $requestId);
-}
-
-// Charset
-try {
-    if (isset($enlace_db) && $enlace_db instanceof mysqli) {
-        $enlace_db->set_charset('utf8mb4');
-    } else {
-        log_line("FATAL: \$enlace_db no es mysqli (conexion_db.php)", $requestId);
-    }
-} catch (Throwable $e) {
-    log_line("set_charset FAIL: " . $e->getMessage(), $requestId);
-}
-
-function safe_prepare(mysqli $db, string $sql, string $requestId): ?mysqli_stmt {
-    try {
-        return $db->prepare($sql);
-    } catch (mysqli_sql_exception $e) {
-        log_line("PREPARE EX: " . $e->getMessage() . " | SQL=" . $sql, $requestId);
-        return null;
     } catch (Throwable $e) {
         log_line("PREPARE FAIL: " . $e->getMessage() . " | SQL=" . $sql, $requestId);
         return null;
@@ -92,9 +37,6 @@ if ($id_usuario_get === '' && $correo_usuario_get === '') {
 
 $id_usuario     = validar_input($id_usuario_get);
 $correo_usuario = validar_input($correo_usuario_get);
-
-// ✅ Compatibilidad correos viejos: autollenar token (NO valida por URL, solo prefill)
-$token_prefill = validar_input($_GET['token'] ?? '');
 
 // Identifica si es activación
 $isActivationParam = (($_GET['t'] ?? '') === 'act');
@@ -368,12 +310,7 @@ if ($id_usuario === '' || $correo_usuario === '' || !filter_var($correo_usuario,
 
                     <div class="col-md-12">
                         <input name="codigo_token" id="codigo_token" type="text" class="form-control"
-                               placeholder="Código" maxlength="50" autocomplete="off" required
-                               value="<?php
-                                    echo isset($_POST['codigo_token'])
-                                        ? validar_output($_POST['codigo_token'])
-                                        : validar_output($token_prefill);
-                               ?>">
+                               placeholder="Código" maxlength="50" autocomplete="off" required>
                     </div>
                 <?php endif; ?>
 
