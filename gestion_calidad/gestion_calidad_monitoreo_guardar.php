@@ -1,81 +1,109 @@
 <?php
-    //Validación de permisos del usuario para el módulo
-    $modulo_plataforma="Calidad-Monitoreos";
+//Validación de permisos del usuario para el módulo
+$modulo_plataforma="Calidad-Monitoreos";
 
-	require_once("../config/validaciones_seguridad.php");
-    require_once("../config/conexion_db.php");
+require_once("../config/validaciones_seguridad.php");
+require_once("../config/conexion_db.php");
 
-    /* =========================
-       Helpers de seguridad
-       ========================= */
-    if (!function_exists('h')) {
-        function h($value) {
-            return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        }
+// error_reporting(E_ALL);
+// ini_set('display_errors', '1');
+
+/* =========================
+   Helpers de seguridad
+   ========================= */
+if (!function_exists('h')) {
+    function h($value) {
+        return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
-    if (!function_exists('hbr')) {
-        function hbr($value) {
-            return nl2br(h($value));
-        }
+}
+if (!function_exists('hbr')) {
+    function hbr($value) {
+        return nl2br(h($value));
     }
+}
 
-    // Inicializaciones para evitar warnings (no afecta funcionalidad)
-    if (!isset($_SESSION['monitoreo_creado'])) { $_SESSION['monitoreo_creado'] = 0; }
-    if (!isset($_SESSION['id_monitoreo'])) { $_SESSION['id_monitoreo'] = ''; }
+/* ==========================================================
+   ✅ FEATURE FLAG: Calibración (temporalmente deshabilitada)
+   - No afecta el flujo normal de "En línea" / "Grabación"
+   - Evita que se creen registros cuando tipo_monitoreo=Calibración
+   ========================================================== */
+$CALIBRACION_HABILITADA = false;
 
-    // CSRF token (este endpoint recibe POST desde el formulario anterior)
-    if (empty($_SESSION['csrf_token_monitoreo'])) {
-        $_SESSION['csrf_token_monitoreo'] = bin2hex(random_bytes(32));
-    }
+// Inicializaciones para evitar warnings (no afecta funcionalidad)
+if (!isset($_SESSION['monitoreo_creado'])) { $_SESSION['monitoreo_creado'] = 0; }
+if (!isset($_SESSION['id_monitoreo'])) { $_SESSION['id_monitoreo'] = ''; }
 
-    /*DEFINICIÓN DE VARIABLES*/
-    $titulo_header = "Monitoreos | Guardar";
-    $pagina = isset($_GET['pagina']) ? validar_input($_GET['pagina']) : '';
-    $filtro_permanente = isset($_GET['id']) ? validar_input($_GET['id']) : '';
+// CSRF token (este endpoint recibe POST desde el formulario anterior)
+if (empty($_SESSION['csrf_token_monitoreo'])) {
+    $_SESSION['csrf_token_monitoreo'] = bin2hex(random_bytes(32));
+}
 
-    // Enlace para botón finalizar y cancelar
-    $ruta_cancelar_finalizar="gestion_calidad_monitoreo.php?pagina=".$pagina."&id=".$filtro_permanente."&bandeja=".base64_encode('Mes Actual');
+/*DEFINICIÓN DE VARIABLES*/
+$titulo_header = "Monitoreos | Guardar";
+$pagina = isset($_GET['pagina']) ? validar_input($_GET['pagina']) : '';
+$filtro_permanente = isset($_GET['id']) ? validar_input($_GET['id']) : '';
 
-    // Si no existe la información del monitoreo en sesión, regresamos (flujo seguro)
-    if (empty($_SESSION["mon_informacion"]) || empty($_SESSION["mon_informacion"]["analista"]) || empty($_SESSION["mon_informacion"]["matriz"])) {
-        header("Location: ".$ruta_cancelar_finalizar);
-        exit;
-    }
+// Enlace para botón finalizar y cancelar
+$ruta_cancelar_finalizar="gestion_calidad_monitoreo.php?pagina=".$pagina."&id=".$filtro_permanente."&bandeja=".base64_encode('Mes Actual');
 
-    $consulta_string_analista="SELECT `usu_id`, `usu_nombres_apellidos`, `usu_fecha_incorporacion`, `usu_piloto` FROM `tb_administrador_usuario` WHERE `usu_id`=?";
+// Si no existe la información del monitoreo en sesión, regresamos (flujo seguro)
+if (empty($_SESSION["mon_informacion"]) || empty($_SESSION["mon_informacion"]["analista"]) || empty($_SESSION["mon_informacion"]["matriz"])) {
+    header("Location: ".$ruta_cancelar_finalizar);
+    exit;
+}
 
-    $consulta_registros_analistas = $enlace_db->prepare($consulta_string_analista);
-    $consulta_registros_analistas->bind_param("s", $_SESSION["mon_informacion"]["analista"]);
-    $consulta_registros_analistas->execute();
-    $resultado_registros_analistas = $consulta_registros_analistas->get_result()->fetch_all(MYSQLI_NUM);
+$consulta_string_analista="SELECT `usu_id`, `usu_nombres_apellidos`, `usu_fecha_incorporacion`, `usu_piloto`
+FROM `tb_administrador_usuario` WHERE `usu_id`=?";
 
-    // Defaults para mensajes de UI
-    $respuesta_accion = '';
-    $documento_cantidad = 0;
-    $documento_registrados = 0;
+$consulta_registros_analistas = $enlace_db->prepare($consulta_string_analista);
+$consulta_registros_analistas->bind_param("s", $_SESSION["mon_informacion"]["analista"]);
+$consulta_registros_analistas->execute();
+$resultado_registros_analistas = $consulta_registros_analistas->get_result()->fetch_all(MYSQLI_NUM);
 
-    if(isset($_POST["guardar_monitoreo"])){
+// Defaults para mensajes de UI
+$respuesta_accion = '';
+$documento_cantidad = 0;
+$documento_registrados = 0;
 
-        // ✅ CSRF check (requiere que el formulario anterior envíe csrf_token_monitoreo)
-        $token_post = isset($_POST['csrf_token_monitoreo']) ? (string)$_POST['csrf_token_monitoreo'] : '';
-        if (empty($token_post) || empty($_SESSION['csrf_token_monitoreo']) || !hash_equals($_SESSION['csrf_token_monitoreo'], $token_post)) {
-            $respuesta_accion = "<script type='text/javascript'>alertify.warning('Sesión inválida o expirada. Por favor recargue e intente nuevamente.', 0);</script>";
+if(isset($_POST["guardar_monitoreo"])){
+
+    // ✅ CSRF check (requiere que el formulario anterior envíe csrf_token_monitoreo)
+    $token_post = isset($_POST['csrf_token_monitoreo']) ? (string)$_POST['csrf_token_monitoreo'] : '';
+    if (empty($token_post) || empty($_SESSION['csrf_token_monitoreo']) || !hash_equals($_SESSION['csrf_token_monitoreo'], $token_post)) {
+        $respuesta_accion = "<script type='text/javascript'>alertify.warning('Sesión inválida o expirada. Por favor recargue e intente nuevamente.', 0);</script>";
+    } else {
+
+        $gcm_matriz=$_SESSION["mon_informacion"]["matriz"];
+        $gcm_analista=$_SESSION["mon_informacion"]["analista"];
+        $gcm_responsable=$_SESSION["mon_informacion"]["responsable"];
+        $gcm_fecha_hora_gestion=$_SESSION["mon_informacion"]["fecha_gestion"];
+        $duracion=$_SESSION["mon_informacion"]["duracion"];
+        $gcm_fecha_monitoreo=$_SESSION["mon_informacion"]["fecha_monitoreo"];
+        $gcm_tipo_monitoreo=$_SESSION["mon_informacion"]["tipo_monitoreo"];
+        $gcm_skill_interaccion=$_SESSION["mon_informacion"]["skill_interaccion"];
+        $gcm_tipo_gestion=$_SESSION["mon_informacion"]["tipo_gestion"];
+        $gcm_segmento=$_SESSION["mon_informacion"]["segmento"];
+        $gcm_id_sim=$_SESSION["mon_informacion"]["id_sim"];
+        $gcm_id_ani=$_SESSION["mon_informacion"]["id_ani"];
+        $gcm_aplica_indicador=$_SESSION["mon_informacion"]["indicador"];
+        $gcm_encuesta=$_SESSION["mon_informacion"]["encuesta"];
+
+        // ==========================================================
+        // ✅ BLOQUEO TEMPORAL: "Calibración" deshabilitado
+        // - No cambia nada para los otros tipos
+        // - Evita creación de registros (y evita tocar tablas gcm*)
+        // ==========================================================
+        if (!$CALIBRACION_HABILITADA && (string)$gcm_tipo_monitoreo === 'Calibración') {
+
+            // Mantener estado seguro (sin “monitoreo creado”)
+            $_SESSION['monitoreo_creado'] = 0;
+            $_SESSION['id_monitoreo'] = '';
+
+            $respuesta_accion = "<script type='text/javascript'>
+                alertify.warning('La opción <b>Calibración</b> está temporalmente deshabilitada mientras inicia la operación. Por favor seleccione <b>En línea</b> o <b>Grabación</b>.', 0);
+            </script>";
+
         } else {
-
-            $gcm_matriz=$_SESSION["mon_informacion"]["matriz"];
-            $gcm_analista=$_SESSION["mon_informacion"]["analista"];
-            $gcm_responsable=$_SESSION["mon_informacion"]["responsable"];
-            $gcm_fecha_hora_gestion=$_SESSION["mon_informacion"]["fecha_gestion"];
-            $duracion=$_SESSION["mon_informacion"]["duracion"];
-            $gcm_fecha_monitoreo=$_SESSION["mon_informacion"]["fecha_monitoreo"];
-            $gcm_tipo_monitoreo=$_SESSION["mon_informacion"]["tipo_monitoreo"];
-            $gcm_skill_interaccion=$_SESSION["mon_informacion"]["skill_interaccion"];
-            $gcm_tipo_gestion=$_SESSION["mon_informacion"]["tipo_gestion"];
-            $gcm_segmento=$_SESSION["mon_informacion"]["segmento"];
-            $gcm_id_sim=$_SESSION["mon_informacion"]["id_sim"];
-            $gcm_id_ani=$_SESSION["mon_informacion"]["id_ani"];
-            $gcm_aplica_indicador=$_SESSION["mon_informacion"]["indicador"];
-            $gcm_encuesta=$_SESSION["mon_informacion"]["encuesta"];
 
             $_SESSION["mon_informacion"]["observaciones"]=validar_input($_POST['observaciones'] ?? '');
             $gcm_observaciones_monitoreo=$_SESSION["mon_informacion"]["observaciones"];
@@ -118,10 +146,11 @@
                     $item_id_respuesta[$items_matriz[$i]]="";
                 }
 
+                // ✅ FIX RECOMENDACIÓN: sanitizar comentarios (evita Stored XSS) SIN cambiar lógica
                 if (isset($_POST['comentario_'.$items_matriz[$i]])) {
-                    $item_comentario[]=$_POST['comentario_'.$items_matriz[$i]];
+                    $item_comentario[] = validar_input($_POST['comentario_'.$items_matriz[$i]]);
                 } else {
-                    $item_comentario[]="";
+                    $item_comentario[] = "";
                 }
             }
 
@@ -217,26 +246,74 @@
                 $gcm_estado="Pendiente";
             }
 
-            if (!empty($resultado_registros_analistas) && ($resultado_registros_analistas[0][3] ?? '')=='Si') {
-                $fecha_aplica_indicador=date('Y-m-d', strtotime('+3 month', strtotime($resultado_registros_analistas[0][2])));
-            } else {
-                $fecha_aplica_indicador=date('Y-m-d', strtotime('+2 month', strtotime($resultado_registros_analistas[0][2] ?? date('Y-m-d'))));
+            // ==========================================================
+            // ✅ INDICADOR: GUARDAR LO QUE EL USUARIO SELECCIONÓ
+            // - Se elimina el "forzado" a No-Curva Aprendizaje.
+            // - Se respeta exactamente el valor del combo:
+            //   Indicador | Encuesta | No- Curva | No- Supervisor | No- Gestor
+            // - Para compatibilidad, se toleran valores viejos.
+            // ==========================================================
+
+            $ind_user_raw = (string)$gcm_aplica_indicador;
+            $ind_user = preg_replace('/\s+/', ' ', trim($ind_user_raw));
+
+            // Normalización suave (solo corrige formatos viejos, sin imponer "No-Curva Aprendizaje")
+            $map_ind = [
+                // Valores del combo actual (se conservan igual)
+                'Indicador'      => 'Indicador',
+                'Encuesta'       => 'Encuesta',
+                'No- Curva'      => 'No- Curva',
+                'No- Supervisor' => 'No- Supervisor',
+                'No- Gestor'     => 'No- Gestor',
+
+                // Valores viejos que podrían venir de sesión / edición (se llevan al formato del combo)
+                'Si'                   => 'Indicador',
+                'No-Gestor'            => 'No- Gestor',
+                'No-Supervisor'        => 'No- Supervisor',
+                'No-Curva Aprendizaje' => 'No- Curva',
+
+                // Otros históricos (si existen en BD, los respetamos tal cual)
+                'No-Formador'          => 'No-Formador',
+                'No-Cliente'           => 'No-Cliente',
+            ];
+
+            $ind_user_can = $map_ind[$ind_user] ?? $ind_user;
+
+            // Lista válida (del combo + compat)
+            $allowed_ind = [
+                'Indicador',
+                'Encuesta',
+                'No- Curva',
+                'No- Supervisor',
+                'No- Gestor',
+                // compat históricos (por si llegan por sesión/BD)
+                'No-Formador',
+                'No-Cliente',
+            ];
+
+            // Si no viene nada, por defecto "Indicador"
+            if ($ind_user_can === '') {
+                $ind_user_can = 'Indicador';
             }
 
-            if ($perfil_modulo=="Cliente") {
-                $gcm_aplica_indicador='No-Cliente';
-            } elseif (date('Y-m-d', strtotime($gcm_fecha_hora_gestion))<=$fecha_aplica_indicador) {
-                $gcm_aplica_indicador='No-Curva Aprendizaje';
-            } elseif ($perfil_modulo=="Supervisor") {
-                $gcm_aplica_indicador='No-Supervisor';
-            } elseif ($perfil_modulo=="Formador") {
-                $gcm_aplica_indicador='No-Formador';
-            } elseif (date('Y-m-d', strtotime($gcm_fecha_hora_gestion))>$fecha_aplica_indicador) {
-                if ($gcm_aplica_indicador=='No-Gestor') {
-                    $gcm_aplica_indicador=$gcm_aplica_indicador;
-                } else {
-                    $gcm_aplica_indicador='Si';
-                }
+            // Si llega algo raro, no rompemos: lo dejamos como "Indicador"
+            if (!in_array($ind_user_can, $allowed_ind, true)) {
+                $ind_user_can = 'Indicador';
+            }
+
+            // Si el perfil NO puede elegir en el formulario, mantén lógica por rol (no rompe UX)
+            // Nota: en tu informacion.php el combo solo aparece para Gestor/Administrador/Formador.
+            if ($perfil_modulo === "Cliente") {
+                $gcm_aplica_indicador = 'No-Cliente';
+            } elseif ($perfil_modulo === "Supervisor") {
+                $gcm_aplica_indicador = 'No- Supervisor';
+            } elseif ($perfil_modulo === "Formador") {
+                // Si Formador lo elige (en tu form SI aparece), se respeta.
+                // Solo si llegara vacío, cae en default Indicador.
+                $gcm_aplica_indicador = $ind_user_can;
+            } else {
+                // Admin / Gestor / otros: SIEMPRE respeta lo elegido
+                $gcm_aplica_indicador = $ind_user_can;
             }
 
             $gcm_auditoria='';
@@ -277,6 +354,8 @@
                         $item_matriz_pregunta=$items_matriz[$i];
                         $afectaciones="";
                         $respuesta_item=$item_respuesta[$i];
+
+                        // ✅ FIX RECOMENDACIÓN: ya viene sanitizado desde arriba, pero mantenemos variable
                         $comentarios_insert=$item_comentario[$i];
 
                         $sentencia_insert_calificaciones->bind_param('sssss', $inser_consecutivo, $item_matriz_pregunta, $respuesta_item, $afectaciones, $comentarios_insert);
@@ -293,7 +372,10 @@
                         // ========= Upload seguro (sin cambiar funcionalidad) =========
                         $dangerous_ext = ['php','phtml','phar','shtml','html','htm','js','jsp','asp','aspx','cgi','pl','sh','bat','cmd','exe','dll'];
 
-                        $guardar_archivo = function($file_array, $key, $prefijo) use ($enlace_db, $inser_consecutivo, $dangerous_ext, &$documento_cantidad, &$documento_registrados) {
+                        // ✅ FIX RECOMENDACIÓN: límite de tamaño + bloquear extensión vacía (no altera flujo normal)
+                        $max_bytes = 10 * 1024 * 1024; // 10MB
+
+                        $guardar_archivo = function($file_array, $key, $prefijo) use ($enlace_db, $inser_consecutivo, $dangerous_ext, $max_bytes, &$documento_cantidad, &$documento_registrados) {
                             if (empty($file_array["name"][$key])) {
                                 return 1;
                             }
@@ -312,8 +394,13 @@
 
                             $archivo_extension = strtolower(pathinfo($base, PATHINFO_EXTENSION));
 
-                            // Bloqueo de extensiones peligrosas (no debería afectar soportes reales)
+                            if ($archivo_extension === '' || $archivo_extension === '.') {
+                                return 0;
+                            }
                             if ($archivo_extension !== '' && in_array($archivo_extension, $dangerous_ext, true)) {
+                                return 0;
+                            }
+                            if (($file_array["size"][$key] ?? 0) > $max_bytes) {
                                 return 0;
                             }
 
@@ -323,7 +410,6 @@
                             if (($file_array["error"][$key] ?? 0) > 0) {
                                 return 0;
                             }
-
                             if (!is_uploaded_file($file_array['tmp_name'][$key])) {
                                 return 0;
                             }
@@ -379,7 +465,10 @@
 
                         if ($gcm_estado=='Pendiente' AND $perfil_modulo!="Cliente") {
 
-                            $consulta_string_supervisor="SELECT TU.`usu_id`, TU.`usu_nombres_apellidos`, TL.`usu_id`, TL.`usu_nombres_apellidos`, TL.`usu_correo_corporativo`, TU.`usu_correo_corporativo` FROM `tb_administrador_usuario` AS TU LEFT JOIN `tb_administrador_usuario` AS TL ON TU.`usu_supervisor`=TL.`usu_id` WHERE TU.`usu_id`=?";
+                            $consulta_string_supervisor="SELECT TU.`usu_id`, TU.`usu_nombres_apellidos`, TL.`usu_id`, TL.`usu_nombres_apellidos`, TL.`usu_correo_corporativo`, TU.`usu_correo_corporativo`
+                            FROM `tb_administrador_usuario` AS TU
+                            LEFT JOIN `tb_administrador_usuario` AS TL ON TU.`usu_supervisor`=TL.`usu_id`
+                            WHERE TU.`usu_id`=?";
 
                             $consulta_registros_supervisor = $enlace_db->prepare($consulta_string_supervisor);
                             $consulta_registros_supervisor->bind_param("s", $gcm_analista);
@@ -395,7 +484,6 @@
                                 $nota_correo_ecuf = $control_estado_ecuf ? 'CUMPLE' : 'INCUMPLE';
                                 $nota_correo_ecn  = $control_estado_ecn  ? 'CUMPLE' : 'INCUMPLE';
 
-                                // Escapes seguros para HTML de correo
                                 $agente_nombre = h($resultado_registros_supervisor[0][1]);
                                 $contenido_correo="<p style='font-size: 12px; color: #2E2E2E; font-family: Lato, Arial, sans-serif;'>Cordial Saludo,<br><br>Se ha monitoreado al agente ".$agente_nombre.", con los siguientes resultados. Por favor verificar el detalle del monitoreo ingresando al siguiente link: <a href='http://52.188.206.38/' target='_blank'>ICBF-IQGIS</a></p><br>
                                 <center>
@@ -484,7 +572,6 @@
                                 $nc_reply_to="";
                                 $nc_subject="Monitoreo Calidad | ".$inser_consecutivo;
 
-                                // Mantengo el comportamiento original del body (solo ya no se concatena en SQL)
                                 $nc_body=str_replace("'", '"', $contenido_correo);
 
                                 $nc_embeddedimage_ruta="/var/www/icbf/html/images/firma-verde.png";
@@ -496,7 +583,6 @@
                                 $nc_fecha_envio="";
                                 $nc_usuario_registro=$_SESSION['usu_id'];
 
-                                // ✅ Remediación SQLi: INSERT parametrizado (con reintento como tu lógica)
                                 $sql_notif = "INSERT INTO `tb_notificaciones_central`
                                     (`nc_id_modulo`, `nc_prioridad`, `nc_id_set_from`, `nc_address`, `nc_cc`, `nc_bcc`, `nc_reply_to`,
                                      `nc_subject`, `nc_body`, `nc_embeddedimage_ruta`, `nc_embeddedimage_nombre`, `nc_embeddedimage_tipo`,
@@ -556,91 +642,97 @@
             }
         }
     }
+}
 
-    $consulta_string_matriz="SELECT `gcm_id`, `gcm_nombre_matriz`, `gcm_estado`, `gcm_observaciones`, `gcm_registro_usuario`, `gcm_registro_fecha` FROM `tb_gestion_calidad_matriz` WHERE `gcm_id`=?";
+$consulta_string_matriz="SELECT `gcm_id`, `gcm_nombre_matriz`, `gcm_estado`, `gcm_observaciones`, `gcm_registro_usuario`, `gcm_registro_fecha`
+FROM `tb_gestion_calidad_matriz` WHERE `gcm_id`=?";
 
-    $consulta_registros_matriz = $enlace_db->prepare($consulta_string_matriz);
-    $consulta_registros_matriz->bind_param("s", $_SESSION["mon_informacion"]["matriz"]);
-    $consulta_registros_matriz->execute();
-    $resultado_registros_matriz = $consulta_registros_matriz->get_result()->fetch_all(MYSQLI_NUM);
+$consulta_registros_matriz = $enlace_db->prepare($consulta_string_matriz);
+$consulta_registros_matriz->bind_param("s", $_SESSION["mon_informacion"]["matriz"]);
+$consulta_registros_matriz->execute();
+$resultado_registros_matriz = $consulta_registros_matriz->get_result()->fetch_all(MYSQLI_NUM);
 
 ?>
 <!DOCTYPE html>
 <html lang="ES">
 <head>
-	<?php
-        include("../config/configuracion_estilos.php");
-    ?>
+    <?php include("../config/configuracion_estilos.php"); ?>
 </head>
 <body>
-    <?php
-        include("../menu_principal.php");
-        include("../menu_header.php");
-    ?>
-    <div class="contenido">
-        <?php if (!empty($respuesta_accion)) {echo $respuesta_accion;} ?>
-        <div class="row justify-content-center">
-            <div class="col-md-8 pt-2 background-blanco">
-                <div class="row">
-                    <div class="col-md-12">
+<?php
+include("../menu_principal.php");
+include("../menu_header.php");
+?>
+<div class="contenido">
+    <?php if (!empty($respuesta_accion)) {echo $respuesta_accion;} ?>
+    <div class="row justify-content-center">
+        <div class="col-md-8 pt-2 background-blanco">
+            <div class="row">
+                <div class="col-md-12">
+
+                    <?php if (!empty($_SESSION['id_monitoreo'])): ?>
                         <p class="alert alert-success p-1">¡Se ha generado el monitoreo <?php echo h($_SESSION['id_monitoreo']); ?>!</p>
                         <?php if ($documento_cantidad!=$documento_registrados): ?>
                             <p class="alert alert-danger p-1">¡Problemas al cargar algunos soportes, por favor verifique en la bandeja principal!</p>
                         <?php endif; ?>
-                        <div class="form-group">
-                          <label for="matriz" class="m-0">Matriz</label>
-                          <input type="text" class="form-control form-control-sm" name="matriz" id="matriz" maxlength="50"
-                            value="<?php echo h(($resultado_registros_matriz[0][1] ?? '')); ?> [<?php echo h(($resultado_registros_matriz[0][3] ?? '')); ?>]" readonly>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="analista" class="m-0">Analista</label>
-                            <input type="text" class="form-control form-control-sm" name="analista" id="analista" maxlength="50" value="<?php echo h(($resultado_registros_analistas[0][1] ?? '')); ?>" readonly>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="form-group">
-                          <label for="fecha_gestion" class="m-0">Fecha gestión</label>
-                          <input type="date" class="form-control form-control-sm" name="fecha_gestion" id="fecha_gestion" maxlength="20" value="<?php if(isset($_SESSION["mon_informacion"]["fecha_gestion"])){ echo h($_SESSION["mon_informacion"]["fecha_gestion"]); } ?>" required readonly>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="form-group">
-                            <label for="tipo_monitoreo" class="m-0">Tipo monitoreo</label>
-                            <select class="form-control form-control-sm" name="tipo_monitoreo" id="tipo_monitoreo" required disabled>
-                              <option value="">Seleccione</option>
-                              <option value="En línea" <?php if(isset($_SESSION["mon_informacion"]["tipo_monitoreo"]) AND $_SESSION["mon_informacion"]["tipo_monitoreo"]=="En línea"){ echo "selected"; } ?>>En línea</option>
-                              <option value="Grabación" <?php if(isset($_SESSION["mon_informacion"]["tipo_monitoreo"]) AND $_SESSION["mon_informacion"]["tipo_monitoreo"]=="Grabación"){ echo "selected"; } ?>>Grabación</option>
-                              <option value="Calibración" <?php if(isset($_SESSION["mon_informacion"]["tipo_monitoreo"]) AND $_SESSION["mon_informacion"]["tipo_monitoreo"]=="Calibración"){ echo "selected"; } ?>>Calibración</option>
-                            </select>
-                        </div>
-                    </div>
+                    <?php else: ?>
+                        <p class="alert alert-warning p-1">No se generó el monitoreo (operación bloqueada o sesión inválida). Verifique el tipo de monitoreo.</p>
+                    <?php endif; ?>
 
-                    <!-- (El resto del HTML queda igual; solo se escaparon salidas vulnerables) -->
-
-                    <div class="col-md-12">
-                        <div class="form-group">
-                          <label for="observaciones">Observaciones</label>
-                          <textarea class="form-control form-control-sm" name="observaciones" id="observaciones" readonly><?php if(isset($_SESSION["mon_informacion"]["observaciones"])){ echo h($_SESSION["mon_informacion"]["observaciones"]); } ?></textarea>
-                        </div>
+                    <div class="form-group">
+                        <label for="matriz" class="m-0">Matriz</label>
+                        <input type="text" class="form-control form-control-sm" name="matriz" id="matriz" maxlength="50"
+                               value="<?php echo h(($resultado_registros_matriz[0][1] ?? '')); ?> [<?php echo h(($resultado_registros_matriz[0][3] ?? '')); ?>]" readonly>
                     </div>
                 </div>
-                <div class="row">
-                    <div class="col-md-12">
-                        <div class="form-group">
-                            <?php if($_SESSION['monitoreo_creado']==1): ?>
-                                <a href="<?php echo h($ruta_cancelar_finalizar); ?>" class="btn btn-dark float-right">Finalizar</a>
-                            <?php endif; ?>
-                        </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="analista" class="m-0">Analista</label>
+                        <input type="text" class="form-control form-control-sm" name="analista" id="analista" maxlength="50" value="<?php echo h(($resultado_registros_analistas[0][1] ?? '')); ?>" readonly>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label for="fecha_gestion" class="m-0">Fecha gestión</label>
+                        <input type="date" class="form-control form-control-sm" name="fecha_gestion" id="fecha_gestion" maxlength="20" value="<?php if(isset($_SESSION["mon_informacion"]["fecha_gestion"])){ echo h($_SESSION["mon_informacion"]["fecha_gestion"]); } ?>" required readonly>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label for="tipo_monitoreo" class="m-0">Tipo monitoreo</label>
+                        <select class="form-control form-control-sm" name="tipo_monitoreo" id="tipo_monitoreo" required disabled>
+                            <option value="">Seleccione</option>
+                            <option value="En línea" <?php if(isset($_SESSION["mon_informacion"]["tipo_monitoreo"]) AND $_SESSION["mon_informacion"]["tipo_monitoreo"]=="En línea"){ echo "selected"; } ?>>En línea</option>
+                            <option value="Grabación" <?php if(isset($_SESSION["mon_informacion"]["tipo_monitoreo"]) AND $_SESSION["mon_informacion"]["tipo_monitoreo"]=="Grabación"){ echo "selected"; } ?>>Grabación</option>
+                            <option value="Calibración" <?php if(isset($_SESSION["mon_informacion"]["tipo_monitoreo"]) AND $_SESSION["mon_informacion"]["tipo_monitoreo"]=="Calibración"){ echo "selected"; } ?>>Calibración</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="col-md-12">
+                    <div class="form-group">
+                        <label for="observaciones">Observaciones</label>
+                        <textarea class="form-control form-control-sm" name="observaciones" id="observaciones" readonly><?php if(isset($_SESSION["mon_informacion"]["observaciones"])){ echo h($_SESSION["mon_informacion"]["observaciones"]); } ?></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="form-group">
+                        <?php if($_SESSION['monitoreo_creado']==1): ?>
+                            <a href="<?php echo h($ruta_cancelar_finalizar); ?>" class="btn btn-dark float-right">Finalizar</a>
+                        <?php else: ?>
+                            <a href="<?php echo h($ruta_cancelar_finalizar); ?>" class="btn btn-dark float-right">Volver</a>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    <?php
-        include("../footer.php");
-        include("../config/configuracion_js.php");
-    ?>
+</div>
+<?php
+include("../footer.php");
+include("../config/configuracion_js.php");
+?>
 </body>
 </html>

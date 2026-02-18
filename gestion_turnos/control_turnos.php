@@ -8,16 +8,17 @@
     /*DEFINICIÓN DE VARIABLES*/
 
     $titulo_header = "Gestión Turnos | Turno Realizado";
-// error_reporting(E_ALL);
-// ini_set('display_errors', '1');
+    // error_reporting(E_ALL);
+    // ini_set('display_errors', '1');
+
     // Inicializa variable tipo array
     $data_consulta_supervisor=array();
     $data_consulta_usuarios=array();
     $data_consulta_turnos=array();
-    
+
     //AGREGAR NÚMERO AL DÍA, SEGÚN SEMANA SELECCIONADA
     $dias_semana = array();
-    for ($i=0; $i < 7; $i++) { 
+    for ($i=0; $i < 7; $i++) {
         array_push($dias_semana, date("Y-m-d", strtotime("first day", strtotime($FechaInicio . $i))));
     }
     $fecha_fin_consulta = date("Y-m-d", strtotime("+ 1 day", strtotime($dias_semana[6])))." 23:59:59";
@@ -35,7 +36,7 @@
     if (count($data_consulta_supervisor)>0) {
         $consulta_registros_areas->bind_param(str_repeat("s", count($data_consulta_supervisor)), ...$data_consulta_supervisor);
     }
-        
+
     $consulta_registros_areas->execute();
     $resultado_registros_areas = $consulta_registros_areas->get_result()->fetch_all(MYSQLI_NUM);
 
@@ -79,7 +80,7 @@
         $cantidad_filtros=count(explode('?', $filtro_buscar))-1;
 
         //Agregar catidad de variables a filtrar a data consulta
-        for ($i=0; $i < $cantidad_filtros; $i++) { 
+        for ($i=0; $i < $cantidad_filtros; $i++) {
             array_push($data_consulta_usuarios, "%$filtro_permanente%");//Se agrega llave por ser variable evaluada en un like
         }
     }
@@ -94,7 +95,7 @@
 
     $filtro_usuarios_turno='';
     if (count($resultado_registros_usuarios)>0) {
-        for ($i=0; $i < count($resultado_registros_usuarios); $i++) { 
+        for ($i=0; $i < count($resultado_registros_usuarios); $i++) {
             $filtro_usuarios_turno.="`cotm_usuario`='".$resultado_registros_usuarios[$i][0]."' OR ";
         }
         $filtro_usuarios_turno='AND ('.substr($filtro_usuarios_turno, 0, -4).')';
@@ -112,7 +113,7 @@
     $consulta_registros_turno_programado->execute();
     $resultado_registros_turno_programado = $consulta_registros_turno_programado->get_result()->fetch_all(MYSQLI_NUM);
 
-    for ($i=0; $i < count($resultado_registros_turno_programado); $i++) { 
+    for ($i=0; $i < count($resultado_registros_turno_programado); $i++) {
         $fecha_turno=date('Y-m-d', strtotime($resultado_registros_turno_programado[$i][3]));
         if ($resultado_registros_turno_programado[$i][2]=="turno") {
             $hora_inicio=date('H:i', strtotime($resultado_registros_turno_programado[$i][3]));
@@ -140,7 +141,7 @@
         }
 
     }
-    
+
     if (!isset($array_turnos_malla)) {
         $array_turnos_malla=array();
     }
@@ -234,11 +235,6 @@
         <div class="row">
             <div class="col-md-12">
                 <div class="float-left px-2 py-1 border-radius-5 ml-1 font-size-11" style="background-color: #1E8449; color: #FFF;"><span class="fas fa-user-clock"></span> Turno realizado</div>
-                <!-- <div class="float-left px-2 py-1 border-radius-5 ml-1 font-size-11" style="background-color: #2874A6; color: #FFF;"><span class="fas fa-utensils"></span> Almuerzo</div>
-                <div class="float-left px-2 py-1 border-radius-5 ml-1 font-size-11" style="background-color: #F1C40F; color: #FFF;"><span class="fas fa-coffee"></span> Break</div>
-                <div class="float-left px-2 py-1 border-radius-5 ml-1 font-size-11" style="background-color: #B03A2E; color: #FFF;"><span class="fas fa-walking"></span> Pausa Activa</div>
-                <div class="float-left px-2 py-1 border-radius-5 ml-1 font-size-11" style="background-color: #6C3483; color: #FFF;"><span class="fas fa-chalkboard-teacher"></span> Capacitación</div>
-                <div class="float-left px-2 py-1 border-radius-5 ml-1 font-size-11" style="background-color: #1ABC9C; color: #FFF;"><span class="fas fa-retweet"></span> Retroalimentación</div> -->
             </div>
             <div class="col-md-12">
                 <?php if (count($resultado_registros_usuarios)>0): ?>
@@ -263,7 +259,9 @@
         series,
         usuarios;
 
+        // ✅ CORRECCIÓN: Forzar render en hora local (no UTC) para que coincida con new Date(...).getTime()
         Highcharts.setOptions({
+            time: { useUTC: false },
             lang: {
                 months: [
                     'Enero', 'Febrero', 'Marzo', 'Abril',
@@ -281,16 +279,16 @@
                 ],
             }
         });
+
         <?php
             $fecha_validar=$FechaInicio;
             $mes_validar=date("m", strtotime($fecha_validar))-1;
             $resultado_fecha=date("Y,", strtotime($fecha_validar)).$mes_validar.",".date("d", strtotime($fecha_validar));
         ?>
+
         usuarios = [
             <?php for ($j=0; $j < count($resultado_registros_usuarios); $j++): ?>
-                <?php
-                    $id_usuario=$resultado_registros_usuarios[$j][0];
-                ?>
+                <?php $id_usuario=$resultado_registros_usuarios[$j][0]; ?>
                 {
                     nombre: '<?php echo $resultado_registros_usuarios[$j][1]; ?>',
                     duracion_turno: '<?php echo ($array_turnos[$id_usuario]['turno']['duracion_total']>0) ? conversorSegundosHoras_ns($array_turnos[$id_usuario]['turno']['duracion_total']) : ''; ?>',
@@ -314,7 +312,13 @@
                                 $turno_icono=$array_iconos_turnos[$array_turnos[$id_usuario][$turno_id]['tipo']];
 
                                 if ($turno_tipo=='Turno' AND $array_turno_programado[$id_usuario]['duracion'][$fecha_validar]>0) {
-                                    $adherencia=calculaAdherencia($array_turno_programado[$id_usuario]['fecha_inicio'][$fecha_validar], $array_turno_programado[$id_usuario]['fecha_fin'][$fecha_validar], $turno_inicio, $turno_fin, $array_turno_programado[$id_usuario]['duracion'][$fecha_validar]);
+                                    $adherencia=calculaAdherencia(
+                                        $array_turno_programado[$id_usuario]['fecha_inicio'][$fecha_validar],
+                                        $array_turno_programado[$id_usuario]['fecha_fin'][$fecha_validar],
+                                        $turno_inicio,
+                                        $turno_fin,
+                                        $array_turno_programado[$id_usuario]['duracion'][$fecha_validar]
+                                    );
                                     $adherencia_mostrar=$adherencia*100;
                                 } else {
                                     $adherencia=0;
@@ -323,8 +327,8 @@
                             ?>
                             {
                                 tipo: '<?php echo $turno_tipo; ?>',
-                                from: Date.UTC(<?php echo formatear_fecha_grafica($turno_inicio); ?>),
-                                to: Date.UTC(<?php echo formatear_fecha_grafica_fin($turno_fin, $turno_inicio); ?>),
+                                from: new Date(<?php echo formatear_fecha_grafica($turno_inicio); ?>).getTime(),
+                                to:   new Date(<?php echo formatear_fecha_grafica_fin($turno_fin, $turno_inicio); ?>).getTime(),
                                 duracion: '<?php echo $turno_duracion; ?>',
                                 color: '<?php echo $turno_color; ?>',
                                 fontSymbol: '<?php echo $turno_icono; ?>',
@@ -390,30 +394,22 @@
 
         Highcharts.ganttChart('container', {
             series: series,
-            title: {
-                text: null
-            },
+            title: { text: null },
             tooltip: {
                 pointFormat: '<span><b>{point.tipo}</b></span><br/><span><b>Inicio:</b> {point.start:%H:%M:%S, %e %b %Y}</span><br/><span><b>Fin:</b> {point.end:%H:%M:%S, %e %b %Y}</span><br/><span><b>Adherencia:</b> {point.completed_mostrar}</span>'
             },
             xAxis: [{
-                    min: Date.UTC(<?php echo $resultado_fecha; ?>, 0, 0, 0),
-                    max: Date.UTC(<?php echo $resultado_fecha; ?>, 23, 59, 59),
-                    grid: {
-                        cellHeight: 30
-                    },
-                    labels: {
-                        align: 'center',
-                        style: {
-                            fontSize: '10px'
-                        }
-                    },
-                    tickInterval: 1000 * 60 * 60,
-                }, {
-                    // Set the second axis to have a height of 60px
-                    grid: {
-                        cellHeight: 30
-                }
+                // ✅ CORRECCIÓN: Eje en hora local para que no se corra (antes estaba en UTC)
+                min: new Date(<?php echo $resultado_fecha; ?>, 0, 0, 0).getTime(),
+                max: new Date(<?php echo $resultado_fecha; ?>, 23, 59, 59).getTime(),
+                grid: { cellHeight: 30 },
+                labels: {
+                    align: 'center',
+                    style: { fontSize: '10px' }
+                },
+                tickInterval: 1000 * 60 * 60,
+            }, {
+                grid: { cellHeight: 30 }
             }],
             credits: false,
             yAxis: {
@@ -450,11 +446,7 @@
                             return s.name;
                         })
                     }, {
-                        title: {
-                            text: 'Programado',
-                            // rotation: -90,
-                            // y: -15
-                        },
+                        title: { text: 'Programado' },
                         labels: {
                             align: 'center',
                             useHTML: true,
@@ -467,11 +459,7 @@
                             return s.programado;
                         })
                     }, {
-                        title: {
-                            text: 'Realizado',
-                            // rotation: -90,
-                            // y: -15
-                        },
+                        title: { text: 'Realizado' },
                         labels: {
                             align: 'center',
                             useHTML: true,
@@ -483,69 +471,7 @@
                         categories: map(series, function (s) {
                             return s.duracion_turno;
                         })
-                    }, 
-                    // {
-                    //     title: {
-                    //         text: 'Break',
-                    //         align: 'left',
-                    //         style: {
-                    //             fontSize: '9px'
-                    //         },
-                    //         rotation: -90,
-                    //     },
-                    //     categories: map(series, function (s) {
-                    //         return s.duracion_break;
-                    //     })
-                    // }, {
-                    //     title: {
-                    //         text: 'Almuerzo',
-                    //         align: 'left',
-                    //         style: {
-                    //             fontSize: '9px'
-                    //         },
-                    //         rotation: -90,
-                    //     },
-                    //     categories: map(series, function (s) {
-                    //         return s.duracion_almuerzo;
-                    //     })
-                    // }, {
-                    //     title: {
-                    //         text: 'Pausa Activa',
-                    //         align: 'left',
-                    //         style: {
-                    //             fontSize: '9px'
-                    //         },
-                    //         rotation: -90,
-                    //     },
-                    //     categories: map(series, function (s) {
-                    //         return s.duracion_pausa;
-                    //     })
-                    // }, {
-                    //     title: {
-                    //         text: 'Capacitación',
-                    //         align: 'left',
-                    //         style: {
-                    //             fontSize: '9px'
-                    //         },
-                    //         rotation: -90,
-                    //     },
-                    //     categories: map(series, function (s) {
-                    //         return s.duracion_capacitacion;
-                    //     })
-                    // }, {
-                    //     title: {
-                    //         text: 'Retroalimentación',
-                    //         align: 'left',
-                    //         style: {
-                    //             fontSize: '9px',
-                    //         },
-                    //         rotation: -90,
-                    //     },
-                    //     categories: map(series, function (s) {
-                    //         return s.duracion_retroalimentacion;
-                    //     })
-                    // }
-                    ]
+                    }]
                 }
             }
         });

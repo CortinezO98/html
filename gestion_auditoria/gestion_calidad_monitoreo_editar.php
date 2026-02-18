@@ -8,35 +8,15 @@
     /*DEFINICIÓN DE VARIABLES*/
 
     $titulo_header = "Monitoreos | Información General - Editar";
+    $pagina=validar_input($_GET['pagina']);
+    $filtro_permanente=validar_input($_GET['id']);
+    $bandeja=validar_input(base64_decode($_GET['bandeja']));
+    $id_registro=validar_input(base64_decode($_GET['reg']));
 
-    // Lectura segura de parámetros (evita warnings y valida base64)
-    $pagina = validar_input($_GET['pagina'] ?? '');
-    $filtro_permanente = validar_input($_GET['id'] ?? '');
-    $bandeja_decoded = base64_decode($_GET['bandeja'] ?? '', true);
-    $bandeja = validar_input(($bandeja_decoded !== false) ? $bandeja_decoded : '');
-    $reg_decoded = base64_decode($_GET['reg'] ?? '', true);
-    $id_registro = validar_input(($reg_decoded !== false) ? $reg_decoded : '');
-
-    // Helper de escape para salida HTML (prevención XSS)
-    if (!function_exists('e')) {
-        function e($value): string {
-            return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        }
-    }
-
-    // CSRF token (prevención CSRF)
-    if (empty($_SESSION['csrf_token'])) {
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-    }
-// Inicializa variable tipo array
+    // Inicializa variable tipo array
     $data_consulta=array();
 
     if(isset($_POST["guardar_registro"])){
-        // Validación CSRF
-        $csrf_token = $_POST['csrf_token'] ?? '';
-        if (empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $csrf_token)) {
-            $respuesta_accion = "<script type='text/javascript'>alertify.warning('Sesión inválida o expirada. Actualiza la página e inténtalo de nuevo.', 0);</script>";
-        } else {
         $fecha_gestion=validar_input($_POST['fecha_gestion']);
         $fecha_monitoreo=validar_input($_POST['fecha_monitoreo']);
         $duracion=validar_input($_POST['duracion']);
@@ -63,7 +43,7 @@
 
         // Agrega variables a sentencia preparada
         $consulta_actualizar->bind_param('ssssssssssss', $fecha_gestion, $duracion, $tipo_monitoreo, $skill_interaccion, $tipo_gestion, $segmento, $id_sim, $id_ani, $analista, $resultado_registros_supervisor_nuevo[0][0], $gcm_afectacion_2, $id_registro);
-
+        
         // Ejecuta sentencia preparada
         $consulta_actualizar->execute();
 
@@ -73,11 +53,11 @@
 
             // Agrega variables a sentencia preparada
             $consulta_actualizar_indicador->bind_param('sss', $indicador, $fecha_monitoreo, $id_registro);
-
+            
             // Ejecuta sentencia preparada
             $consulta_actualizar_indicador->execute();
         }   
-
+        
         if (comprobarSentencia($enlace_db->info)) {
             $respuesta_accion = "<script type='text/javascript'>alertify.success('¡Registro actualizado exitosamente!', 0);</script>";
 
@@ -216,41 +196,10 @@
                 $nc_fecha_envio="";
                 $nc_usuario_registro=$_SESSION['usu_id'];
 
-                // =========================
-                // REMEDIACIÓN SQLi:
-                // INSERT concatenado -> prepared statement
-                // (misma funcionalidad: 5 intentos + break si inserta)
-                // =========================
-                $sql_insert_notif = "INSERT INTO `tb_notificaciones_central`
-                    (`nc_id_modulo`, `nc_prioridad`, `nc_id_set_from`, `nc_address`, `nc_cc`, `nc_bcc`, `nc_reply_to`, `nc_subject`, `nc_body`,
-                     `nc_embeddedimage_ruta`, `nc_embeddedimage_nombre`, `nc_embeddedimage_tipo`, `nc_intentos`, `nc_eliminar`, `nc_estado_envio`, `nc_fecha_envio`, `nc_usuario_registro`)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-
-                $stmt_notif = $enlace_db->prepare($sql_insert_notif);
-
                 for ($i=0; $i < 5; $i++) {
-                    $stmt_notif->bind_param(
-                        "sssssssssssssssss",
-                        $nc_id_modulo,
-                        $nc_prioridad,
-                        $nc_id_set_from,
-                        $nc_address,
-                        $nc_cc,
-                        $nc_bcc,
-                        $nc_reply_to,
-                        $nc_subject,
-                        $nc_body,
-                        $nc_embeddedimage_ruta,
-                        $nc_embeddedimage_nombre,
-                        $nc_embeddedimage_tipo,
-                        $nc_intentos,
-                        $nc_eliminar,
-                        $nc_estado_envio,
-                        $nc_fecha_envio,
-                        $nc_usuario_registro
-                    );
+                    $consulta_notificacion = mysqli_query($enlace_db, "INSERT INTO `tb_notificaciones_central`(`nc_id_modulo`, `nc_prioridad`, `nc_id_set_from`, `nc_address`, `nc_cc`, `nc_bcc`, `nc_reply_to`, `nc_subject`, `nc_body`, `nc_embeddedimage_ruta`, `nc_embeddedimage_nombre`, `nc_embeddedimage_tipo`, `nc_intentos`, `nc_eliminar`, `nc_estado_envio`, `nc_fecha_envio`, `nc_usuario_registro`) VALUES ('".$nc_id_modulo."','".$nc_prioridad."','".$nc_id_set_from."','".$nc_address."','".$nc_cc."','".$nc_bcc."','".$nc_reply_to."','".$nc_subject."','".$nc_body."','".$nc_embeddedimage_ruta."','".$nc_embeddedimage_nombre."','".$nc_embeddedimage_tipo."','".$nc_intentos."','".$nc_eliminar."','".$nc_estado_envio."','".$nc_fecha_envio."','".$nc_usuario_registro."');");
 
-                    if ($stmt_notif->execute()) {
+                    if ($consulta_notificacion) {
                         registro_log($enlace_db, $modulo_plataforma, 'notificacion', $nc_subject);
                         break;
                     }
@@ -258,7 +207,6 @@
             }
         } else {
             $respuesta_accion = "<script type='text/javascript'>alertify.warning('¡Problemas al actualizar el registro, por favor verifique e intente nuevamente!', 0);</script>";
-        }
         }
     }
 
@@ -274,7 +222,7 @@
     } elseif($perfil_modulo=="Supervisor"){
         $filtro_perfil=" AND (`usu_supervisor`=?)";
         array_push($data_consulta, $_SESSION["usu_id"]);
-
+        
     }
 
     $consulta_string_analista="SELECT `usu_id`, `usu_nombres_apellidos` FROM `tb_administrador_usuario` WHERE (`usu_cargo_rol` LIKE '%Agente%' OR `usu_cargo_rol` LIKE '%Supervisor%') ".$filtro_perfil." ORDER BY `usu_nombres_apellidos`";
@@ -283,7 +231,7 @@
     if (count($data_consulta)>0) {
         // Agrega variables a sentencia preparada según cantidad de variables agregadas a array data_consulta en el orden específico de los parámetros de la sentencia preparada
         $consulta_registros_analistas->bind_param(str_repeat("s", count($data_consulta)), ...$data_consulta);
-
+        
     }
     $consulta_registros_analistas->execute();
     $resultado_registros_analistas = $consulta_registros_analistas->get_result()->fetch_all(MYSQLI_NUM);
@@ -308,14 +256,13 @@
     <div class="contenido">
         <?php if (!empty($respuesta_accion)) {echo $respuesta_accion;} ?>
         <form name="guardar_registro" action="" method="POST" enctype="multipart/form-data">
-        <input type="hidden" name="csrf_token" value="<?php echo e($_SESSION['csrf_token']); ?>">
         <div class="row justify-content-center">
             <div class="col-md-8 pt-2 background-blanco">
                 <div class="row">
                     <div class="col-md-12">
                         <div class="form-group">
                           <label for="matriz" class="m-0">Matriz</label>
-                          <input type="text" class="form-control form-control-sm" name="matriz" id="matriz" value="<?php echo e($resultado_registros[0][1]); ?> [<?php echo e($resultado_registros[0][28]); ?>]" readonly>
+                          <input type="text" class="form-control form-control-sm" name="matriz" id="matriz" value="<?php echo $resultado_registros[0][1]; ?> [<?php echo $resultado_registros[0][28]; ?>]" readonly>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -327,26 +274,26 @@
                                 <option value="<?php echo $resultado_registros_analistas[$i][0]; ?>" class="font-size-11" data-tokens="<?php echo $resultado_registros_analistas[$i][0].' '.$resultado_registros_analistas[$i][1]; ?>" <?php if($resultado_registros[0][2]==$resultado_registros_analistas[$i][0]){ echo "selected"; } ?>><?php echo $resultado_registros_analistas[$i][1]; ?></option>
                               <?php endfor; ?>
                             </select>
-                            <input type="hidden" name="analista_old" id="analista_old" value="<?php echo e($resultado_registros[0][2]); ?>" required>
+                            <input type="hidden" name="analista_old" id="analista_old" value="<?php echo $resultado_registros[0][2]; ?>" required>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="form-group">
                           <label for="fecha_gestion" class="m-0">Fecha gestión</label>
-                          <input type="date" class="form-control form-control-sm" name="fecha_gestion" id="fecha_gestion" max="<?php echo date('Y-m-d'); ?>" value="<?php echo e($resultado_registros[0][4]); ?>" required>
+                          <input type="date" class="form-control form-control-sm" name="fecha_gestion" id="fecha_gestion" max="<?php echo date('Y-m-d'); ?>" value="<?php echo $resultado_registros[0][4]; ?>" required>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="form-group">
                           <label for="duracion" class="m-0">Duración</label>
-                          <input type="number" class="form-control form-control-sm" name="duracion" id="duracion" step="1" min="0" max="180" value="<?php echo e($resultado_registros[0][5]); ?>" required>
+                          <input type="number" class="form-control form-control-sm" name="duracion" id="duracion" step="1" min="0" max="180" value="<?php echo $resultado_registros[0][5]; ?>" required>
                         </div>
                     </div>
                     <?php if($perfil_modulo=="Administrador"): ?>
                     <div class="col-md-3">
                         <div class="form-group">
                           <label for="fecha_monitoreo" class="m-0">Fecha monitoreo</label>
-                          <input type="date" class="form-control form-control-sm" name="fecha_monitoreo" id="fecha_monitoreo" value="<?php echo e($resultado_registros[0][27]); ?>" required>
+                          <input type="date" class="form-control form-control-sm" name="fecha_monitoreo" id="fecha_monitoreo" value="<?php echo $resultado_registros[0][27]; ?>" required>
                         </div>
                     </div>
                     <?php endif; ?>
@@ -436,13 +383,13 @@
                     <div class="col-md-3">
                         <div class="form-group">
                           <label for="id_sim" class="m-0">Id SIM</label>
-                          <input type="text" class="form-control form-control-sm" name="id_sim" id="id_sim" maxlength="100" value="<?php echo e($resultado_registros[0][10]); ?>" required>
+                          <input type="text" class="form-control form-control-sm" name="id_sim" id="id_sim" maxlength="100" value="<?php echo $resultado_registros[0][10]; ?>" required>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="form-group">
                           <label for="id_ani" class="m-0">ID/ANI</label>
-                          <input type="text" class="form-control form-control-sm" name="id_ani" id="id_ani" maxlength="100" value="<?php echo e($resultado_registros[0][11]); ?>" required>
+                          <input type="text" class="form-control form-control-sm" name="id_ani" id="id_ani" maxlength="100" value="<?php echo $resultado_registros[0][11]; ?>" required>
                         </div>
                     </div>
                     <div class="col-md-3">
@@ -481,13 +428,13 @@
                                 <button class="btn btn-danger float-right" type="button" onclick="guardar_cancelar();">Cancelar</button>
                             <?php endif; ?>
                             <?php if(isset($_POST["guardar_registro"])): ?>
-                                <a href="<?php echo e($ruta_cancelar_finalizar); ?>" class="btn btn-dark float-right">Finalizar</a>
+                                <a href="<?php echo $ruta_cancelar_finalizar; ?>" class="btn btn-dark float-right">Finalizar</a>
                             <?php endif; ?>
                         </div>
                     </div>
                 </div>
             </div>
-
+            
         </div>
         </form>
     </div>

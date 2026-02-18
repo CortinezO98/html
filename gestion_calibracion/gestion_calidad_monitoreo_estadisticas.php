@@ -4,8 +4,8 @@
 
 	require_once("../config/validaciones_seguridad.php");
     require_once("../config/conexion_db.php");
-// error_reporting(E_ALL);
-// ini_set('display_errors', '1');
+    error_reporting(E_ALL);
+    ini_set('display_errors', '1');
     /*DEFINICIÓN DE VARIABLES*/
     $array_meses=[1=>"Enero", 2=>"Febrero", 3=>"Marzo", 4=>"Abril", 5=>"Mayo", 6=>"Junio", 7=>"Julio", 8=>"Agosto", 9=>"Septiembre", 10=>"Octubre", 11=>"Noviembre", 12=>"Diciembre"];
     $bandeja=validar_input(base64_decode($_GET['bandeja']));
@@ -130,17 +130,28 @@
             $array_gestion_monitores[$resultado_registros_gestion_enc_monitor[$i][0]]['enc']=$resultado_registros_gestion_enc_monitor[$i][2];
         }
 
-        for ($i=0; $i < count($array_gestion_monitores_doc); $i++) { 
-            if ($array_gestion_monitores[$array_gestion_monitores_doc[$i]]['monitoreos']>0) {
-                $array_gestion_monitores[$array_gestion_monitores_doc[$i]]['pecuf']=(($array_gestion_monitores[$array_gestion_monitores_doc[$i]]['monitoreos']-$array_gestion_monitores[$array_gestion_monitores_doc[$i]]['ecuf'])/$array_gestion_monitores[$array_gestion_monitores_doc[$i]]['monitoreos'])*100;
-                $array_gestion_monitores[$array_gestion_monitores_doc[$i]]['pecn']=(($array_gestion_monitores[$array_gestion_monitores_doc[$i]]['monitoreos']-$array_gestion_monitores[$array_gestion_monitores_doc[$i]]['ecn'])/$array_gestion_monitores[$array_gestion_monitores_doc[$i]]['monitoreos'])*100;
-                $array_gestion_monitores[$array_gestion_monitores_doc[$i]]['penc']=(($array_gestion_monitores[$array_gestion_monitores_doc[$i]]['monitoreos']-$array_gestion_monitores[$array_gestion_monitores_doc[$i]]['enc'])/$array_gestion_monitores[$array_gestion_monitores_doc[$i]]['monitoreos'])*100;
+        if (!isset($array_gestion_monitores_doc) || !is_array($array_gestion_monitores_doc)) {
+            $array_gestion_monitores_doc = [];
+        }
+
+        for ($i=0; $i < count($array_gestion_monitores_doc); $i++) {
+            $uid = $array_gestion_monitores_doc[$i];
+
+            // si por alguna razón no existe el monitor en el array, lo salta (no cambia lógica)
+            if (!isset($array_gestion_monitores[$uid])) { continue; }
+
+            if (($array_gestion_monitores[$uid]['monitoreos'] ?? 0) > 0) {
+                $m = $array_gestion_monitores[$uid]['monitoreos'] + 0;
+                $array_gestion_monitores[$uid]['pecuf']=(($m-($array_gestion_monitores[$uid]['ecuf'] ?? 0))/$m)*100;
+                $array_gestion_monitores[$uid]['pecn']=(($m-($array_gestion_monitores[$uid]['ecn'] ?? 0))/$m)*100;
+                $array_gestion_monitores[$uid]['penc']=(($m-($array_gestion_monitores[$uid]['enc'] ?? 0))/$m)*100;
             } else {
-                $array_gestion_monitores[$array_gestion_monitores_doc[$i]]['pecuf']=0;
-                $array_gestion_monitores[$array_gestion_monitores_doc[$i]]['pecn']=0;
-                $array_gestion_monitores[$array_gestion_monitores_doc[$i]]['penc']=0;
+                $array_gestion_monitores[$uid]['pecuf']=0;
+                $array_gestion_monitores[$uid]['pecn']=0;
+                $array_gestion_monitores[$uid]['penc']=0;
             }
         }
+
 
     //CONSULTA GESTIÓN POR MONITOR-FECHA
         $array_semanas['total_1']=0;
@@ -184,6 +195,12 @@
             }
         }
 
+        // ✅ FIX: si no hubo resultados en monitor_dia, este array no se crea y array_unique revienta
+        if (!isset($array_monitor_dia_doc) || !is_array($array_monitor_dia_doc)) {
+            $array_monitor_dia_doc = [];
+        }
+
+
         $array_monitor_dia_doc=array_values(array_unique($array_monitor_dia_doc));
 
         $array_semanas['rango_1']='01 al 06 de '.$filtro_permanente;
@@ -206,6 +223,12 @@
         $array_matrices_detalle[$resultado_registros[$i][0]]['cantidad']+=$resultado_registros[$i][4];
         $array_usuario_monitoreos[$resultado_registros[$i][0]][$resultado_registros[$i][2]]+=$resultado_registros[$i][4];
     }
+
+
+    // ✅ FIX: si no hubo registros, estos arrays no se crean y array_unique revienta
+    if (!isset($array_usuarios) || !is_array($array_usuarios)) { $array_usuarios = []; }
+    if (!isset($array_matrices) || !is_array($array_matrices)) { $array_matrices = []; }
+    if (!isset($array_usuario_monitoreos) || !is_array($array_usuario_monitoreos)) { $array_usuario_monitoreos = []; }
 
     $array_usuarios=array_values(array_unique($array_usuarios));
     $array_matrices=array_values(array_unique($array_matrices));

@@ -38,3 +38,31 @@ backup/
 backups/
 *.bak
 *.old/vendor/
+
+# --- TEMPORALES / STORAGE (NO SUBIR) ---
+gestion_encuestas/storage_temporal/
+gestion_turnos/storage_temporal/
+gestion_calidad/storage/
+gestion_calidad/storage_temporal/
+gestion_auditoria_New/
+gestion_calidad_Old/
+
+# backups / dumps / archivos generados
+*.bak
+*.bak_*
+*.sql
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.log
+*.tmp
+
+# binarios/documentos pesados (si estos son cargues del negocio y no deberían ir)
+*.xlsx
+*.xls
+*.csv
+*.pdf
+
+# test write files
+*_test_write.txt

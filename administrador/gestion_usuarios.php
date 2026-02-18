@@ -105,13 +105,48 @@
                 </form>
             </div>
             <div class="col-md-9 py-2">
-                <?php if($perfil_modulo=="Administrador" OR $perfil_modulo=="Gestor"): ?>
-                    <a href="gestion_usuarios_crear.php?pagina=<?php echo $pagina; ?>&id=<?php echo $filtro_permanente; ?>" class="btn btn-corp menu float-right"><div class="float-left"><span class="fas fa-plus"></span></div><div class="pl-2 menu_res float-left">Crear Usuario</div></a>
-                    <a href="gestion_usuarios_editar_campania.php?pagina=<?php echo $pagina; ?>&id=<?php echo $filtro_permanente; ?>" class="btn btn-corp menu float-right"><div class="float-left"><span class="fas fa-sync-alt"></span></div><div class="pl-2 menu_res float-left">Campaña</div></a>
-                    <a href="gestion_usuarios_editar_supervisor.php?pagina=<?php echo $pagina; ?>&id=<?php echo $filtro_permanente; ?>" class="btn btn-corp menu float-right"><div class="float-left"><span class="fas fa-sync-alt"></span></div><div class="pl-2 menu_res float-left">Supervisor</div></a>
-                    <a href="gestion_usuarios_editar_estado.php?pagina=<?php echo $pagina; ?>&id=<?php echo $filtro_permanente; ?>" class="btn btn-corp menu float-right"><div class="float-left"><span class="fas fa-sync-alt"></span></div><div class="pl-2 menu_res float-left">Estado</div></a>
-                <?php endif; ?>
+            <?php if ($perfil_modulo === "Administrador" || $perfil_modulo === "Gestor"): ?>
+                <?php
+                $qPagina = htmlspecialchars((string)$pagina, ENT_QUOTES, 'UTF-8');
+                $qId     = htmlspecialchars((string)$filtro_permanente, ENT_QUOTES, 'UTF-8');
+                ?>
+
+                <div class="d-flex justify-content-end flex-wrap gap-2">
+
+                <a href="gestion_usuarios_crear.php?pagina=<?php echo $qPagina; ?>&id=<?php echo $qId; ?>"
+                    class="btn btn-corp menu">
+                    <span class="fas fa-plus mr-2"></span>
+                    <span class="menu_res">Crear usuario</span>
+                </a>
+
+                <a href="gestion_usuarios_masivo.php?pagina=<?php echo $qPagina; ?>&id=<?php echo $qId; ?>"
+                    class="btn btn-corp menu">
+                    <span class="fas fa-file-excel mr-2"></span>
+                    <span class="menu_res">Carga masiva (Excel)</span>
+                </a>
+
+                <a href="gestion_usuarios_editar_campania.php?pagina=<?php echo $qPagina; ?>&id=<?php echo $qId; ?>"
+                    class="btn btn-corp menu">
+                    <span class="fas fa-sync-alt mr-2"></span>
+                    <span class="menu_res">Campaña</span>
+                </a>
+
+                <a href="gestion_usuarios_editar_supervisor.php?pagina=<?php echo $qPagina; ?>&id=<?php echo $qId; ?>"
+                    class="btn btn-corp menu">
+                    <span class="fas fa-sync-alt mr-2"></span>
+                    <span class="menu_res">Supervisor</span>
+                </a>
+
+                <a href="gestion_usuarios_editar_estado.php?pagina=<?php echo $qPagina; ?>&id=<?php echo $qId; ?>"
+                    class="btn btn-corp menu">
+                    <span class="fas fa-sync-alt mr-2"></span>
+                    <span class="menu_res">Estado</span>
+                </a>
+
+                </div>
+            <?php endif; ?>
             </div>
+
         </div>
         <div class="row" id="tabla_fixed">
             <div class="col-md-12">

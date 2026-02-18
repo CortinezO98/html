@@ -19,6 +19,9 @@
 
     // Inicializa variable tipo array
     $data_consulta=array();
+    $filtro_buscar = '';
+    $filtro_perfil = '';
+    $filtro_bandeja = '';
     
     // Ejemplo filtro campo buscar
     if (isset($_POST["filtro"])) {
