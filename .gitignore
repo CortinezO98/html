@@ -66,3 +66,7 @@ gestion_calidad_Old/
 
 # test write files
 *_test_write.txt
+PHPOffice/
+PHPExcel/
+PHPMailer-master/
+PHPCalendario/
