@@ -5,6 +5,9 @@
 	require_once("../config/validaciones_seguridad.php");
     require_once("../config/conexion_db.php");
 
+    // error_reporting(E_ALL);
+    // ini_set('display_errors', '1');
+
     /*DEFINICIÓN DE VARIABLES*/
 
     $titulo_header = "Monitoreos | Evaluación - Editar";
@@ -27,7 +30,11 @@
         $ecuf_old=$_POST['ecuf_old'];
         $ecn_old=$_POST['ecn_old'];
         $enc_old=$_POST['enc_old'];
-        $id_analista=$_POST['id_analista'];
+
+        // FIX #1: id_analista puede no existir en el POST si no hay campo con ese nombre
+        // Se inicializa con cadena vacía para evitar el Undefined array key
+        $id_analista = $_POST['id_analista'] ?? '';
+
         $gcm_fecha_hora_gestion=$_POST['gcm_fecha_hora_gestion'];
         $gcm_tipo_monitoreo=$_POST['gcm_tipo_monitoreo'];
         $gcm_skill_interaccion=$_POST['gcm_skill_interaccion'];
@@ -39,6 +46,10 @@
         $estado_old=validar_input($_POST['estado_old']);
 
         $grupos_tipo_error=array_values(array_unique($tipo_error));
+
+        // FIX #2 y #3: $grupos_peso_id puede quedar sin definir si ningún item
+        // tiene grupo_peso distinto de "". Se inicializa como array vacío antes del loop.
+        $grupos_peso_id = [];
 
         for ($i=0; $i < count($items_matriz); $i++) { 
             if ($grupo_peso[$i]!="") {
@@ -61,6 +72,7 @@
             }
         }
 
+        // Ahora array_unique nunca recibirá null porque $grupos_peso_id es array
         $grupos_peso_id=array_values(array_unique($grupos_peso_id));
 
         for ($i=0; $i < count($items_matriz); $i++) { 
@@ -243,10 +255,14 @@
                     $consulta_registros_supervisor->execute();
                     $resultado_registros_supervisor = $consulta_registros_supervisor->get_result()->fetch_all(MYSQLI_NUM);
 
+                    // FIX: Si el analista no tiene supervisor asignado, la consulta
+                    // devuelve null en los campos del LEFT JOIN. Se protege con array vacío.
+                    $supervisor_row = $resultado_registros_supervisor[0] ?? [];
+
                     // PROGRAMAR NOTIFICACIÓN CORREO
                     /*SE DEFINEN DESTINATARIOS*/
-                    $array_correo_destino['correos']['TO']=$resultado_registros_supervisor[0][5]."|".$resultado_registros_supervisor[0][1];
-                    $array_correo_destino['correos']['CC']=$resultado_registros_supervisor[0][4]."|".$resultado_registros_supervisor[0][3];
+                    $array_correo_destino['correos']['TO'] = ($supervisor_row[5] ?? '') . "|" . ($supervisor_row[1] ?? '');
+                    $array_correo_destino['correos']['CC'] = ($supervisor_row[4] ?? '') . "|" . ($supervisor_row[3] ?? '');
 
                     if ($resultado_registros[0][23]) {
                         $nota_correo_enc='CUMPLE';
@@ -267,7 +283,7 @@
                     }
 
                     /*SE ESTRUCTURA COTENIDO DE CORREO*/
-                        $contenido_correo="<p style='font-size: 12px; color: #2E2E2E; font-family: Lato, Arial, sans-serif;'>Cordial Saludo,<br><br>Se ha monitoreado al agente ".$resultado_registros_supervisor[0][1].", con los siguientes resultados. Por favor verificar el detalle del monitoreo ingresando al siguiente link: <a href='http://52.188.206.38/' target='_blank'>ICBF-IQGIS</a></p><br>
+                        $contenido_correo="<p style='font-size: 12px; color: #2E2E2E; font-family: Lato, Arial, sans-serif;'>Cordial Saludo,<br><br>Se ha monitoreado al agente ".($supervisor_row[1] ?? 'N/A').", con los siguientes resultados. Por favor verificar el detalle del monitoreo ingresando al siguiente link: <a href='http://52.188.206.38/' target='_blank'>ICBF-IQGIS</a></p><br>
                             <center>
                             <table style='width: 500px; font-size: 13px; font-family: Lato, Arial, sans-serif;'>
                                 <tr>
@@ -276,11 +292,11 @@
                                 </tr>
                                 <tr>
                                     <td style='width: 30%;background-color: #069169; color: #FFFFFF; padding: 5px 5px 5px 5px; text-align: center;'>Id Analista</td>
-                                    <td style='width: 70%;padding: 5px 5px 5px 5px;background-color: #F2F2F2;'>". $resultado_registros_supervisor[0][0] ."</td>
+                                    <td style='width: 70%;padding: 5px 5px 5px 5px;background-color: #F2F2F2;'>". ($supervisor_row[0] ?? 'N/A') ."</td>
                                 </tr>
                                 <tr>
                                     <td style='width: 30%;background-color: #069169; color: #FFFFFF; padding: 5px 5px 5px 5px; text-align: center;'>Nombres y Apellidos</td>
-                                    <td style='width: 70%;padding: 5px 5px 5px 5px;background-color: #F2F2F2;'>". $resultado_registros_supervisor[0][1] ."</td>
+                                    <td style='width: 70%;padding: 5px 5px 5px 5px;background-color: #F2F2F2;'>". ($supervisor_row[1] ?? 'N/A') ."</td>
                                 </tr>
                                 <tr>
                                     <td style='width: 30%;background-color: #069169; color: #FFFFFF; padding: 5px 5px 5px 5px; text-align: center;'>Fecha gestión/grabación</td>
@@ -447,6 +463,8 @@
                                 <input type="hidden" name="gcm_id_sim" value="<?php echo $resultado_registros_monitoreo[0][9]; ?>">
                                 <input type="hidden" name="gcm_id_ani" value="<?php echo $resultado_registros_monitoreo[0][10]; ?>">
                                 <input type="hidden" name="estado_old" value="<?php echo $resultado_registros_monitoreo[0][15]; ?>">
+                                <!-- FIX: id_analista se envía desde el HTML para que esté disponible en el POST -->
+                                <input type="hidden" name="id_analista" value="<?php echo htmlspecialchars($resultado_registros_monitoreo[0][27]); ?>">
                             </tr>
                             <tr>
                                 <th class="align-middle py-0 font-size-11 text-left" style="min-width: 110px;">Matriz</th>

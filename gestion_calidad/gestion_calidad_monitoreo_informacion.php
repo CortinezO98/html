@@ -197,7 +197,9 @@
                                   "WhatsApp",
                                   "Videollamada",
                                   "Apoyo Adopciones",
+                                  "Formulario Web",
                                   "N/A"
+
                                 ];
 
                                 $en_lista = false;
@@ -233,7 +235,7 @@
                               <option value="Búsqueda de Orígenes" <?php if(isset($_SESSION["mon_informacion"]["tipo_gestion"]) AND trim($_SESSION["mon_informacion"]["tipo_gestion"])=="Búsqueda de Orígenes"){ echo "selected"; } ?>>Búsqueda de Orígenes</option>
                               <option value="Comunicación NNA" <?php if(isset($_SESSION["mon_informacion"]["tipo_gestion"]) AND trim($_SESSION["mon_informacion"]["tipo_gestion"])=="Comunicación NNA"){ echo "selected"; } ?>>Comunicación NNA</option>
                               <option value="Consulta" <?php if(isset($_SESSION["mon_informacion"]["tipo_gestion"]) AND trim($_SESSION["mon_informacion"]["tipo_gestion"])=="Consulta"){ echo "selected"; } ?>>Consulta</option>
-                              <option value="Correos" <?php if(isset($_SESSION["mon_informacion"]["tipo_gestion"]) AND trim($_SESSION["mon_informacion"]["tipo_gestion"])=="Correos"){ echo "selected"; } ?>>Correos</option>
+                             
 
                               <!-- FIX: sin espacio final -->
                               <option value="Encuestas" <?php if(isset($_SESSION["mon_informacion"]["tipo_gestion"]) AND trim($_SESSION["mon_informacion"]["tipo_gestion"])=="Encuestas"){ echo "selected"; } ?>>Encuestas</option>
@@ -265,9 +267,11 @@
                             <label for="segmento" class="m-0">Segmento</label>
                             <select class="form-control form-control-sm" name="segmento" id="segmento" required>
                               <option value="">Seleccione</option>
-                              <option value="Aseguramiento" <?php if(isset($_SESSION["mon_informacion"]["segmento"]) AND trim($_SESSION["mon_informacion"]["segmento"])=="Aseguramiento"){ echo "selected"; } ?>>Aseguramiento</option>
                               <option value="Canal escrito" <?php if(isset($_SESSION["mon_informacion"]["segmento"]) AND trim($_SESSION["mon_informacion"]["segmento"])=="Canal escrito"){ echo "selected"; } ?>>Canal escrito</option>
+                              <option value="Aseguramiento" <?php if(isset($_SESSION["mon_informacion"]["segmento"]) AND trim($_SESSION["mon_informacion"]["segmento"])=="Aseguramiento"){ echo "selected"; } ?>>Aseguramiento</option>
+                              <option value="Apoyo Adopciones" <?php if(isset($_SESSION["mon_informacion"]["segmento"]) AND trim($_SESSION["mon_informacion"]["segmento"])=="Apoyo Adopciones"){ echo "selected"; } ?>>Apoyo Adopciones</option>
                               <option value="Chat ICBF" <?php if(isset($_SESSION["mon_informacion"]["segmento"]) AND trim($_SESSION["mon_informacion"]["segmento"])=="Chat ICBF"){ echo "selected"; } ?>>Chat ICBF</option>
+                              <option value="Click to Call" <?php if(isset($_SESSION["mon_informacion"]["segmento"]) AND trim($_SESSION["mon_informacion"]["segmento"])=="Click to Call"){ echo "selected"; } ?>>Click to Call</option>
                               <option value="Conmutador" <?php if(isset($_SESSION["mon_informacion"]["segmento"]) AND trim($_SESSION["mon_informacion"]["segmento"])=="Conmutador"){ echo "selected"; } ?>>Conmutador</option>
                               <option value="Correos y Portales" <?php if(isset($_SESSION["mon_informacion"]["segmento"]) AND trim($_SESSION["mon_informacion"]["segmento"])=="Correos y Portales"){ echo "selected"; } ?>>Correos y Portales</option>
                               <option value="Encuestas" <?php if(isset($_SESSION["mon_informacion"]["segmento"]) AND trim($_SESSION["mon_informacion"]["segmento"])=="Encuestas"){ echo "selected"; } ?>>Encuestas</option>

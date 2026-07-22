@@ -39,7 +39,7 @@
                       <div class="form-group">
                           <label for="id_matriz">Matriz monitoreo</label>
                           <select class="form-control form-control-sm" name="id_matriz" id="id_matriz" required>
-                              <?php for ($i=0; $i < count($resultado_registros_matriz); $i++): ?>
+                              <?php for ($i=0; $i < count($resultado_registros_matriz ?? []); $i++): ?>
                                 <option value="<?php echo $resultado_registros_matriz[$i][0]; ?>"><?php echo $resultado_registros_matriz[$i][1]; ?> [<?php echo $resultado_registros_matriz[$i][3]; ?>]</option>
                               <?php endfor; ?>
                           </select>

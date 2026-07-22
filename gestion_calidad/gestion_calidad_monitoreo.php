@@ -4,8 +4,8 @@
 
 	require_once("../config/validaciones_seguridad.php");
     require_once("../config/conexion_db.php");
-// error_reporting(E_ALL);
-// ini_set('display_errors', '1');
+error_reporting(E_ALL);
+ini_set('display_errors', '1');
     /*DEFINICIÓN DE VARIABLES*/
     $array_meses=[1=>"Enero", 2=>"Febrero", 3=>"Marzo", 4=>"Abril", 5=>"Mayo", 6=>"Junio", 7=>"Julio", 8=>"Agosto", 9=>"Septiembre", 10=>"Octubre", 11=>"Noviembre", 12=>"Diciembre"];
     $bandeja=validar_input(base64_decode($_GET['bandeja']));

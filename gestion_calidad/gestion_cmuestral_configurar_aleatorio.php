@@ -361,171 +361,246 @@ if(isset($_POST["guardar_registro"])){
                                     }
                                 }
 
-                                $muestras_agente=$resultado_registros_fechas[0][9];
+                                $muestras_agente=intval($resultado_registros_fechas[0][9]);
+                                $total_muestras_objetivo=intval($resultado_registros_fechas[0][16]);
+
+                                if ($total_muestras_objetivo<=0) {
+                                    $total_muestras_objetivo=$muestras_agente*count($resultado_registros_malla);
+                                }
+
+                                /*
+                                 * AJUSTE SOLICITADO:
+                                 * Distribución equitativa de muestras por asesor/agente.
+                                 *
+                                 * No se modifica la lógica de horarios ni la generación de franjas.
+                                 * La diferencia es que ya no se llena un asesor completamente antes de pasar al siguiente.
+                                 * Ahora se asigna por rondas, priorizando siempre el asesor con menor cantidad de muestras.
+                                 */
+                                $agentes_malla=[];
+                                $random_agente=[];
+                                $random_agente_dias=[];
+                                $random_agente_total=[];
+                                $objetivo_agente=[];
 
                                 for ($i=0; $i < count($resultado_registros_malla); $i++) {
-                                    $limite_rand=count($array_usuario_turnos[$resultado_registros_malla[$i][3]])-1;
-                                    shuffle($array_usuario_turnos[$resultado_registros_malla[$i][3]]);
-                                    unset($array_turno_rand);
+                                    $id_usuario=$resultado_registros_malla[$i][3];
 
-                                    if (count($array_usuario_turnos[$resultado_registros_malla[$i][3]])>0) {
+                                    if (!isset($array_usuario_turnos[$id_usuario])) {
+                                        $array_usuario_turnos[$id_usuario]=[];
+                                    }
 
-                                        $rand = range(0, $limite_rand);
-                                        shuffle($rand);
-                                        foreach ($rand as $val) {
-                                            $array_turno_rand[]=$val;
+                                    if (count($array_usuario_turnos[$id_usuario])>0) {
+                                        shuffle($array_usuario_turnos[$id_usuario]);
+                                        $agentes_malla[]=$id_usuario;
+                                        $random_agente[$id_usuario]['muestra']=[];
+                                        $random_agente[$id_usuario]['lider']=[];
+                                        $random_agente_dias[$id_usuario]['muestra']=[];
+                                        $random_agente_total[$id_usuario]=0;
+                                    }
+                                }
+
+                                $agentes_malla=array_values(array_unique($agentes_malla));
+                                shuffle($agentes_malla);
+
+                                $cantidad_agentes_validos=count($agentes_malla);
+
+                                if ($cantidad_agentes_validos>0) {
+                                    $base_muestras_agente=intdiv($total_muestras_objetivo, $cantidad_agentes_validos);
+                                    $residuo_muestras_agente=$total_muestras_objetivo % $cantidad_agentes_validos;
+
+                                    for ($i=0; $i < $cantidad_agentes_validos; $i++) {
+                                        $id_usuario=$agentes_malla[$i];
+                                        $objetivo_agente[$id_usuario]=$base_muestras_agente+(($i<$residuo_muestras_agente) ? 1 : 0);
+                                    }
+                                }
+
+                                $total_muestras_asignadas=0;
+
+                                $asignar_muestra_agente = function($id_usuario, $exigir_dia_unico, $permitir_exceder_objetivo=false) use (
+                                    &$array_usuario_turnos,
+                                    &$array_usuario_turnos_dias,
+                                    &$cantidad_muestra_limite_diario_array,
+                                    &$array_lideres,
+                                    &$array_lideres_turnos,
+                                    &$random_control_dias,
+                                    &$random_control_lider,
+                                    &$cantidad_muestra_lider,
+                                    &$random_agente,
+                                    &$random_agente_dias,
+                                    &$random_agente_total,
+                                    &$objetivo_agente,
+                                    &$total_muestras_asignadas,
+                                    &$total_muestras_objetivo
+                                ) {
+                                    if (!isset($random_agente_total[$id_usuario])) {
+                                        $random_agente_total[$id_usuario]=0;
+                                    }
+
+                                    if (!isset($objetivo_agente[$id_usuario])) {
+                                        $objetivo_agente[$id_usuario]=0;
+                                    }
+
+                                    if (!$permitir_exceder_objetivo AND $random_agente_total[$id_usuario]>=$objetivo_agente[$id_usuario]) {
+                                        return false;
+                                    }
+
+                                    if ($total_muestras_asignadas>=$total_muestras_objetivo) {
+                                        return false;
+                                    }
+
+                                    if (!isset($array_usuario_turnos[$id_usuario]) OR count($array_usuario_turnos[$id_usuario])<=0) {
+                                        return false;
+                                    }
+
+                                    if (!isset($random_agente_dias[$id_usuario]['muestra'])) {
+                                        $random_agente_dias[$id_usuario]['muestra']=[];
+                                    }
+
+                                    $turnos_candidatos=$array_usuario_turnos[$id_usuario];
+                                    shuffle($turnos_candidatos);
+
+                                    for ($j=0; $j < count($turnos_candidatos); $j++) {
+                                        $turno_registro=$turnos_candidatos[$j];
+
+                                        if ($turno_registro=="") {
+                                            continue;
                                         }
 
-                                        $muestras_agente_control=0;
-                                        for ($j=0; $j < count($array_turno_rand); $j++) {
-                                            $id_rand=$array_turno_rand[$j];
+                                        $turno_registro_dia=substr($turno_registro, 0, 1);
 
-                                            if ($muestras_agente_control<$muestras_agente) {
-                                                if ($array_usuario_turnos[$resultado_registros_malla[$i][3]][$id_rand]!="") {
+                                        if ($exigir_dia_unico AND in_array($turno_registro_dia, $random_agente_dias[$id_usuario]['muestra'])) {
+                                            continue;
+                                        }
 
-                                                    $turno_registro=$array_usuario_turnos[$resultado_registros_malla[$i][3]][$id_rand];
-                                                    $turno_registro_dia=substr($array_usuario_turnos[$resultado_registros_malla[$i][3]][$id_rand], 0, 1);
-                                                    $key_turno_lider=array_search($turno_registro, $array_lideres_turnos);
+                                        if (!isset($cantidad_muestra_limite_diario_array[$turno_registro_dia])) {
+                                            $cantidad_muestra_limite_diario_array[$turno_registro_dia]=0;
+                                        }
 
-                                                    if ($muestras_agente_control<$array_usuario_turnos_dias[$resultado_registros_malla[$i][3]]) {
+                                        if (!isset($random_control_dias[$turno_registro_dia])) {
+                                            $random_control_dias[$turno_registro_dia]=0;
+                                        }
 
-                                                        if (!isset($random_agente_dias[$resultado_registros_malla[$i][3]]['muestra'])) {
-                                                            $random_agente_dias[$resultado_registros_malla[$i][3]]['muestra']=[];
-                                                        }
+                                        if ($random_control_dias[$turno_registro_dia]>$cantidad_muestra_limite_diario_array[$turno_registro_dia]) {
+                                            continue;
+                                        }
 
-                                                        // Se conserva tu condición original (sin corregir comportamiento de array_search)
-                                                        if (!in_array($turno_registro_dia, $random_agente_dias[$resultado_registros_malla[$i][3]]['muestra'])
-                                                            AND $random_control_dias[$turno_registro_dia]<=$cantidad_muestra_limite_diario_array[$turno_registro_dia]
-                                                            AND $key_turno_lider!='') {
+                                        $key_turno_lider=false;
+                                        $menor_carga_lider=null;
 
-                                                            if (!isset($random_control_lider[$array_lideres[$key_turno_lider]])) {
-                                                                $random_control_lider[$array_lideres[$key_turno_lider]] = array_fill(1, 7, 0);
-                                                            }
+                                        foreach ($array_lideres_turnos as $key_lider => $turno_lider) {
+                                            if ($turno_lider!=$turno_registro) {
+                                                continue;
+                                            }
 
-                                                            if ($random_control_lider[$array_lideres[$key_turno_lider]][$turno_registro_dia]<$cantidad_muestra_lider AND $array_lideres[$key_turno_lider]!="") {
+                                            if (!isset($array_lideres[$key_lider]) OR $array_lideres[$key_lider]=="") {
+                                                continue;
+                                            }
 
-                                                                $random_agente[$resultado_registros_malla[$i][3]]['muestra'][]=validar_dia($turno_registro);
-                                                                $random_agente[$resultado_registros_malla[$i][3]]['lider'][]=$array_lideres[$key_turno_lider];
-                                                                $random_agente_dias[$resultado_registros_malla[$i][3]]['muestra'][]=$turno_registro_dia;
+                                            $id_lider=$array_lideres[$key_lider];
 
-                                                                $random_control_dias[$turno_registro_dia]+=1;
-                                                                $random_control_lider[$array_lideres[$key_turno_lider]][$turno_registro_dia]+=1;
-                                                                $muestras_agente_control++;
+                                            if (!isset($random_control_lider[$id_lider])) {
+                                                $random_control_lider[$id_lider]=array_fill(1, 7, 0);
+                                            }
 
-                                                                unset($array_lideres_turnos[$key_turno_lider]);
-                                                                unset($array_lideres[$key_turno_lider]);
-                                                            } else {
+                                            if (!isset($random_control_lider[$id_lider][$turno_registro_dia])) {
+                                                $random_control_lider[$id_lider][$turno_registro_dia]=0;
+                                            }
 
-                                                                unset($array_lideres_turnos[$key_turno_lider]);
-                                                                unset($array_lideres[$key_turno_lider]);
+                                            if ($random_control_lider[$id_lider][$turno_registro_dia]<$cantidad_muestra_lider) {
+                                                $carga_lider=array_sum($random_control_lider[$id_lider]);
 
-                                                                for ($k=0; $k < 40; $k++) {
-                                                                    $key_turno_lider=array_search($turno_registro, $array_lideres_turnos);
-
-                                                                    if ($key_turno_lider === false || $key_turno_lider === null) {
-                                                                        break;
-                                                                    }
-
-                                                                    if (!isset($array_lideres[$key_turno_lider]) || $array_lideres[$key_turno_lider]==="") {
-                                                                        unset($array_lideres_turnos[$key_turno_lider]);
-                                                                        unset($array_lideres[$key_turno_lider]);
-                                                                        continue;
-                                                                    }
-
-                                                                    if (!isset($random_control_lider[$array_lideres[$key_turno_lider]])) {
-                                                                        $random_control_lider[$array_lideres[$key_turno_lider]] = array_fill(1, 7, 0);
-                                                                    }
-
-                                                                    if ($random_control_lider[$array_lideres[$key_turno_lider]][$turno_registro_dia]<$cantidad_muestra_lider AND $array_lideres[$key_turno_lider]!="") {
-
-                                                                        $random_agente[$resultado_registros_malla[$i][3]]['muestra'][]=validar_dia($turno_registro);
-                                                                        $random_agente[$resultado_registros_malla[$i][3]]['lider'][]=$array_lideres[$key_turno_lider];
-                                                                        $random_agente_dias[$resultado_registros_malla[$i][3]]['muestra'][]=$turno_registro_dia;
-
-                                                                        $random_control_dias[$turno_registro_dia]+=1;
-                                                                        $random_control_lider[$array_lideres[$key_turno_lider]][$turno_registro_dia]+=1;
-                                                                        $muestras_agente_control++;
-
-                                                                        unset($array_lideres_turnos[$key_turno_lider]);
-                                                                        unset($array_lideres[$key_turno_lider]);
-                                                                        break;
-                                                                    } else {
-                                                                        unset($array_lideres_turnos[$key_turno_lider]);
-                                                                        unset($array_lideres[$key_turno_lider]);
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    } elseif($random_control_dias[$turno_registro_dia]<=$cantidad_muestra_limite_diario_array[$turno_registro_dia]) {
-
-                                                        if ($key_turno_lider!=''
-                                                            AND isset($array_lideres[$key_turno_lider])
-                                                            AND $array_lideres[$key_turno_lider]!="") {
-
-                                                            if (!isset($random_control_lider[$array_lideres[$key_turno_lider]])) {
-                                                                $random_control_lider[$array_lideres[$key_turno_lider]] = array_fill(1, 7, 0);
-                                                            }
-
-                                                            if ($random_control_lider[$array_lideres[$key_turno_lider]][$turno_registro_dia]<$cantidad_muestra_lider) {
-
-                                                                $random_agente[$resultado_registros_malla[$i][3]]['muestra'][]=validar_dia($turno_registro);
-                                                                $random_agente[$resultado_registros_malla[$i][3]]['lider'][]=$array_lideres[$key_turno_lider];
-                                                                $random_agente_dias[$resultado_registros_malla[$i][3]]['muestra'][]=$turno_registro_dia;
-
-                                                                $random_control_dias[$turno_registro_dia]+=1;
-                                                                $random_control_lider[$array_lideres[$key_turno_lider]][$turno_registro_dia]+=1;
-                                                                $muestras_agente_control++;
-
-                                                                unset($array_lideres_turnos[$key_turno_lider]);
-                                                                unset($array_lideres[$key_turno_lider]);
-                                                            } else {
-
-                                                                unset($array_lideres_turnos[$key_turno_lider]);
-                                                                unset($array_lideres[$key_turno_lider]);
-
-                                                                for ($k=0; $k < 20; $k++) {
-                                                                    $key_turno_lider=array_search($turno_registro, $array_lideres_turnos);
-
-                                                                    if ($key_turno_lider === false || $key_turno_lider === null) {
-                                                                        break;
-                                                                    }
-
-                                                                    if (!isset($array_lideres[$key_turno_lider]) || $array_lideres[$key_turno_lider]==="") {
-                                                                        unset($array_lideres_turnos[$key_turno_lider]);
-                                                                        unset($array_lideres[$key_turno_lider]);
-                                                                        continue;
-                                                                    }
-
-                                                                    if (!isset($random_control_lider[$array_lideres[$key_turno_lider]])) {
-                                                                        $random_control_lider[$array_lideres[$key_turno_lider]] = array_fill(1, 7, 0);
-                                                                    }
-
-                                                                    if ($random_control_lider[$array_lideres[$key_turno_lider]][$turno_registro_dia]<$cantidad_muestra_lider) {
-
-                                                                        $random_agente[$resultado_registros_malla[$i][3]]['muestra'][]=validar_dia($turno_registro);
-                                                                        $random_agente[$resultado_registros_malla[$i][3]]['lider'][]=$array_lideres[$key_turno_lider];
-                                                                        $random_agente_dias[$resultado_registros_malla[$i][3]]['muestra'][]=$turno_registro_dia;
-
-                                                                        $random_control_dias[$turno_registro_dia]+=1;
-                                                                        $random_control_lider[$array_lideres[$key_turno_lider]][$turno_registro_dia]+=1;
-                                                                        $muestras_agente_control++;
-
-                                                                        unset($array_lideres_turnos[$key_turno_lider]);
-                                                                        unset($array_lideres[$key_turno_lider]);
-                                                                        break;
-                                                                    } else {
-                                                                        unset($array_lideres_turnos[$key_turno_lider]);
-                                                                        unset($array_lideres[$key_turno_lider]);
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
+                                                if ($key_turno_lider===false OR $carga_lider<$menor_carga_lider) {
+                                                    $key_turno_lider=$key_lider;
+                                                    $menor_carga_lider=$carga_lider;
                                                 }
-                                            } else {
-                                                break;
                                             }
                                         }
+
+                                        if ($key_turno_lider===false) {
+                                            continue;
+                                        }
+
+                                        $id_lider=$array_lideres[$key_turno_lider];
+
+                                        $random_agente[$id_usuario]['muestra'][]=validar_dia($turno_registro);
+                                        $random_agente[$id_usuario]['lider'][]=$id_lider;
+                                        $random_agente_dias[$id_usuario]['muestra'][]=$turno_registro_dia;
+
+                                        $random_control_dias[$turno_registro_dia]+=1;
+                                        $random_control_lider[$id_lider][$turno_registro_dia]+=1;
+                                        $random_agente_total[$id_usuario]+=1;
+                                        $total_muestras_asignadas+=1;
+
+                                        unset($array_lideres_turnos[$key_turno_lider]);
+                                        unset($array_lideres[$key_turno_lider]);
+
+                                        return true;
+                                    }
+
+                                    return false;
+                                };
+
+                                // Primera fase: completar la cuota equitativa de cada asesor.
+                                for ($ronda=0; $ronda < max(1, $muestras_agente+10); $ronda++) {
+                                    $hubo_asignacion=false;
+
+                                    usort($agentes_malla, function($a, $b) use (&$random_agente_total, &$objetivo_agente) {
+                                        $ca=$random_agente_total[$a] ?? 0;
+                                        $cb=$random_agente_total[$b] ?? 0;
+
+                                        if ($ca==$cb) {
+                                            $oa=$objetivo_agente[$a] ?? 0;
+                                            $ob=$objetivo_agente[$b] ?? 0;
+                                            return $ob<=>$oa;
+                                        }
+
+                                        return $ca<=>$cb;
+                                    });
+
+                                    for ($i=0; $i < count($agentes_malla); $i++) {
+                                        $id_usuario=$agentes_malla[$i];
+                                        $exigir_dia_unico=($random_agente_total[$id_usuario] < ($array_usuario_turnos_dias[$id_usuario] ?? 0));
+
+                                        if ($asignar_muestra_agente($id_usuario, $exigir_dia_unico, false)) {
+                                            $hubo_asignacion=true;
+                                        }
+
+                                        if ($total_muestras_asignadas>=$total_muestras_objetivo) {
+                                            break 2;
+                                        }
+                                    }
+
+                                    if (!$hubo_asignacion) {
+                                        break;
+                                    }
+                                }
+
+                                // Segunda fase: si algún asesor no pudo completar su cuota por disponibilidad,
+                                // se asignan faltantes al asesor con menor carga disponible, manteniendo la distribución lo más pareja posible.
+                                while ($total_muestras_asignadas<$total_muestras_objetivo) {
+                                    $hubo_asignacion=false;
+
+                                    usort($agentes_malla, function($a, $b) use (&$random_agente_total) {
+                                        $ca=$random_agente_total[$a] ?? 0;
+                                        $cb=$random_agente_total[$b] ?? 0;
+                                        return $ca<=>$cb;
+                                    });
+
+                                    for ($i=0; $i < count($agentes_malla); $i++) {
+                                        $id_usuario=$agentes_malla[$i];
+                                        $objetivo_agente[$id_usuario]=max($objetivo_agente[$id_usuario], $random_agente_total[$id_usuario]+1);
+
+                                        if ($asignar_muestra_agente($id_usuario, false, true)) {
+                                            $hubo_asignacion=true;
+                                        }
+
+                                        if ($total_muestras_asignadas>=$total_muestras_objetivo) {
+                                            break;
+                                        }
+                                    }
+
+                                    if (!$hubo_asignacion) {
+                                        break;
                                     }
                                 }
 
