@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/coaching_datos.php';
+require_once __DIR__ . '/coaching_logo_base64.php';
 
 // Autoload de Composer del proyecto (mismo vendor/ real de la raíz del
 // sitio, no una copia separada). Sin esto, class_exists('\Mpdf\Mpdf')
@@ -160,13 +161,25 @@ function construirHtmlDocumentoRetroalimentacion(string $gcp_id, array $paquete,
  * legal EXACTA copiada de los 3 Word (es idéntica en Retroalimentación y
  * Acta de Compromiso).
  */
+/**
+ * Encabezado real — logo institucional embebido (idéntico byte a byte al
+ * de tus 3 Word) + título en el azul EXACTO #156082 que usa el documento
+ * original (extraído directo del Word, no un color aproximado).
+ */
 function coachingEncabezadoDocumento(string $titulo): string
 {
     return '
-    <div style="text-align:center; margin-bottom:10px;">
-        <h2 style="color:#4CAF50; margin-bottom:2px;">' . htmlspecialchars($titulo) . '</h2>
-        <p style="font-size:11px; color:#6E6E6E; margin-top:0;">Línea ICBF</p>
-    </div>';
+    <table width="100%" style="margin-bottom:14px;">
+        <tr>
+            <td style="width:35%; vertical-align:middle;">
+                <img src="' . coachingLogoInstitucionalBase64() . '" style="width:150px;">
+            </td>
+            <td style="width:65%; text-align:right; vertical-align:middle;">
+                <div style="color:#156082; font-weight:bold; font-size:16px; font-family:sans-serif;">' . htmlspecialchars($titulo) . '</div>
+                <div style="color:#156082; font-weight:bold; font-size:11px; font-family:sans-serif;">Línea ICBF</div>
+            </td>
+        </tr>
+    </table>';
 }
 
 /**
@@ -236,40 +249,59 @@ function construirHtmlRetroalimentacion(string $gcp_id, array $paquete, ?array $
     $html = coachingEncabezadoDocumento('FORMATO RETROALIMENTACIÓN — ' . $gcp_id);
 
     $html .= '
-    <h4 style="background:#4CAF50; color:#FFFFFF; padding:5px 8px;">DATOS PERSONALES DEL COLABORADOR</h4>
-    <table border="1" cellpadding="6" cellspacing="0" style="width:100%; border-collapse:collapse; margin-bottom:15px;">
-        <tr><td style="width:33%;"><strong>Nombre completo</strong><br>' . htmlspecialchars($paquete['agente_nombre'] ?? '') . '</td>
+    <table border="1" cellpadding="7" cellspacing="0" style="width:100%; border-collapse:collapse; margin-bottom:12px; font-size:10px;">
+        <tr><td colspan="3" style="background:#156082; color:#FFFFFF; font-weight:bold;">DATOS PERSONALES DEL COLABORADOR</td></tr>
+        <tr>
+            <td style="width:34%;"><strong>Nombre completo</strong><br>' . htmlspecialchars($paquete['agente_nombre'] ?? '') . '</td>
             <td style="width:33%;"><strong>Cédula</strong><br>' . htmlspecialchars($paquete['gcp_agente_id']) . '</td>
-            <td><strong>Fecha y hora de elaboración</strong><br>' . date('d/m/Y H:i') . '</td></tr>
+            <td><strong>Fecha y hora de elaboración</strong><br>' . date('d/m/Y H:i') . '</td>
+        </tr>
     </table>
 
-    <h4 style="background:#4CAF50; color:#FFFFFF; padding:5px 8px;">OPORTUNIDAD DE MEJORA (Documenta jefe inmediato)</h4>
-    <table border="1" cellpadding="6" cellspacing="0" style="width:100%; border-collapse:collapse; margin-bottom:15px;">
-        <tr><td style="width:25%;"><strong>Indicador</strong></td><td>' . coachingListaIndicadores($paquete, $indicadores_adicionales) . '</td></tr>
-        <tr><td><strong>Causa raíz</strong><br><span style="font-size:9px; color:#6E6E6E;">(5 porqués / espina de pescado / análisis causal)</span></td>
-            <td>' . nl2br(htmlspecialchars($retro['gcr_causa_raiz'] ?? '')) . '</td></tr>
-        <tr><td><strong>Estrategia correctiva y/o de mejora</strong></td>
-            <td>' . nl2br(htmlspecialchars($retro['gcr_estrategia_correctiva'] ?? '')) . '</td></tr>
+    <table border="1" cellpadding="7" cellspacing="0" style="width:100%; border-collapse:collapse; margin-bottom:12px; font-size:10px;">
+        <tr><td style="background:#156082; color:#FFFFFF; font-weight:bold;">OPORTUNIDAD DE MEJORA (Documenta jefe Inmediato)</td></tr>
+        <tr><td><strong>Indicador:</strong> ' . coachingListaIndicadores($paquete, $indicadores_adicionales) . '</td></tr>
+        <tr><td><strong>Causa raíz:</strong> <span style="color:#6E6E6E;">Se debe emplear estrategias como 5 por qué, espina de pescado o aquellas que lleven a la identificación de la causa raíz</span><br>
+            ' . nl2br(htmlspecialchars($retro['gcr_causa_raiz'] ?? '')) . '</td></tr>
+        <tr><td><strong>Estrategia correctiva y/o de mejora:</strong> <span style="color:#6E6E6E;">indique métodos de consulta de información, refuerzo, aprendizaje, puede incluir ejercicios o talleres que se dejan al agente o aquellas herramientas para garantizar que el agente tenga una mejora en su proceso</span><br>
+            ' . nl2br(htmlspecialchars($retro['gcr_estrategia_correctiva'] ?? '')) . '</td></tr>
     </table>
 
-    <h4 style="background:#4CAF50; color:#FFFFFF; padding:5px 8px;">COMPROMISOS PACTADOS (Documenta colaborador)</h4>
-    <table border="1" cellpadding="6" cellspacing="0" style="width:100%; border-collapse:collapse; margin-bottom:15px;">
-        <tr style="background:#F2F2F2;"><th>Descripción</th><th>Qué</th><th>Cómo</th><th>Fecha límite</th></tr>';
-    foreach ($compromisos as $c) {
-        $html .= '<tr>'
-            . '<td>' . nl2br(htmlspecialchars($c['gccm_descripcion'])) . '</td>'
-            . '<td>' . htmlspecialchars($c['gccm_que'] ?? '') . '</td>'
-            . '<td>' . htmlspecialchars($c['gccm_como'] ?? '') . '</td>'
-            . '<td>' . ($c['gccm_fecha_limite'] ? date('d/m/Y', strtotime($c['gccm_fecha_limite'])) : '-') . '</td>'
-            . '</tr>';
+    <table border="1" cellpadding="7" cellspacing="0" style="width:100%; border-collapse:collapse; margin-bottom:12px; font-size:10px;">
+        <tr><td style="background:#156082; color:#FFFFFF; font-weight:bold;">COMPROMISOS PACTADOS (Documenta colaborador)</td></tr>
+        <tr><td>En este espacio, el colaborador deberá describir:
+            <ul style="margin:4px 0 4px 16px; padding:0;">
+                <li>Su compromiso frente a la falta.</li>
+                <li>Acciones que realizara para la no reincidencia.</li>
+                <li>Describir acciones o actividades puntuales en la que describa que, como y cuando usted se compromete a trabajar en las oportunidades de mejora mencionadas.</li>
+            </ul>
+            ' . nl2br(htmlspecialchars($respuesta['gcra_compromiso_general'] ?? '(pendiente de respuesta del agente)')) . '
+        </td></tr>
+        <tr><td>Reseñar que puntos le parecieron relevantes de la información suministrada por su líder en el ejercicio frente a fortalezas y áreas de mejora.<br>
+            ' . nl2br(htmlspecialchars($respuesta['gcra_acciones_no_reincidencia'] ?? '')) . '</td></tr>
+        <tr><td>¿Relacionar finalmente si el ejercicio fue claro y le permitirá mejorar el área de mejora detectada?</td></tr>
+    </table>';
+
+    if (count($compromisos) > 0) {
+        $html .= '<table border="1" cellpadding="6" cellspacing="0" style="width:100%; border-collapse:collapse; margin-bottom:12px; font-size:10px;">
+            <tr style="background:#F2F2F2;"><th>Descripción del compromiso</th><th>Qué</th><th>Cómo</th><th>Fecha límite</th></tr>';
+        foreach ($compromisos as $c) {
+            $html .= '<tr>'
+                . '<td>' . nl2br(htmlspecialchars($c['gccm_descripcion'])) . '</td>'
+                . '<td>' . htmlspecialchars($c['gccm_que'] ?? '') . '</td>'
+                . '<td>' . htmlspecialchars($c['gccm_como'] ?? '') . '</td>'
+                . '<td>' . ($c['gccm_fecha_limite'] ? date('d/m/Y', strtotime($c['gccm_fecha_limite'])) : '-') . '</td>'
+                . '</tr>';
+        }
+        $html .= '</table>';
     }
-    $html .= '</table>
 
-    <p><strong>Respuesta del agente:</strong> ' . nl2br(htmlspecialchars($respuesta['gcra_compromiso_general'] ?? '(pendiente)')) . '</p>
-    <p><strong>Acciones para no reincidencia:</strong> ' . nl2br(htmlspecialchars($respuesta['gcra_acciones_no_reincidencia'] ?? '')) . '</p>
-
-    <h4 style="background:#4CAF50; color:#FFFFFF; padding:5px 8px;">ENCUESTA DEL ESPACIO (Documenta colaborador)</h4>
-    <p style="font-size:10px; color:#6E6E6E;">El agente responde esta encuesta (escala 1 a 5) al momento de firmar el documento — sus respuestas quedan registradas y visibles en el detalle del paquete en la plataforma, no en esta versión impresa generada antes de la firma.</p>';
+    $html .= '
+    <table border="1" cellpadding="7" cellspacing="0" style="width:100%; border-collapse:collapse; margin-bottom:12px; font-size:10px;">
+        <tr><td style="background:#156082; color:#FFFFFF; font-weight:bold;">ENCUESTA DEL ESPACIO (Documenta colaborador)</td></tr>
+        <tr><td>Marque con una X: Ten presente que 1 es en desacuerdo 5 muy de acuerdo:<br>
+            <span style="color:#6E6E6E; font-style:italic;">El agente responde esta encuesta al momento de firmar el documento — sus respuestas quedan registradas y visibles en el detalle del paquete en la plataforma.</span></td></tr>
+    </table>';
 
     $html .= coachingBloqueFirmaLegal($gcp_id, $firma);
     return $html;
@@ -309,18 +341,53 @@ function construirHtmlActaCompromiso(string $gcp_id, array $paquete, ?array $ret
     }
 
     $html .= '
-    <table border="1" cellpadding="6" cellspacing="0" style="width:100%; border-collapse:collapse; margin-top:10px;">
-        <tr style="background:#F2F2F2;"><th style="width:50%;">DESCRIPCIÓN DEL COMPROMISO</th><th>COMPROMISO DEL COLABORADOR</th></tr>';
-    if (count($compromisos) === 0) {
-        $html .= '<tr><td colspan="2" style="text-align:center; color:#6E6E6E;">Sin compromisos registrados.</td></tr>';
+    <table border="1" cellpadding="7" cellspacing="0" style="width:100%; border-collapse:collapse; margin-top:10px; font-size:10px;">
+        <tr>
+            <th style="width:50%; background:#D9D9D9;">DESCRIPCIÓN DEL COMPROMISO</th>
+            <th style="background:#D9D9D9;">COMPROMISO DEL COLABORADOR</th>
+        </tr>
+        <tr>
+            <td style="vertical-align:top;">
+                Jefe inmediato, relacionar en este campo los eventos de forma detalla, describiendo:
+                <ul style="margin:4px 0 4px 16px; padding:0;">
+                    <li>Fecha de ocurrencia</li>
+                    <li>Falta</li>
+                    <li>Impacto: ¿Qué indicador, métrica o Kpi, resultó afectado?</li>
+                    <li>Evidencias</li>
+                    <li>¿Es reincidente en la falta? (Si/No)</li>
+                    <li>Si es reincidente, relacionar con fecha y tipo de soporte generado las últimas retroalimentaciones previas.</li>
+                </ul>
+                ' . nl2br(htmlspecialchars($retro['gcr_causa_raiz'] ?? '')) . '
+                ' . nl2br(htmlspecialchars($retro['gcr_estrategia_correctiva'] ?? '')) . '
+            </td>
+            <td style="vertical-align:top;">
+                En este espacio, el colaborador deberá describir:
+                <ul style="margin:4px 0 4px 16px; padding:0;">
+                    <li>Su compromiso frente a la falta.</li>
+                    <li>Acciones que realizara para la no reincidencia.</li>
+                    <li>Describir acciones o actividades puntuales en la que describa que, como y cuando usted se compromete a trabajar en las oportunidades de mejora mencionadas.</li>
+                    <li>Reseñar que puntos le parecieron relevantes de la información suministrada por su líder en el ejercicio frente a fortalezas y áreas de mejora.</li>
+                    <li>¿Relacionar finalmente si el ejercicio fue claro y le permitirá mejorar el área de mejora detectada?</li>
+                </ul>
+                ' . nl2br(htmlspecialchars($respuesta['gcra_compromiso_general'] ?? '(pendiente de respuesta del agente)')) . '
+                ' . nl2br(htmlspecialchars($respuesta['gcra_acciones_no_reincidencia'] ?? '')) . '
+            </td>
+        </tr>
+    </table>';
+
+    if (count($compromisos) > 0) {
+        $html .= '<table border="1" cellpadding="6" cellspacing="0" style="width:100%; border-collapse:collapse; margin-top:12px; font-size:10px;">
+            <tr style="background:#F2F2F2;"><th>Compromiso</th><th>Qué</th><th>Cómo</th><th>Fecha límite</th></tr>';
+        foreach ($compromisos as $c) {
+            $html .= '<tr>'
+                . '<td>' . nl2br(htmlspecialchars($c['gccm_descripcion'])) . '</td>'
+                . '<td>' . htmlspecialchars($c['gccm_que'] ?? '') . '</td>'
+                . '<td>' . htmlspecialchars($c['gccm_como'] ?? '') . '</td>'
+                . '<td>' . ($c['gccm_fecha_limite'] ? date('d/m/Y', strtotime($c['gccm_fecha_limite'])) : '-') . '</td>'
+                . '</tr>';
+        }
+        $html .= '</table>';
     }
-    foreach ($compromisos as $c) {
-        $html .= '<tr>'
-            . '<td>' . nl2br(htmlspecialchars($c['gccm_descripcion'])) . '</td>'
-            . '<td>' . nl2br(htmlspecialchars($respuesta['gcra_compromiso_general'] ?? '(pendiente de respuesta del agente)')) . '</td>'
-            . '</tr>';
-    }
-    $html .= '</table>';
 
     $html .= coachingBloqueFirmaLegal($gcp_id, $firma);
     return $html;
@@ -342,18 +409,33 @@ function construirHtmlFelicitacion(string $gcp_id, array $paquete): string
     $es_reconocimiento = $paquete['gct_codigo'] === 'RECONOCIMIENTO';
     $referencia = $es_reconocimiento ? 'MEMORANDO DE RECONOCIMIENTO' : 'MEMORANDO DE FELICITACIÓN';
 
-    $html = '
+    $html = '<div style="text-align:right; margin-bottom:20px;"><img src="' . coachingLogoInstitucionalBase64() . '" style="width:150px;"></div>';
+
+    $html .= '
     <p style="text-align:right;">Bogotá, ' . date('d \d\e F \d\e Y') . '</p>
-    <p>Señor(a):<br><strong>' . htmlspecialchars($paquete['agente_nombre'] ?? '') . '</strong><br>Línea ICBF</p>
+    <p>Señor(a):<br>
+    <strong>' . htmlspecialchars($paquete['agente_nombre'] ?? '') . '</strong><br>
+    Cargo Agente. Línea ICBF</p>
     <p style="text-align:center; font-weight:bold; margin:20px 0;">REFERENCIA: ' . $referencia . '</p>
     <p style="text-align:justify;">Por medio de la presente, la operación del centro de contactos del ICBF se
     permite reconocer en usted su compromiso, regularidad y consistencia en factores de desempeño que permiten
     destacar los siguientes aspectos:</p>
 
-    <h4 style="background:#4CAF50; color:#FFFFFF; padding:5px 8px;">DESCRIPCIÓN DEL ' . ($es_reconocimiento ? 'RECONOCIMIENTO' : 'RECONOCIMIENTO') . '</h4>
-    <div style="border:1px solid #F2F2F2; padding:10px; min-height:60px;">' . nl2br(htmlspecialchars($paquete['gcp_contexto'] ?? '')) . '</div>
+    <table border="1" cellpadding="7" cellspacing="0" style="width:100%; border-collapse:collapse; margin:14px 0; font-size:10px;">
+        <tr><td style="background:#D9D9D9; font-weight:bold;">DESCRIPCIÓN DEL RECONOCIMIENTO</td></tr>
+        <tr><td>
+            Si es por un indicador de medición mensual, destaque el periodo de tiempo que se reconoce, resultado
+            obtenido, así como condiciones de refuerzo positivo que se identificaron para la consecución del
+            resultado. En caso de tratarse de un monitoreo destacado, en actividades de calibración, atención de
+            PQR o seguimiento de la DSyA, referir periodo y fecha del monitoreo. Fortalezas detectadas en la
+            escucha de la transacción.
+            <div style="margin-top:8px; border-top:1px dashed #D9D9D9; padding-top:8px;">
+                ' . nl2br(htmlspecialchars($paquete['gcp_contexto'] ?? '')) . '
+            </div>
+        </td></tr>
+    </table>
 
-    <p style="text-align:justify; margin-top:15px;">Es importante generar estos gestos de agradecimiento y
+    <p style="text-align:justify;">Es importante generar estos gestos de agradecimiento y
     reconocimiento, pues estamos seguros de que su compromiso, cumplimiento y disciplina se verán reflejados en
     las labores encomendadas para su rol.</p>
 
@@ -362,6 +444,7 @@ function construirHtmlFelicitacion(string $gcp_id, array $paquete): string
     ' . htmlspecialchars($paquete['supervisor_nombre'] ?? '') . '<br>Jefe Directo</p>
 
     <p style="margin-top:20px;">Nombre completo colaborador: ' . htmlspecialchars($paquete['agente_nombre'] ?? '') . '<br>
+    Cargo colaborador: Agente<br>
     Fecha entrega: ' . date('d/m/Y') . '</p>';
 
     return $html;

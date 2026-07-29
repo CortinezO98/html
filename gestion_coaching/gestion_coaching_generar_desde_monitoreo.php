@@ -101,7 +101,7 @@
                     <div class="p-4">
                         <p style="font-size:12px; color:#6E6E6E; text-align:center;">Monitoreo <strong><?php echo validar_output($gcm_id); ?></strong></p>
                         <div class="coaching_nota_destacada"><?php echo validar_output((string) $snapshot['nota_general']); ?></div>
-                        <p style="font-size:11px; color:#6E6E6E; text-align:center;">Nota general: Inferior a 90, amerita seguimiento de Coaching</p>
+                        <p style="font-size:11px; color:#6E6E6E; text-align:center;">Nota general — inferior a 90, amerita seguimiento de Coaching</p>
 
                         <div class="coaching_ficha_mini">
                             <div class="fila"><span class="etiqueta">Analista</span><strong><?php echo validar_output($snapshot['analista_id']); ?></strong></div>
@@ -113,7 +113,7 @@
                         <?php if ($elegible && !estadoMonitoreoEsTerminal($snapshot['gcm_estado'])): ?>
                             <div class="coaching_aviso_no_elegible mt-3" style="background:#FFF8E6; border-color:#F39C12; text-align:left;">
                                 <span class="fas fa-exclamation-triangle" style="color:#F39C12;"></span>
-                                Este monitoreo todavía está en estado <strong>"<?php echo validar_output($snapshot['gcm_estado']); ?>"</strong> Calidad
+                                Este monitoreo todavía está en estado <strong>"<?php echo validar_output($snapshot['gcm_estado']); ?>"</strong> — Calidad
                                 aún no lo ha aceptado ni resuelto una refutación. Puede generar el paquete de todos
                                 modos, pero tenga en cuenta: si la nota cambia cuando se acepte o resuelva la
                                 refutación, el sistema <strong>ajustará o anulará automáticamente</strong> este
@@ -127,7 +127,7 @@
                                 <input type="hidden" name="monitoreo" value="<?php echo htmlspecialchars($gcm_id); ?>">
 
                                 <label class="coaching_label" for="fecha_limite" style="font-weight:bold; font-size:12px; display:block; margin-bottom:4px;">
-                                    Fecha límite <span style="font-weight:normal; color:#6E6E6E; font-size:10px;">(Sugerida: 5 días Editable)</span>
+                                    Fecha límite <span style="font-weight:normal; color:#6E6E6E; font-size:10px;">(sugerida: 5 días — editable)</span>
                                 </label>
                                 <input type="date" name="fecha_limite" id="fecha_limite" class="form-control mb-3"
                                     min="<?php echo date('Y-m-d'); ?>"

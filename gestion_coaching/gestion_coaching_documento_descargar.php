@@ -60,6 +60,3 @@
     // descargarDocumentoCoaching() valida integridad (hash) antes de servir
     // el archivo — ver coaching_documentos.php.
     descargarDocumentoCoaching($documento);
-
-
-

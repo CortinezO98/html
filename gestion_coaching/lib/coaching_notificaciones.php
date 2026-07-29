@@ -168,6 +168,3 @@ function coachingNotificarPorTransicion(mysqli $enlace_db, string $gcp_id, strin
         }
     }
 }
-
-
-
