@@ -73,3 +73,8 @@ PHPCalendario/
 Highcharts_OFF_2026-01-23/
 Highcharts-Maps_OFF_2026-01-23/
 HighchartsGantt/
+vendor/
+css/
+js/
+fonts/
+anychart/

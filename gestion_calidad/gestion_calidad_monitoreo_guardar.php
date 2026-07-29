@@ -4,6 +4,7 @@ $modulo_plataforma="Calidad-Monitoreos";
 
 require_once("../config/validaciones_seguridad.php");
 require_once("../config/conexion_db.php");
+require_once("../gestion_coaching/lib/coaching_disparador.php");
 
 // error_reporting(E_ALL);
 // ini_set('display_errors', '1');
@@ -368,6 +369,12 @@ if(isset($_POST["guardar_monitoreo"])){
                     if (count($items_matriz)==$control_insert) {
                         $respuesta_accion = "<script type='text/javascript'>alertify.success('Monitoreo creado exitosamente!', 0);</script>";
                         $_SESSION['monitoreo_creado']=1;
+
+                        // Enganche del módulo de Coaching (Modelo 1): evalúa si
+                        // la nota general amerita crear un paquete automático.
+                        // Nunca lanza excepción hacia aquí ni afecta este flujo:
+                        // ver gestion_coaching/lib/coaching_disparador.php.
+                        evaluarDisparoCoachingAutomatico($enlace_db, $inser_consecutivo, $gcm_estado, $_SESSION['usu_id']);
 
                         // ========= Upload seguro (sin cambiar funcionalidad) =========
                         $dangerous_ext = ['php','phtml','phar','shtml','html','htm','js','jsp','asp','aspx','cgi','pl','sh','bat','cmd','exe','dll'];
@@ -736,3 +743,5 @@ include("../config/configuracion_js.php");
 ?>
 </body>
 </html>
+
+
