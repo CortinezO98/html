@@ -2,13 +2,10 @@
     //Validación de permisos del usuario para el módulo
     $modulo_plataforma="Calidad-Monitoreos";
 
-    require_once("../config/validaciones_seguridad.php");
+	require_once("../config/validaciones_seguridad.php");
     require_once("../config/conexion_db.php");
-
-    // 👇 OJO: en PROD esto debería ir apagado, pero lo dejo tal cual lo tienes
-    // error_reporting(E_ALL);
-    // ini_set('display_errors', '1');
-
+// error_reporting(E_ALL);
+// ini_set('display_errors', '1');
     /*DEFINICIÓN DE VARIABLES*/
     $array_meses=[1=>"Enero", 2=>"Febrero", 3=>"Marzo", 4=>"Abril", 5=>"Mayo", 6=>"Junio", 7=>"Julio", 8=>"Agosto", 9=>"Septiembre", 10=>"Octubre", 11=>"Noviembre", 12=>"Diciembre"];
     $bandeja=validar_input(base64_decode($_GET['bandeja']));
@@ -20,25 +17,9 @@
     unset($_SESSION['registro_creado_cambio_estado']);
     unset($_SESSION['monitoreo_registro_eliminado']);
 
-    // Inicializa variables tipo array (evita warnings)
-    $data_consulta = array();
-    $array_anio_mes_dias_num = array();
-    $array_anio_mes_dias = array();
-
-    $array_gestion = array('monitoreos'=>0,'ecuf'=>0,'ecn'=>0,'enc'=>0,'pecuf'=>0,'pecn'=>0,'penc'=>0);
-
-    $array_gestion_monitores = array();
-    $array_gestion_monitores_doc = array();
-
-    $array_monitor_dia = array();
-    $array_monitor_dia_doc = array();
-
-    $array_usuarios = array();
-    $array_matrices = array();
-    $array_usuarios_detalle = array();
-    $array_matrices_detalle = array();
-    $array_usuario_monitoreos = array();
-
+    // Inicializa variable tipo array
+    $data_consulta=array();
+    
     // Ejemplo filtro campo buscar GTO
     if (isset($_POST["filtro"])) {
         $pagina=1;
@@ -52,300 +33,186 @@
     }
 
     //CONSTRUIR ARRAY AÑO-MES-DIA
-    $anio_mes_separado=explode("-", $filtro_permanente);
-    $numero_dias_mes = cal_days_in_month(CAL_GREGORIAN, (int)$anio_mes_separado[1], (int)$anio_mes_separado[0]); //cantidad de días del mes
-    for ($k=1; $k <= $numero_dias_mes; $k++) {
-        $array_anio_mes_dias_num[]=validar_cero($k);
-        $fecha_dia=$filtro_permanente."-".validar_cero($k);
-        $array_anio_mes_dias[] = $fecha_dia;
-    }
+        $anio_mes_separado=explode("-", $filtro_permanente);
+        $numero_dias_mes = cal_days_in_month(CAL_GREGORIAN, $anio_mes_separado[1], $anio_mes_separado[0]); //cantidad de días del mes
+        for ($k=1; $k <= $numero_dias_mes; $k++) { 
+            $array_anio_mes_dias_num[]=validar_cero($k);
+            $fecha_dia=$filtro_permanente."-".validar_cero($k);
+            $array_anio_mes_dias[] = $fecha_dia;
+        }
 
     //CONSULTA GRÁFICA GESTIÓN y RESULTADO INDICADORES
-    $consulta_string_gestion="SELECT COUNT(`gcm_id`) FROM `tb_gestion_calidad_monitoreo` WHERE 1=1 AND `gcm_aplica_indicador`='Si' ".$filtro_mes."";
-    $consulta_registros_gestion = $enlace_db->prepare($consulta_string_gestion);
-    $consulta_registros_gestion->bind_param(str_repeat("s", count($data_consulta)), ...$data_consulta);
-    $consulta_registros_gestion->execute();
-    $resultado_registros_gestion = $consulta_registros_gestion->get_result()->fetch_all(MYSQLI_NUM);
+        $consulta_string_gestion="SELECT COUNT(`gcm_id`) FROM `tb_gestion_calidad_monitoreo` WHERE 1=1 AND `gcm_aplica_indicador`='Si' ".$filtro_mes."";
+        $consulta_registros_gestion = $enlace_db->prepare($consulta_string_gestion);
+        $consulta_registros_gestion->bind_param(str_repeat("s", count($data_consulta)), ...$data_consulta);
+        $consulta_registros_gestion->execute();
+        $resultado_registros_gestion = $consulta_registros_gestion->get_result()->fetch_all(MYSQLI_NUM);
 
-    $consulta_string_gestion_ecuf="SELECT COUNT(`gcm_id`) FROM `tb_gestion_calidad_monitoreo` WHERE 1=1 AND `gcm_aplica_indicador`='Si' AND `gcm_nota_ecuf_estado`='0' ".$filtro_mes."";
-    $consulta_registros_gestion_ecuf = $enlace_db->prepare($consulta_string_gestion_ecuf);
-    $consulta_registros_gestion_ecuf->bind_param(str_repeat("s", count($data_consulta)), ...$data_consulta);
-    $consulta_registros_gestion_ecuf->execute();
-    $resultado_registros_gestion_ecuf = $consulta_registros_gestion_ecuf->get_result()->fetch_all(MYSQLI_NUM);
+        $consulta_string_gestion_ecuf="SELECT COUNT(`gcm_id`) FROM `tb_gestion_calidad_monitoreo` WHERE 1=1 AND `gcm_aplica_indicador`='Si' AND `gcm_nota_ecuf_estado`='0' ".$filtro_mes."";
+        $consulta_registros_gestion_ecuf = $enlace_db->prepare($consulta_string_gestion_ecuf);
+        $consulta_registros_gestion_ecuf->bind_param(str_repeat("s", count($data_consulta)), ...$data_consulta);
+        $consulta_registros_gestion_ecuf->execute();
+        $resultado_registros_gestion_ecuf = $consulta_registros_gestion_ecuf->get_result()->fetch_all(MYSQLI_NUM);
 
-    $consulta_string_gestion_ecn="SELECT COUNT(`gcm_id`) FROM `tb_gestion_calidad_monitoreo` WHERE 1=1 AND `gcm_aplica_indicador`='Si' AND `gcm_nota_ecn_estado`='0' ".$filtro_mes."";
-    $consulta_registros_gestion_ecn = $enlace_db->prepare($consulta_string_gestion_ecn);
-    $consulta_registros_gestion_ecn->bind_param(str_repeat("s", count($data_consulta)), ...$data_consulta);
-    $consulta_registros_gestion_ecn->execute();
-    $resultado_registros_gestion_ecn = $consulta_registros_gestion_ecn->get_result()->fetch_all(MYSQLI_NUM);
+        $consulta_string_gestion_ecn="SELECT COUNT(`gcm_id`) FROM `tb_gestion_calidad_monitoreo` WHERE 1=1 AND `gcm_aplica_indicador`='Si' AND `gcm_nota_ecn_estado`='0' ".$filtro_mes."";
+        $consulta_registros_gestion_ecn = $enlace_db->prepare($consulta_string_gestion_ecn);
+        $consulta_registros_gestion_ecn->bind_param(str_repeat("s", count($data_consulta)), ...$data_consulta);
+        $consulta_registros_gestion_ecn->execute();
+        $resultado_registros_gestion_ecn = $consulta_registros_gestion_ecn->get_result()->fetch_all(MYSQLI_NUM);
 
-    $consulta_string_gestion_enc="SELECT COUNT(`gcm_id`) FROM `tb_gestion_calidad_monitoreo` WHERE 1=1 AND `gcm_aplica_indicador`='Si' AND `gcm_nota_enc_estado`='0' ".$filtro_mes."";
-    $consulta_registros_gestion_enc = $enlace_db->prepare($consulta_string_gestion_enc);
-    $consulta_registros_gestion_enc->bind_param(str_repeat("s", count($data_consulta)), ...$data_consulta);
-    $consulta_registros_gestion_enc->execute();
-    $resultado_registros_gestion_enc = $consulta_registros_gestion_enc->get_result()->fetch_all(MYSQLI_NUM);
+        $consulta_string_gestion_enc="SELECT COUNT(`gcm_id`) FROM `tb_gestion_calidad_monitoreo` WHERE 1=1 AND `gcm_aplica_indicador`='Si' AND `gcm_nota_enc_estado`='0' ".$filtro_mes."";
+        $consulta_registros_gestion_enc = $enlace_db->prepare($consulta_string_gestion_enc);
+        $consulta_registros_gestion_enc->bind_param(str_repeat("s", count($data_consulta)), ...$data_consulta);
+        $consulta_registros_gestion_enc->execute();
+        $resultado_registros_gestion_enc = $consulta_registros_gestion_enc->get_result()->fetch_all(MYSQLI_NUM);
 
-    $array_gestion['monitoreos']=$resultado_registros_gestion[0][0]+0;
-    $array_gestion['ecuf']=$resultado_registros_gestion_ecuf[0][0]+0;
-    $array_gestion['ecn']=$resultado_registros_gestion_ecn[0][0]+0;
-    $array_gestion['enc']=$resultado_registros_gestion_enc[0][0]+0;
+        $array_gestion['monitoreos']=$resultado_registros_gestion[0][0]+0;
+        $array_gestion['ecuf']=$resultado_registros_gestion_ecuf[0][0]+0;
+        $array_gestion['ecn']=$resultado_registros_gestion_ecn[0][0]+0;
+        $array_gestion['enc']=$resultado_registros_gestion_enc[0][0]+0;
 
-    if ($array_gestion['monitoreos']>0) {
-        $array_gestion['pecuf']=(($array_gestion['monitoreos']-$array_gestion['ecuf'])/$array_gestion['monitoreos'])*100;
-        $array_gestion['pecn']=(($array_gestion['monitoreos']-$array_gestion['ecn'])/$array_gestion['monitoreos'])*100;
-        $array_gestion['penc']=(($array_gestion['monitoreos']-$array_gestion['enc'])/$array_gestion['monitoreos'])*100;
-    } else {
-        $array_gestion['pecuf']=0;
-        $array_gestion['pecn']=0;
-        $array_gestion['penc']=0;
-    }
-
-    // Helper: garantiza estructura del monitor en arrays (evita Undefined array key)
-    function ensure_monitor_key(&$array_gestion_monitores, &$array_gestion_monitores_doc, $uid, $nombre='Sin nombre') {
-        if ($uid === null || $uid === '' ) { return; }
-        if (!isset($array_gestion_monitores[$uid])) {
-            $array_gestion_monitores[$uid] = array(
-                'monitoreos' => 0,
-                'nombre' => ($nombre !== null && $nombre !== '') ? $nombre : 'Sin nombre',
-                'ecuf' => 0,
-                'ecn' => 0,
-                'enc' => 0,
-                'pecuf' => 0,
-                'pecn' => 0,
-                'penc' => 0,
-            );
-            $array_gestion_monitores_doc[] = $uid;
+        if ($array_gestion['monitoreos']>0) {
+            $array_gestion['pecuf']=(($array_gestion['monitoreos']-$array_gestion['ecuf'])/$array_gestion['monitoreos'])*100;
+            $array_gestion['pecn']=(($array_gestion['monitoreos']-$array_gestion['ecn'])/$array_gestion['monitoreos'])*100;
+            $array_gestion['penc']=(($array_gestion['monitoreos']-$array_gestion['enc'])/$array_gestion['monitoreos'])*100;
         } else {
-            // Si existe pero nombre vacío, lo completa sin alterar conteos
-            if ((!isset($array_gestion_monitores[$uid]['nombre']) || $array_gestion_monitores[$uid]['nombre']==='' || $array_gestion_monitores[$uid]['nombre']===null) && $nombre) {
-                $array_gestion_monitores[$uid]['nombre'] = $nombre;
+            $array_gestion['pecuf']=0;
+            $array_gestion['pecn']=0;
+            $array_gestion['penc']=0;
+        }
+            
+    //CONSULTA GESTIÓN POR MONITOR
+        $consulta_string_gestion_monitor="SELECT `gcm_registro_usuario`, TUR.`usu_nombres_apellidos`, COUNT(`gcm_id`) FROM `tb_gestion_calidad_monitoreo` LEFT JOIN `tb_administrador_usuario` AS TUR ON `gcm_registro_usuario`=TUR.`usu_id` WHERE 1=1 AND `gcm_aplica_indicador`='Si' ".$filtro_mes." GROUP BY `gcm_registro_usuario` ORDER BY TUR.`usu_nombres_apellidos` ASC";
+        $consulta_registros_gestion_monitor = $enlace_db->prepare($consulta_string_gestion_monitor);
+        $consulta_registros_gestion_monitor->bind_param(str_repeat("s", count($data_consulta)), ...$data_consulta);
+        $consulta_registros_gestion_monitor->execute();
+        $resultado_registros_gestion_monitor = $consulta_registros_gestion_monitor->get_result()->fetch_all(MYSQLI_NUM);
+
+        for ($i=0; $i < count($resultado_registros_gestion_monitor); $i++) { 
+            $array_gestion_monitores[$resultado_registros_gestion_monitor[$i][0]]['monitoreos']=$resultado_registros_gestion_monitor[$i][2];
+            $array_gestion_monitores[$resultado_registros_gestion_monitor[$i][0]]['nombre']=$resultado_registros_gestion_monitor[$i][1];
+            $array_gestion_monitores[$resultado_registros_gestion_monitor[$i][0]]['ecuf']=0;
+            $array_gestion_monitores[$resultado_registros_gestion_monitor[$i][0]]['ecn']=0;
+            $array_gestion_monitores[$resultado_registros_gestion_monitor[$i][0]]['enc']=0;
+            $array_gestion_monitores[$resultado_registros_gestion_monitor[$i][0]]['pecuf']=0;
+            $array_gestion_monitores[$resultado_registros_gestion_monitor[$i][0]]['pecn']=0;
+            $array_gestion_monitores[$resultado_registros_gestion_monitor[$i][0]]['penc']=0;
+            $array_gestion_monitores_doc[]=$resultado_registros_gestion_monitor[$i][0];
+        }
+
+        $consulta_string_gestion_ecuf_monitor="SELECT `gcm_registro_usuario`, TUR.`usu_nombres_apellidos`, COUNT(`gcm_id`) FROM `tb_gestion_calidad_monitoreo` LEFT JOIN `tb_administrador_usuario` AS TUR ON `gcm_registro_usuario`=TUR.`usu_id` WHERE 1=1 AND `gcm_aplica_indicador`='Si' AND `gcm_nota_ecuf_estado`='0' ".$filtro_mes." GROUP BY `gcm_registro_usuario`";
+        $consulta_registros_gestion_ecuf_monitor = $enlace_db->prepare($consulta_string_gestion_ecuf_monitor);
+        $consulta_registros_gestion_ecuf_monitor->bind_param(str_repeat("s", count($data_consulta)), ...$data_consulta);
+        $consulta_registros_gestion_ecuf_monitor->execute();
+        $resultado_registros_gestion_ecuf_monitor = $consulta_registros_gestion_ecuf_monitor->get_result()->fetch_all(MYSQLI_NUM);
+
+        for ($i=0; $i < count($resultado_registros_gestion_ecuf_monitor); $i++) { 
+            $array_gestion_monitores[$resultado_registros_gestion_ecuf_monitor[$i][0]]['ecuf']=$resultado_registros_gestion_ecuf_monitor[$i][2]+0;
+        }
+
+        $consulta_string_gestion_ecn_monitor="SELECT `gcm_registro_usuario`, TUR.`usu_nombres_apellidos`, COUNT(`gcm_id`) FROM `tb_gestion_calidad_monitoreo` LEFT JOIN `tb_administrador_usuario` AS TUR ON `gcm_registro_usuario`=TUR.`usu_id` WHERE 1=1 AND `gcm_aplica_indicador`='Si' AND `gcm_nota_ecn_estado`='0' ".$filtro_mes." GROUP BY `gcm_registro_usuario`";
+        $consulta_registros_gestion_ecn_monitor = $enlace_db->prepare($consulta_string_gestion_ecn_monitor);
+        $consulta_registros_gestion_ecn_monitor->bind_param(str_repeat("s", count($data_consulta)), ...$data_consulta);
+        $consulta_registros_gestion_ecn_monitor->execute();
+        $resultado_registros_gestion_ecn_monitor = $consulta_registros_gestion_ecn_monitor->get_result()->fetch_all(MYSQLI_NUM);
+
+        for ($i=0; $i < count($resultado_registros_gestion_ecn_monitor); $i++) { 
+            $array_gestion_monitores[$resultado_registros_gestion_ecn_monitor[$i][0]]['ecn']=$resultado_registros_gestion_ecn_monitor[$i][2];
+        }
+
+        $consulta_string_gestion_enc_monitor="SELECT `gcm_registro_usuario`, TUR.`usu_nombres_apellidos`, COUNT(`gcm_id`) FROM `tb_gestion_calidad_monitoreo` LEFT JOIN `tb_administrador_usuario` AS TUR ON `gcm_registro_usuario`=TUR.`usu_id` WHERE 1=1 AND `gcm_aplica_indicador`='Si' AND `gcm_nota_enc_estado`='0' ".$filtro_mes." GROUP BY `gcm_registro_usuario`";
+        $consulta_registros_gestion_enc_monitor = $enlace_db->prepare($consulta_string_gestion_enc_monitor);
+        $consulta_registros_gestion_enc_monitor->bind_param(str_repeat("s", count($data_consulta)), ...$data_consulta);
+        $consulta_registros_gestion_enc_monitor->execute();
+        $resultado_registros_gestion_enc_monitor = $consulta_registros_gestion_enc_monitor->get_result()->fetch_all(MYSQLI_NUM);
+
+        for ($i=0; $i < count($resultado_registros_gestion_enc_monitor); $i++) { 
+            $array_gestion_monitores[$resultado_registros_gestion_enc_monitor[$i][0]]['enc']=$resultado_registros_gestion_enc_monitor[$i][2];
+        }
+
+        for ($i=0; $i < count($array_gestion_monitores_doc); $i++) { 
+            if ($array_gestion_monitores[$array_gestion_monitores_doc[$i]]['monitoreos']>0) {
+                $array_gestion_monitores[$array_gestion_monitores_doc[$i]]['pecuf']=(($array_gestion_monitores[$array_gestion_monitores_doc[$i]]['monitoreos']-$array_gestion_monitores[$array_gestion_monitores_doc[$i]]['ecuf'])/$array_gestion_monitores[$array_gestion_monitores_doc[$i]]['monitoreos'])*100;
+                $array_gestion_monitores[$array_gestion_monitores_doc[$i]]['pecn']=(($array_gestion_monitores[$array_gestion_monitores_doc[$i]]['monitoreos']-$array_gestion_monitores[$array_gestion_monitores_doc[$i]]['ecn'])/$array_gestion_monitores[$array_gestion_monitores_doc[$i]]['monitoreos'])*100;
+                $array_gestion_monitores[$array_gestion_monitores_doc[$i]]['penc']=(($array_gestion_monitores[$array_gestion_monitores_doc[$i]]['monitoreos']-$array_gestion_monitores[$array_gestion_monitores_doc[$i]]['enc'])/$array_gestion_monitores[$array_gestion_monitores_doc[$i]]['monitoreos'])*100;
+            } else {
+                $array_gestion_monitores[$array_gestion_monitores_doc[$i]]['pecuf']=0;
+                $array_gestion_monitores[$array_gestion_monitores_doc[$i]]['pecn']=0;
+                $array_gestion_monitores[$array_gestion_monitores_doc[$i]]['penc']=0;
             }
         }
-    }
-
-    //CONSULTA GESTIÓN POR MONITOR
-    $consulta_string_gestion_monitor="SELECT `gcm_registro_usuario`, TUR.`usu_nombres_apellidos`, COUNT(`gcm_id`)
-    FROM `tb_gestion_calidad_monitoreo`
-    LEFT JOIN `tb_administrador_usuario` AS TUR ON `gcm_registro_usuario`=TUR.`usu_id`
-    WHERE 1=1 AND `gcm_aplica_indicador`='Si' ".$filtro_mes."
-    GROUP BY `gcm_registro_usuario`
-    ORDER BY TUR.`usu_nombres_apellidos` ASC";
-
-    $consulta_registros_gestion_monitor = $enlace_db->prepare($consulta_string_gestion_monitor);
-    $consulta_registros_gestion_monitor->bind_param(str_repeat("s", count($data_consulta)), ...$data_consulta);
-    $consulta_registros_gestion_monitor->execute();
-    $resultado_registros_gestion_monitor = $consulta_registros_gestion_monitor->get_result()->fetch_all(MYSQLI_NUM);
-
-    for ($i=0; $i < count($resultado_registros_gestion_monitor); $i++) {
-        $uid = $resultado_registros_gestion_monitor[$i][0];
-        $nombre = $resultado_registros_gestion_monitor[$i][1] ?? 'Sin nombre';
-        ensure_monitor_key($array_gestion_monitores, $array_gestion_monitores_doc, $uid, $nombre);
-
-        // Set exactos (mantiene funcionalidad original)
-        $array_gestion_monitores[$uid]['monitoreos']=$resultado_registros_gestion_monitor[$i][2];
-        $array_gestion_monitores[$uid]['nombre']=$nombre;
-        $array_gestion_monitores[$uid]['ecuf']=0;
-        $array_gestion_monitores[$uid]['ecn']=0;
-        $array_gestion_monitores[$uid]['enc']=0;
-        $array_gestion_monitores[$uid]['pecuf']=0;
-        $array_gestion_monitores[$uid]['pecn']=0;
-        $array_gestion_monitores[$uid]['penc']=0;
-    }
-
-    // ECUF por monitor
-    $consulta_string_gestion_ecuf_monitor="SELECT `gcm_registro_usuario`, TUR.`usu_nombres_apellidos`, COUNT(`gcm_id`)
-    FROM `tb_gestion_calidad_monitoreo`
-    LEFT JOIN `tb_administrador_usuario` AS TUR ON `gcm_registro_usuario`=TUR.`usu_id`
-    WHERE 1=1 AND `gcm_aplica_indicador`='Si' AND `gcm_nota_ecuf_estado`='0' ".$filtro_mes."
-    GROUP BY `gcm_registro_usuario`";
-
-    $consulta_registros_gestion_ecuf_monitor = $enlace_db->prepare($consulta_string_gestion_ecuf_monitor);
-    $consulta_registros_gestion_ecuf_monitor->bind_param(str_repeat("s", count($data_consulta)), ...$data_consulta);
-    $consulta_registros_gestion_ecuf_monitor->execute();
-    $resultado_registros_gestion_ecuf_monitor = $consulta_registros_gestion_ecuf_monitor->get_result()->fetch_all(MYSQLI_NUM);
-
-    for ($i=0; $i < count($resultado_registros_gestion_ecuf_monitor); $i++) {
-        $uid = $resultado_registros_gestion_ecuf_monitor[$i][0];
-        $nombre = $resultado_registros_gestion_ecuf_monitor[$i][1] ?? 'Sin nombre';
-        ensure_monitor_key($array_gestion_monitores, $array_gestion_monitores_doc, $uid, $nombre);
-
-        $array_gestion_monitores[$uid]['ecuf']=$resultado_registros_gestion_ecuf_monitor[$i][2]+0;
-    }
-
-    // ECN por monitor
-    $consulta_string_gestion_ecn_monitor="SELECT `gcm_registro_usuario`, TUR.`usu_nombres_apellidos`, COUNT(`gcm_id`)
-    FROM `tb_gestion_calidad_monitoreo`
-    LEFT JOIN `tb_administrador_usuario` AS TUR ON `gcm_registro_usuario`=TUR.`usu_id`
-    WHERE 1=1 AND `gcm_aplica_indicador`='Si' AND `gcm_nota_ecn_estado`='0' ".$filtro_mes."
-    GROUP BY `gcm_registro_usuario`";
-
-    $consulta_registros_gestion_ecn_monitor = $enlace_db->prepare($consulta_string_gestion_ecn_monitor);
-    $consulta_registros_gestion_ecn_monitor->bind_param(str_repeat("s", count($data_consulta)), ...$data_consulta);
-    $consulta_registros_gestion_ecn_monitor->execute();
-    $resultado_registros_gestion_ecn_monitor = $consulta_registros_gestion_ecn_monitor->get_result()->fetch_all(MYSQLI_NUM);
-
-    for ($i=0; $i < count($resultado_registros_gestion_ecn_monitor); $i++) {
-        $uid = $resultado_registros_gestion_ecn_monitor[$i][0];
-        $nombre = $resultado_registros_gestion_ecn_monitor[$i][1] ?? 'Sin nombre';
-        ensure_monitor_key($array_gestion_monitores, $array_gestion_monitores_doc, $uid, $nombre);
-
-        $array_gestion_monitores[$uid]['ecn']=$resultado_registros_gestion_ecn_monitor[$i][2]+0;
-    }
-
-    // ENC por monitor
-    $consulta_string_gestion_enc_monitor="SELECT `gcm_registro_usuario`, TUR.`usu_nombres_apellidos`, COUNT(`gcm_id`)
-    FROM `tb_gestion_calidad_monitoreo`
-    LEFT JOIN `tb_administrador_usuario` AS TUR ON `gcm_registro_usuario`=TUR.`usu_id`
-    WHERE 1=1 AND `gcm_aplica_indicador`='Si' AND `gcm_nota_enc_estado`='0' ".$filtro_mes."
-    GROUP BY `gcm_registro_usuario`";
-
-    $consulta_registros_gestion_enc_monitor = $enlace_db->prepare($consulta_string_gestion_enc_monitor);
-    $consulta_registros_gestion_enc_monitor->bind_param(str_repeat("s", count($data_consulta)), ...$data_consulta);
-    $consulta_registros_gestion_enc_monitor->execute();
-    $resultado_registros_gestion_enc_monitor = $consulta_registros_gestion_enc_monitor->get_result()->fetch_all(MYSQLI_NUM);
-
-    for ($i=0; $i < count($resultado_registros_gestion_enc_monitor); $i++) {
-        $uid = $resultado_registros_gestion_enc_monitor[$i][0];
-        $nombre = $resultado_registros_gestion_enc_monitor[$i][1] ?? 'Sin nombre';
-        ensure_monitor_key($array_gestion_monitores, $array_gestion_monitores_doc, $uid, $nombre);
-
-        $array_gestion_monitores[$uid]['enc']=$resultado_registros_gestion_enc_monitor[$i][2]+0;
-    }
-
-    // Asegura que doc esté único (evita duplicados por el ensure)
-    $array_gestion_monitores_doc = array_values(array_unique($array_gestion_monitores_doc));
-
-    for ($i=0; $i < count($array_gestion_monitores_doc); $i++) {
-        $uid = $array_gestion_monitores_doc[$i];
-
-        if (!isset($array_gestion_monitores[$uid])) { continue; } // extra safety
-        if ($array_gestion_monitores[$uid]['monitoreos']>0) {
-            $array_gestion_monitores[$uid]['pecuf']=(($array_gestion_monitores[$uid]['monitoreos']-$array_gestion_monitores[$uid]['ecuf'])/$array_gestion_monitores[$uid]['monitoreos'])*100;
-            $array_gestion_monitores[$uid]['pecn']=(($array_gestion_monitores[$uid]['monitoreos']-$array_gestion_monitores[$uid]['ecn'])/$array_gestion_monitores[$uid]['monitoreos'])*100;
-            $array_gestion_monitores[$uid]['penc']=(($array_gestion_monitores[$uid]['monitoreos']-$array_gestion_monitores[$uid]['enc'])/$array_gestion_monitores[$uid]['monitoreos'])*100;
-        } else {
-            $array_gestion_monitores[$uid]['pecuf']=0;
-            $array_gestion_monitores[$uid]['pecn']=0;
-            $array_gestion_monitores[$uid]['penc']=0;
-        }
-    }
 
     //CONSULTA GESTIÓN POR MONITOR-FECHA
-    $array_semanas['total_1']=0;
-    $array_semanas['total_2']=0;
-    $array_semanas['total_3']=0;
-    $array_semanas['total_4']=0;
+        $array_semanas['total_1']=0;
+        $array_semanas['total_2']=0;
+        $array_semanas['total_3']=0;
+        $array_semanas['total_4']=0;
 
-    $consulta_string_monitor_dia="SELECT `gcm_registro_usuario`, TUR.`usu_nombres_apellidos`, `gcm_fecha_monitoreo`, COUNT(`gcm_id`)
-    FROM `tb_gestion_calidad_monitoreo`
-    LEFT JOIN `tb_administrador_usuario` AS TUR ON `gcm_registro_usuario`=TUR.`usu_id`
-    WHERE 1=1 AND `gcm_aplica_indicador`='Si' ".$filtro_mes."
-    GROUP BY `gcm_registro_usuario`, `gcm_fecha_monitoreo`
-    ORDER BY TUR.`usu_nombres_apellidos` ASC, `gcm_fecha_monitoreo` ASC";
+        $consulta_string_monitor_dia="SELECT `gcm_registro_usuario`, TUR.`usu_nombres_apellidos`, `gcm_fecha_monitoreo`, COUNT(`gcm_id`) FROM `tb_gestion_calidad_monitoreo` LEFT JOIN `tb_administrador_usuario` AS TUR ON `gcm_registro_usuario`=TUR.`usu_id` WHERE 1=1 AND `gcm_aplica_indicador`='Si' ".$filtro_mes." GROUP BY `gcm_registro_usuario`, `gcm_fecha_monitoreo` ORDER BY TUR.`usu_nombres_apellidos` ASC, `gcm_fecha_monitoreo` ASC";
+        $consulta_registros_monitor_dia = $enlace_db->prepare($consulta_string_monitor_dia);
+        $consulta_registros_monitor_dia->bind_param(str_repeat("s", count($data_consulta)), ...$data_consulta);
+        $consulta_registros_monitor_dia->execute();
+        $resultado_registros_monitor_dia = $consulta_registros_monitor_dia->get_result()->fetch_all(MYSQLI_NUM);
 
-    $consulta_registros_monitor_dia = $enlace_db->prepare($consulta_string_monitor_dia);
-    $consulta_registros_monitor_dia->bind_param(str_repeat("s", count($data_consulta)), ...$data_consulta);
-    $consulta_registros_monitor_dia->execute();
-    $resultado_registros_monitor_dia = $consulta_registros_monitor_dia->get_result()->fetch_all(MYSQLI_NUM);
+        for ($i=0; $i < count($resultado_registros_monitor_dia); $i++) { 
+            $array_monitor_dia[$resultado_registros_monitor_dia[$i][0]]['monitoreos'][$resultado_registros_monitor_dia[$i][2]]=$resultado_registros_monitor_dia[$i][3];
+            $array_monitor_dia[$resultado_registros_monitor_dia[$i][0]]['nombre']=$resultado_registros_monitor_dia[$i][1];
+            $array_monitor_dia_doc[]=$resultado_registros_monitor_dia[$i][0];
 
-    for ($i=0; $i < count($resultado_registros_monitor_dia); $i++) {
-        $uid = $resultado_registros_monitor_dia[$i][0];
-        $nombre = $resultado_registros_monitor_dia[$i][1] ?? 'Sin nombre';
-        $fecha = $resultado_registros_monitor_dia[$i][2];
-        $cant  = $resultado_registros_monitor_dia[$i][3]+0;
+            $dia_recorre=intval(date('d', strtotime($resultado_registros_monitor_dia[$i][2])));
 
-        // Inicializa estructura (evita Undefined array key)
-        if (!isset($array_monitor_dia[$uid])) {
-            $array_monitor_dia[$uid] = array('monitoreos'=>array(), 'nombre'=>$nombre);
-        } else {
-            if ((!isset($array_monitor_dia[$uid]['nombre']) || $array_monitor_dia[$uid]['nombre']==='' || $array_monitor_dia[$uid]['nombre']===null) && $nombre) {
-                $array_monitor_dia[$uid]['nombre'] = $nombre;
+            if ($dia_recorre>=1 AND $dia_recorre<=6) {
+                $array_semanas['total_1']+=$resultado_registros_monitor_dia[$i][3]+0;
+            }
+
+            if ($dia_recorre>=7 AND $dia_recorre<=13) {
+                $array_semanas['total_2']+=$resultado_registros_monitor_dia[$i][3]+0;
+            }
+
+            if ($dia_recorre>=14 AND $dia_recorre<=20) {
+                $array_semanas['total_3']+=$resultado_registros_monitor_dia[$i][3]+0;
+            }
+
+            if ($dia_recorre>=21) {
+                $array_semanas['total_4']+=$resultado_registros_monitor_dia[$i][3]+0;
             }
         }
 
-        $array_monitor_dia[$uid]['monitoreos'][$fecha] = $cant;
-        $array_monitor_dia_doc[] = $uid;
-
-        $dia_recorre=intval(date('d', strtotime($fecha)));
-
-        if ($dia_recorre>=1 AND $dia_recorre<=6) {
-            $array_semanas['total_1']+=$cant;
-        }
-
-        if ($dia_recorre>=7 AND $dia_recorre<=13) {
-            $array_semanas['total_2']+=$cant;
-        }
-
-        if ($dia_recorre>=14 AND $dia_recorre<=20) {
-            $array_semanas['total_3']+=$cant;
-        }
-
-        if ($dia_recorre>=21) {
-            $array_semanas['total_4']+=$cant;
-        }
-    }
-
-    // Completa días faltantes por usuario sin warnings
-    $array_monitor_dia_doc = array_values(array_unique($array_monitor_dia_doc));
-    for ($i=0; $i < count($array_monitor_dia_doc); $i++) {
-        $uid = $array_monitor_dia_doc[$i];
-        if (!isset($array_monitor_dia[$uid])) { continue; }
-        for ($j=0; $j < count($array_anio_mes_dias); $j++) {
-            $d = $array_anio_mes_dias[$j];
-            if (!isset($array_monitor_dia[$uid]['monitoreos'][$d])) {
-                $array_monitor_dia[$uid]['monitoreos'][$d]=0;
-            } else {
-                $array_monitor_dia[$uid]['monitoreos'][$d]+=0;
+        for ($i=0; $i < count($resultado_registros_monitor_dia); $i++) { 
+            for ($j=0; $j < count($array_anio_mes_dias); $j++) { 
+                $array_monitor_dia[$resultado_registros_monitor_dia[$i][0]]['monitoreos'][$array_anio_mes_dias[$j]]+=0;
             }
         }
-    }
 
-    $array_semanas['rango_1']='01 al 06 de '.$filtro_permanente;
-    $array_semanas['rango_2']='07 al 13 de '.$filtro_permanente;
-    $array_semanas['rango_3']='14 al 20 de '.$filtro_permanente;
-    $array_semanas['rango_4']='21 al '.$numero_dias_mes.' de '.$filtro_permanente;
+        $array_monitor_dia_doc=array_values(array_unique($array_monitor_dia_doc));
 
-    $consulta_string="SELECT TMC.`gcm_matriz`, TM.`gcm_nombre_matriz`, TMC.`gcm_registro_usuario`, TUR.`usu_nombres_apellidos`, COUNT(TMC.`gcm_id`)
-    FROM `tb_gestion_calidad_monitoreo` AS TMC
-    LEFT JOIN `tb_gestion_calidad_matriz` AS TM ON TMC.`gcm_matriz`=TM.`gcm_id`
-    LEFT JOIN `tb_administrador_usuario` AS TUR ON TMC.`gcm_registro_usuario`=TUR.`usu_id`
-    WHERE 1=1 ".$filtro_mes."
-    GROUP BY TMC.`gcm_matriz`, TMC.`gcm_registro_usuario`";
+        $array_semanas['rango_1']='01 al 06 de '.$filtro_permanente;
+        $array_semanas['rango_2']='07 al 13 de '.$filtro_permanente;
+        $array_semanas['rango_3']='14 al 20 de '.$filtro_permanente;
+        $array_semanas['rango_4']='21 al '.$numero_dias_mes.' de '.$filtro_permanente;
+
+    $consulta_string="SELECT TMC.`gcm_matriz`, TM.`gcm_nombre_matriz`, TMC.`gcm_registro_usuario`, TUR.`usu_nombres_apellidos`, COUNT(TMC.`gcm_id`) FROM `tb_gestion_calidad_monitoreo` AS TMC LEFT JOIN `tb_gestion_calidad_matriz` AS TM ON TMC.`gcm_matriz`=TM.`gcm_id` LEFT JOIN `tb_administrador_usuario` AS TUR ON TMC.`gcm_registro_usuario`=TUR.`usu_id` WHERE 1=1 ".$filtro_mes." GROUP BY TMC.`gcm_matriz`, TMC.`gcm_registro_usuario`";
 
     $consulta_registros = $enlace_db->prepare($consulta_string);
     $consulta_registros->bind_param(str_repeat("s", count($data_consulta)), ...$data_consulta);
     $consulta_registros->execute();
     $resultado_registros = $consulta_registros->get_result()->fetch_all(MYSQLI_NUM);
 
-    for ($i=0; $i < count($resultado_registros); $i++) {
-        $uid = $resultado_registros[$i][2];
-        $mid = $resultado_registros[$i][0];
-
-        $array_usuarios[]=$uid;
-        $array_matrices[]=$mid;
-
-        if (!isset($array_usuarios_detalle[$uid])) { $array_usuarios_detalle[$uid] = array('nombre' => $resultado_registros[$i][3]); }
-        if (!isset($array_matrices_detalle[$mid])) { $array_matrices_detalle[$mid] = array('nombre_matriz' => $resultado_registros[$i][1], 'cantidad' => 0); }
-
-        $array_matrices_detalle[$mid]['nombre_matriz']=$resultado_registros[$i][1];
-        $array_matrices_detalle[$mid]['cantidad']+=$resultado_registros[$i][4];
-
-        if (!isset($array_usuario_monitoreos[$mid])) { $array_usuario_monitoreos[$mid] = array(); }
-        if (!isset($array_usuario_monitoreos[$mid][$uid])) { $array_usuario_monitoreos[$mid][$uid]=0; }
-        $array_usuario_monitoreos[$mid][$uid]+=$resultado_registros[$i][4];
+    for ($i=0; $i < count($resultado_registros); $i++) { 
+        $array_usuarios[]=$resultado_registros[$i][2];
+        $array_matrices[]=$resultado_registros[$i][0];
+        $array_usuarios_detalle[$resultado_registros[$i][2]]['nombre']=$resultado_registros[$i][3];
+        $array_matrices_detalle[$resultado_registros[$i][0]]['nombre_matriz']=$resultado_registros[$i][1];
+        $array_matrices_detalle[$resultado_registros[$i][0]]['cantidad']+=$resultado_registros[$i][4];
+        $array_usuario_monitoreos[$resultado_registros[$i][0]][$resultado_registros[$i][2]]+=$resultado_registros[$i][4];
     }
 
     $array_usuarios=array_values(array_unique($array_usuarios));
     $array_matrices=array_values(array_unique($array_matrices));
 
-    for ($i=0; $i < count($array_matrices); $i++) {
-        for ($j=0; $j < count($array_usuarios); $j++) {
-            if (!isset($array_usuario_monitoreos[$array_matrices[$i]])) { $array_usuario_monitoreos[$array_matrices[$i]] = array(); }
-            if (!isset($array_usuario_monitoreos[$array_matrices[$i]][$array_usuarios[$j]])) {
-                $array_usuario_monitoreos[$array_matrices[$i]][$array_usuarios[$j]]=0;
-            } else {
-                $array_usuario_monitoreos[$array_matrices[$i]][$array_usuarios[$j]]+=0;
-            }
+    for ($i=0; $i < count($array_matrices); $i++) { 
+        for ($j=0; $j < count($array_usuarios); $j++) { 
+            $array_usuario_monitoreos[$array_matrices[$i]][$array_usuarios[$j]]+=0;
         }
     }
 ?>
@@ -355,7 +222,7 @@
 	<?php
         include("../config/configuracion_estilos.php");
     ?>
-    <script src="../HighchartsGantt/code/highcharts.js"></script>
+    <script src="../Highcharts/code/highcharts.js"></script>
 </head>
 <body>
     <?php

@@ -362,7 +362,6 @@
         "WhatsApp",
         "Videollamada",
         "Apoyo Adopciones",
-        "Formulario Web",
         "N/A"
     ];
 
@@ -376,6 +375,7 @@
         "Búsqueda de Orígenes",
         "Comunicación NNA",
         "Consulta",
+        "Correos",
         "Encuestas",
         "Inobservancia",
         "IO",
@@ -397,10 +397,8 @@
 
     $op_segmento = [
         "Aseguramiento",
-        "Apoyo Adopciones", 
         "Canal escrito",
         "Chat ICBF",
-        "Click to Call",
         "Conmutador",
         "Correos y Portales",
         "Encuestas",

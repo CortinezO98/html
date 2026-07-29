@@ -154,7 +154,7 @@ function obtenerSupervisionActualAgente(mysqli $enlace_db, string $usu_id_agente
  *
  * @return string gcp_id del paquete creado
  */
-function crearPaqueteAutomatico(mysqli $enlace_db, array $snapshot, ?string $paquete_anterior = null): string
+function crearPaqueteAutomatico(mysqli $enlace_db, array $snapshot, ?string $paquete_anterior = null, ?string $fecha_limite_forzada = null): string
 {
     $enlace_db->begin_transaction();
     try {
@@ -173,6 +173,12 @@ function crearPaqueteAutomatico(mysqli $enlace_db, array $snapshot, ?string $paq
 
         $estado_id = obtenerEstadoIdPorCodigo($enlace_db, 'ASIGNADO');
         $tipo_id   = obtenerTipoIdPorCodigo($enlace_db, 'RETROALIMENTACION');
+        // Si quien genera eligió una fecha específica (pantalla de "generar
+        // desde monitoreo"), se respeta esa. Si no, se calcula el default
+        // de siempre (+5 días calendario).
+        $fecha_limite = $fecha_limite_forzada !== null && $fecha_limite_forzada !== ''
+            ? $fecha_limite_forzada
+            : date('Y-m-d', strtotime('+' . COACHING_DIAS_LIMITE_AUTOMATICO . ' days'));
 
         // Campaña actual del agente (sectorización por empresa) — el
         // segmento en origen automático viene directo del monitoreo que
@@ -187,11 +193,11 @@ function crearPaqueteAutomatico(mysqli $enlace_db, array $snapshot, ?string $paq
             "INSERT INTO `tb_gestion_coaching_paquete`
                 (`gcp_id`, `gcp_origen_tipo`, `gcp_monitoreo_id`, `gcp_paquete_anterior`, `gcp_tipo_id`,
                  `gcp_agente_id`, `gcp_supervisor_id`, `gcp_lider_calidad_id`, `gcp_analista_calidad_id`,
-                 `gcp_estado_id`, `gcp_campania_id`, `gcp_segmento`, `gcp_fecha_asignacion`, `gcp_creado_por`)
-             VALUES (?, 'monitoreo', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 'SISTEMA')"
+                 `gcp_estado_id`, `gcp_campania_id`, `gcp_segmento`, `gcp_fecha_asignacion`, `gcp_fecha_limite`, `gcp_creado_por`)
+             VALUES (?, 'monitoreo', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, 'SISTEMA')"
         );
         $insertar_paquete->bind_param(
-            'sssissssiis',
+            'sssissssiiss',
             $gcp_id,
             $snapshot['monitoreo_id'],
             $paquete_anterior,
@@ -202,7 +208,8 @@ function crearPaqueteAutomatico(mysqli $enlace_db, array $snapshot, ?string $paq
             $snapshot['analista_id'],
             $estado_id,
             $campania_id,
-            $snapshot['segmento']
+            $snapshot['segmento'],
+            $fecha_limite
         );
         if (!$insertar_paquete->execute()) {
             // La UNIQUE (gcp_origen_tipo, gcp_monitoreo_id, gcp_activo) es
@@ -253,6 +260,17 @@ function crearPaqueteAutomatico(mysqli $enlace_db, array $snapshot, ?string $paq
             'SISTEMA', null);
 
         $enlace_db->commit();
+
+        // Errores no críticos del monitoreo -> hallazgos del paquete.
+        // Fuera de la transacción principal y protegido con su propio
+        // try/catch: si esto falla, el paquete YA quedó creado
+        // correctamente — no debe perderse por un problema aquí.
+        try {
+            guardarHallazgosDesdeMonitoreo($enlace_db, $gcp_id, $snapshot['monitoreo_id']);
+        } catch (Throwable $e) {
+            registrarErrorCoaching($enlace_db, $gcp_id, 'No fue posible traer los hallazgos del monitoreo: ' . $e->getMessage());
+        }
+
         return $gcp_id;
     } catch (Throwable $e) {
         $enlace_db->rollback();
@@ -424,22 +442,24 @@ function insertarFirma(
     string $hash_documento,
     string $ip,
     ?string $user_agent,
-    string $texto_consentimiento
+    string $texto_consentimiento,
+    ?string $firma_imagen_base64 = null
 ): int {
-    $tipo_firma = 'Aceptacion_Electronica';
+    $tipo_firma = $firma_imagen_base64 !== null ? 'Firma_Dibujada' : 'Aceptacion_Electronica';
     $insertar = $enlace_db->prepare(
         "INSERT INTO `tb_gestion_coaching_firma`
-            (`gcf_paquete`, `gcf_documento`, `gcf_firmante_usuario`, `gcf_firmante_rol`, `gcf_tipo_firma`,
+            (`gcf_paquete`, `gcf_documento`, `gcf_firmante_usuario`, `gcf_firmante_rol`, `gcf_tipo_firma`, `gcf_firma_imagen`,
              `gcf_hash_documento_firmado`, `gcf_ip`, `gcf_user_agent`, `gcf_consentimiento_texto`)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     );
     $insertar->bind_param(
-        'sisssssss',
+        'sissssssss',
         $gcp_id,
         $gcd_id,
         $usu_id,
         $rol,
         $tipo_firma,
+        $firma_imagen_base64,
         $hash_documento,
         $ip,
         $user_agent,
@@ -659,6 +679,224 @@ function obtenerCampaniaYSegmentoRecienteAgente(mysqli $enlace_db, string $usu_i
     return ['campania_id' => $campania_id, 'segmento' => $segmento];
 }
 
+function listarPreguntasEncuestaActivas(mysqli $enlace_db): array
+{
+    $resultado = $enlace_db->query("SELECT `gcep_codigo`, `gcep_texto` FROM `tb_gestion_coaching_encuesta_pregunta` WHERE `gcep_activo` = 1 ORDER BY `gcep_orden`");
+    return $resultado->fetch_all(MYSQLI_ASSOC);
+}
+
+/** ¿Ya respondió la encuesta este paquete? (evita doble respuesta, más allá del UNIQUE de la tabla). */
+function paqueteTieneEncuesta(mysqli $enlace_db, string $gcp_id): bool
+{
+    $consulta = $enlace_db->prepare("SELECT `gcen_id` FROM `tb_gestion_coaching_encuesta` WHERE `gcen_paquete` = ? LIMIT 1");
+    $consulta->bind_param('s', $gcp_id);
+    $consulta->execute();
+    return $consulta->get_result()->fetch_assoc() !== null;
+}
+
+/**
+ * Guarda la encuesta de percepción (cabecera + detalle), en una sola
+ * transacción. $respuestas = [codigo_pregunta => valor_1_a_5].
+ * Bloquea explícitamente el doble envío: si ya existe una encuesta para
+ * este paquete, lanza excepción — nunca se sobrescribe una respuesta ya
+ * dada (además del UNIQUE KEY de la tabla, que sería la última barrera).
+ */
+function guardarEncuestaPercepcion(mysqli $enlace_db, string $gcp_id, array $respuestas, string $usu_id): void
+{
+    if (paqueteTieneEncuesta($enlace_db, $gcp_id)) {
+        throw new RuntimeException('Este paquete ya tiene una encuesta registrada — no se permite responderla dos veces.');
+    }
+
+    $preguntas = listarPreguntasEncuestaActivas($enlace_db);
+    if (count($preguntas) === 0) {
+        throw new RuntimeException('No hay preguntas de encuesta configuradas.');
+    }
+    foreach ($preguntas as $p) {
+        $valor = $respuestas[$p['gcep_codigo']] ?? null;
+        if ($valor === null || (int) $valor < 1 || (int) $valor > 5) {
+            throw new RuntimeException('Debe responder todas las preguntas de la encuesta (escala 1 a 5).');
+        }
+    }
+
+    $enlace_db->begin_transaction();
+    try {
+        $insertar_cabecera = $enlace_db->prepare(
+            "INSERT INTO `tb_gestion_coaching_encuesta` (`gcen_paquete`, `gcen_escala_max`, `gcen_usuario`) VALUES (?, 5, ?)"
+        );
+        $insertar_cabecera->bind_param('ss', $gcp_id, $usu_id);
+        if (!$insertar_cabecera->execute()) {
+            throw new RuntimeException('No fue posible registrar la encuesta: ' . $enlace_db->error);
+        }
+        $encuesta_id = (int) $insertar_cabecera->insert_id;
+
+        $insertar_detalle = $enlace_db->prepare(
+            "INSERT INTO `tb_gestion_coaching_encuesta_respuesta` (`gcenr_encuesta`, `gcenr_pregunta_codigo`, `gcenr_pregunta_texto`, `gcenr_respuesta_valor`) VALUES (?, ?, ?, ?)"
+        );
+        foreach ($preguntas as $p) {
+            $valor = (int) $respuestas[$p['gcep_codigo']];
+            $insertar_detalle->bind_param('issi', $encuesta_id, $p['gcep_codigo'], $p['gcep_texto'], $valor);
+            if (!$insertar_detalle->execute()) {
+                throw new RuntimeException('No fue posible registrar una respuesta de la encuesta: ' . $enlace_db->error);
+            }
+        }
+        $enlace_db->commit();
+    } catch (Throwable $e) {
+        $enlace_db->rollback();
+        throw $e;
+    }
+}
+
+/** Trae la encuesta ya respondida (cabecera + respuestas), o null si no existe. */
+function obtenerEncuestaPercepcion(mysqli $enlace_db, string $gcp_id): ?array
+{
+    $consulta = $enlace_db->prepare("SELECT * FROM `tb_gestion_coaching_encuesta` WHERE `gcen_paquete` = ? LIMIT 1");
+    $consulta->bind_param('s', $gcp_id);
+    $consulta->execute();
+    $cabecera = $consulta->get_result()->fetch_assoc();
+    if (!$cabecera) {
+        return null;
+    }
+
+    $consulta_resp = $enlace_db->prepare("SELECT * FROM `tb_gestion_coaching_encuesta_respuesta` WHERE `gcenr_encuesta` = ? ORDER BY `gcenr_id`");
+    $consulta_resp->bind_param('i', $cabecera['gcen_id']);
+    $consulta_resp->execute();
+    $cabecera['respuestas'] = $consulta_resp->get_result()->fetch_all(MYSQLI_ASSOC);
+
+    return $cabecera;
+}
+
+/**
+ * Trae los "errores no críticos" (gcmi_tipo_error = 'ENC') detectados en
+ * el monitoreo real que originó este paquete, y los deja como hallazgos
+ * dentro de Coaching — confirmado con datos reales de producción:
+ * tipo_error='ENC' + respuesta='No' = error no crítico incumplido.
+ */
+function guardarHallazgosDesdeMonitoreo(mysqli $enlace_db, string $gcp_id, string $monitoreo_id): void
+{
+    $consulta = $enlace_db->prepare(
+        "SELECT C.`gcmc_pregunta`, C.`gcmc_respuesta`, C.`gcmc_afectaciones`, C.`gcmc_comentarios`
+         FROM `tb_gestion_calidad_monitoreo_calificaciones` AS C
+         INNER JOIN `tb_gestion_calidad_matriz_item` AS I ON C.`gcmc_pregunta` = I.`gcmi_id`
+         WHERE C.`gcmc_monitoreo` = ? AND C.`gcmc_respuesta` = 'No' AND I.`gcmi_tipo_error` = 'ENC'
+         ORDER BY I.`gcmi_item_orden`"
+    );
+    $consulta->bind_param('s', $monitoreo_id);
+    $consulta->execute();
+    $filas = $consulta->get_result()->fetch_all(MYSQLI_ASSOC);
+
+    if (count($filas) === 0) {
+        return;
+    }
+
+    $insertar = $enlace_db->prepare(
+        "INSERT INTO `tb_gestion_coaching_hallazgo`
+            (`gch_paquete`, `gch_pregunta`, `gch_respuesta`, `gch_afectacion`, `gch_comentario`, `gch_orden`)
+         VALUES (?, ?, ?, ?, ?, ?)"
+    );
+    $orden = 0;
+    foreach ($filas as $f) {
+        $orden++;
+        $insertar->bind_param(
+            'sssssi',
+            $gcp_id,
+            $f['gcmc_pregunta'],
+            $f['gcmc_respuesta'],
+            $f['gcmc_afectaciones'],
+            $f['gcmc_comentarios'],
+            $orden
+        );
+        $insertar->execute(); // no crítico bloquear la creación del paquete por esto
+    }
+}
+
+/** Lista los hallazgos de un paquete, con la descripción real de la pregunta de la matriz. */
+function listarHallazgosPaquete(mysqli $enlace_db, string $gcp_id): array
+{
+    $consulta = $enlace_db->prepare(
+        "SELECT H.`gch_id`, H.`gch_pregunta`, H.`gch_respuesta`, H.`gch_afectacion`, H.`gch_comentario`,
+                I.`gcmi_descripcion`
+         FROM `tb_gestion_coaching_hallazgo` AS H
+         LEFT JOIN `tb_gestion_calidad_matriz_item` AS I ON H.`gch_pregunta` = I.`gcmi_id`
+         WHERE H.`gch_paquete` = ? ORDER BY H.`gch_orden`"
+    );
+    $consulta->bind_param('s', $gcp_id);
+    $consulta->execute();
+    return $consulta->get_result()->fetch_all(MYSQLI_ASSOC);
+}
+
+function guardarIndicadoresPaquete(mysqli $enlace_db, string $gcp_id, array $indicador_ids): void
+{
+    $enlace_db->begin_transaction();
+    try {
+        $borrar = $enlace_db->prepare("DELETE FROM `tb_gestion_coaching_paquete_indicador` WHERE `gcpi_paquete` = ?");
+        $borrar->bind_param('s', $gcp_id);
+        $borrar->execute();
+
+        if (count($indicador_ids) > 0) {
+            $insertar = $enlace_db->prepare("INSERT INTO `tb_gestion_coaching_paquete_indicador` (`gcpi_paquete`, `gcpi_indicador_id`) VALUES (?, ?)");
+            foreach (array_unique(array_map('intval', $indicador_ids)) as $id) {
+                $insertar->bind_param('si', $gcp_id, $id);
+                $insertar->execute();
+            }
+        }
+        $enlace_db->commit();
+    } catch (Throwable $e) {
+        $enlace_db->rollback();
+        throw $e;
+    }
+}
+
+function listarIndicadoresPaquete(mysqli $enlace_db, string $gcp_id): array
+{
+    $consulta = $enlace_db->prepare(
+        "SELECT I.`gci_id`, I.`gci_nombre` FROM `tb_gestion_coaching_paquete_indicador` AS PI
+         INNER JOIN `tb_gestion_coaching_indicador` AS I ON PI.`gcpi_indicador_id` = I.`gci_id`
+         WHERE PI.`gcpi_paquete` = ? ORDER BY I.`gci_nombre`"
+    );
+    $consulta->bind_param('s', $gcp_id);
+    $consulta->execute();
+    return $consulta->get_result()->fetch_all(MYSQLI_ASSOC);
+}
+
+/** Inserta o actualiza el detalle de escalamiento disciplinario (1 fila por paquete). */
+function guardarEscalamiento(mysqli $enlace_db, string $gcp_id, array $datos, string $usu_id): void
+{
+    $insertar = $enlace_db->prepare(
+        "INSERT INTO `tb_gestion_coaching_paquete_escalamiento`
+            (`gcpe_paquete`, `gcpe_asunto`, `gcpe_fecha_hora_envio`, `gcpe_destinatario_nombre`, `gcpe_destinatario_correo`, `gcpe_observaciones`, `gcpe_registro_usuario`)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+            `gcpe_asunto` = VALUES(`gcpe_asunto`),
+            `gcpe_fecha_hora_envio` = VALUES(`gcpe_fecha_hora_envio`),
+            `gcpe_destinatario_nombre` = VALUES(`gcpe_destinatario_nombre`),
+            `gcpe_destinatario_correo` = VALUES(`gcpe_destinatario_correo`),
+            `gcpe_observaciones` = VALUES(`gcpe_observaciones`)"
+    );
+    $insertar->bind_param(
+        'sssssss',
+        $gcp_id,
+        $datos['asunto'],
+        $datos['fecha_hora_envio'],
+        $datos['destinatario_nombre'],
+        $datos['destinatario_correo'],
+        $datos['observaciones'],
+        $usu_id
+    );
+    if (!$insertar->execute()) {
+        throw new RuntimeException('No fue posible guardar el escalamiento: ' . $enlace_db->error);
+    }
+}
+
+function obtenerEscalamiento(mysqli $enlace_db, string $gcp_id): ?array
+{
+    $consulta = $enlace_db->prepare("SELECT * FROM `tb_gestion_coaching_paquete_escalamiento` WHERE `gcpe_paquete` = ? LIMIT 1");
+    $consulta->bind_param('s', $gcp_id);
+    $consulta->execute();
+    $fila = $consulta->get_result()->fetch_assoc();
+    return $fila ?: null;
+}
+
+
 /**
  * Crea un paquete GLOBAL (Modelo 2): manual, creado por un supervisor,
  * sin depender de un monitoreo. A diferencia del automático, aquí el
@@ -671,24 +909,39 @@ function obtenerCampaniaYSegmentoRecienteAgente(mysqli $enlace_db, string $usu_i
  *                       'prioridad','fecha_limite'(nullable Y-m-d),'contexto'(nullable)]
  * @return string gcp_id
  */
-function crearPaqueteGlobal(mysqli $enlace_db, array $datos, string $supervisor_id): string
+function crearPaqueteGlobal(mysqli $enlace_db, array $datos, string $usu_id_actor, string $perfil_actor = 'Supervisor'): string
 {
     $enlace_db->begin_transaction();
     try {
-        // Autorización por recurso: el agente elegido debe reportar
-        // realmente a este supervisor. Nunca se confía en el <select> del
-        // formulario sin revalidar en servidor (defensa contra IDOR /
-        // manipulación de parámetros).
+        // Autorización por recurso: el agente elegido debe existir y estar
+        // activo. Si quien crea es Supervisor, además debe ser realmente
+        // su agente (nunca se confía en el <select> del formulario sin
+        // revalidar en servidor — defensa contra IDOR). Administrador y
+        // Gestor pueden crear para cualquier agente activo, pero el
+        // paquete SIEMPRE queda asignado al supervisor REAL del agente
+        // (no al admin), para que el resto del sistema (bandeja del
+        // supervisor, reportes, alcance) siga funcionando correctamente.
         $consulta_agente = $enlace_db->prepare(
-            "SELECT `usu_supervisor` FROM `tb_administrador_usuario` WHERE `usu_id` = ? LIMIT 1"
+            "SELECT `usu_supervisor` FROM `tb_administrador_usuario` WHERE `usu_id` = ? AND `usu_estado` = 'Activo' LIMIT 1"
         );
         $consulta_agente->bind_param('s', $datos['agente_id']);
         $consulta_agente->execute();
         $agente = $consulta_agente->get_result()->fetch_assoc();
 
-        if (!$agente || $agente['usu_supervisor'] !== $supervisor_id) {
+        if (!$agente) {
+            throw new RuntimeException('El agente seleccionado no existe o no está activo.');
+        }
+
+        $es_admin_o_gestor = in_array($perfil_actor, ['Administrador', 'Gestor'], true);
+        if (!$es_admin_o_gestor && $agente['usu_supervisor'] !== $usu_id_actor) {
             throw new RuntimeException('El agente seleccionado no pertenece a su equipo.');
         }
+
+        // El paquete queda asignado al supervisor real del agente. Si un
+        // agente no tiene supervisor asignado (usu_supervisor vacío) y
+        // quien crea es Admin/Gestor, el propio actor queda como supervisor
+        // — mejor que dejarlo sin dueño.
+        $supervisor_id = ($agente['usu_supervisor'] ?? '') !== '' ? $agente['usu_supervisor'] : $usu_id_actor;
 
         $gcp_id = generarConsecutivoPaquete($enlace_db);
         $estado_id = obtenerEstadoIdPorCodigo($enlace_db, 'ASIGNADO');
@@ -724,14 +977,14 @@ function crearPaqueteGlobal(mysqli $enlace_db, array $datos, string $supervisor_
             $segmento_final,
             $datos['prioridad'],
             $fecha_limite,
-            $supervisor_id
+            $usu_id_actor
         );
         if (!$insertar->execute()) {
             throw new RuntimeException('No fue posible crear el paquete: ' . $enlace_db->error);
         }
 
         insertarHistorial($enlace_db, $gcp_id, null, $estado_id, 'CREAR_MANUAL',
-            $datos['contexto'] ?? null, $supervisor_id, null);
+            $datos['contexto'] ?? null, $usu_id_actor, null);
 
         $enlace_db->commit();
         return $gcp_id;
@@ -762,7 +1015,7 @@ function listarTiposActivos(mysqli $enlace_db): array
 
 function listarIndicadoresActivos(mysqli $enlace_db): array
 {
-    $resultado = $enlace_db->query("SELECT `gci_id`, `gci_nombre` FROM `tb_gestion_coaching_indicador` WHERE `gci_activo` = 1 ORDER BY `gci_nombre`");
+    $resultado = $enlace_db->query("SELECT `gci_id`, `gci_nombre`, `gci_categoria` FROM `tb_gestion_coaching_indicador` WHERE `gci_activo` = 1 ORDER BY `gci_categoria` IS NULL, `gci_categoria`, `gci_nombre`");
     return $resultado->fetch_all(MYSQLI_ASSOC);
 }
 /**

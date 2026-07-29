@@ -13,21 +13,12 @@
     $filtro_permanente=validar_input($_GET['id']);
     $bandeja=validar_input(base64_decode($_GET['bandeja']));
 
-    // Auditor responsable (sesión actual)
-    $auditor_user = (isset($_SESSION['usu_id']) && $_SESSION['usu_id'] !== null) ? (string)$_SESSION['usu_id'] : '';
-
-    if (!isset($_SESSION['gcmta_registro_creado'])) {
-        $_SESSION['gcmta_registro_creado'] = 0;
-    }
-
-    $respuesta_accion = '';
-
     if(isset($_POST["guardar_registro"])){
         $fecha_inicio=validar_input($_POST['fecha_inicio']);
         $fecha_fin=validar_input($_POST['fecha_fin']);
         $fecha_fin_filtro=$fecha_fin.' 23:59:59';
-        $telefonico=(int)validar_input($_POST['telefonico']);
-        $virtual=(int)validar_input($_POST['virtual']);
+        $telefonico=validar_input($_POST['telefonico']);
+        $virtual=validar_input($_POST['virtual']);
 
         if($_SESSION['gcmta_registro_creado']!=1){
             $consulta_string_auditoria_count="SELECT COUNT(`tb_gestion_calidad_monitoreo`.`gcm_id`) FROM `tb_gestion_calidad_monitoreo` LEFT JOIN `tb_gestion_calidad_matriz` AS TM ON `tb_gestion_calidad_monitoreo`.`gcm_matriz`=TM.`gcm_id` WHERE `tb_gestion_calidad_monitoreo`.`gcm_auditoria`='Si' AND `tb_gestion_calidad_monitoreo`.`gcm_registro_fecha`>=? AND `tb_gestion_calidad_monitoreo`.`gcm_registro_fecha`<=?";
@@ -37,11 +28,9 @@
             $consulta_registros_auditoria_count->execute();
             $resultado_registros_auditoria_count = $consulta_registros_auditoria_count->get_result()->fetch_all(MYSQLI_NUM);
 
-            // LÓGICA ORIGINAL CONSERVADA: crear si NO hay auditorías en el rango
+            //Validar si existe auditorías y mostrar o no bvotón de crear auditoría, 
             if ($resultado_registros_auditoria_count[0][0]==0) {
-
-                // FIX 1: incluye 'Indicador' (valor actual) y 'Si' (valor histórico)
-                $consulta_string_auditoria_telefonico="SELECT TMON.`gcm_id`, TMON.`gcm_matriz`, TMON.`gcm_analista`, CAST(TMON.`gcm_nota_general` AS UNSIGNED) FROM `tb_gestion_calidad_monitoreo` AS TMON WHERE (TMON.`gcm_aplica_indicador`='Indicador' OR TMON.`gcm_aplica_indicador`='Si') AND TMON.`gcm_registro_fecha`>=? AND TMON.`gcm_registro_fecha`<=? AND CAST(TMON.`gcm_nota_general` AS UNSIGNED)>=91 AND (TMON.`gcm_segmento`='Línea 141' OR TMON.`gcm_segmento`='Línea Nacional' OR TMON.`gcm_segmento`='Conmutador') AND TMON.`gcm_fecha_hora_cierre`>3 AND TMON.`gcm_fecha_hora_cierre`<=30 ORDER BY CAST(TMON.`gcm_nota_general` AS UNSIGNED) ASC";
+                $consulta_string_auditoria_telefonico="SELECT TMON.`gcm_id`, TMON.`gcm_matriz`, TMON.`gcm_analista`, CAST(TMON.`gcm_nota_general` AS UNSIGNED) FROM `tb_gestion_calidad_monitoreo` AS TMON WHERE TMON.`gcm_aplica_indicador`='Si' AND TMON.`gcm_registro_fecha`>=? AND TMON.`gcm_registro_fecha`<=? AND CAST(TMON.`gcm_nota_general` AS UNSIGNED)>=91 AND (TMON.`gcm_segmento`='Línea 141' OR TMON.`gcm_segmento`='Línea Nacional' OR TMON.`gcm_segmento`='Conmutador') AND TMON.`gcm_fecha_hora_cierre`>3 AND TMON.`gcm_fecha_hora_cierre`<=30 ORDER BY CAST(TMON.`gcm_nota_general` AS UNSIGNED) ASC";
                 $consulta_registros_auditoria_telefonico = $enlace_db->prepare($consulta_string_auditoria_telefonico);
                 $consulta_registros_auditoria_telefonico->bind_param("ss", $fecha_inicio, $fecha_fin_filtro);
                 $consulta_registros_auditoria_telefonico->execute();
@@ -49,50 +38,48 @@
 
                 $array_agentes=array();
                 $array_agentes_monitoreos=array();
-                for ($i=0; $i < count($resultado_registros_auditoria_telefonico); $i++) {
+                for ($i=0; $i < count($resultado_registros_auditoria_telefonico); $i++) { 
                     $array_agentes[]=$resultado_registros_auditoria_telefonico[$i][2];
                     $array_agentes_monitoreos[$resultado_registros_auditoria_telefonico[$i][2]][]=$resultado_registros_auditoria_telefonico[$i][0];
                     shuffle($array_agentes_monitoreos[$resultado_registros_auditoria_telefonico[$i][2]]);
                 }
 
                 $array_agentes=array_values(array_unique($array_agentes));
+
                 shuffle($array_agentes);
                 shuffle($array_agentes);
 
-                // FIX 2: UPDATE incluye gcm_auditoria_responsable
-                $consulta_actualizar_auditoria = $enlace_db->prepare("UPDATE `tb_gestion_calidad_monitoreo` SET `gcm_auditoria`=?, `gcm_auditoria_responsable`=IF(`gcm_auditoria_responsable`='' OR `gcm_auditoria_responsable` IS NULL, ?, `gcm_auditoria_responsable`) WHERE `gcm_id`=?");
-                $consulta_actualizar_auditoria->bind_param('sss', $gcm_auditoria, $gcm_auditoria_responsable, $gcm_id);
+                // Prepara la sentencia
+                $consulta_actualizar_auditoria = $enlace_db->prepare("UPDATE `tb_gestion_calidad_monitoreo` SET `gcm_auditoria`=? WHERE  `gcm_id`=?");
 
+                // Agrega variables a sentencia preparada
+                $consulta_actualizar_auditoria->bind_param('ss', $gcm_auditoria, $gcm_id);
+                
                 $control_auditoria=0;
-                $telefonico=max(0,$telefonico);
-
-                // FIX 3: límite de intentos para evitar loop infinito / timeout 504
-                $max_intentos_tel = max(1, count($array_agentes)) * 3;
-                $intentos_tel = 0;
-
                 for ($j=0; $j < $telefonico; $j++) {
-                    if (count($array_agentes)===0) { break; }
-                    if ($intentos_tel >= $max_intentos_tel) { break; }
-                    if ($j>=count($array_agentes)) { $j=0; }
-
                     $id_agente=$array_agentes[$j];
+                    $gcm_auditoria='Si';
+                    $gcm_id=$array_agentes_monitoreos[$id_agente][0];
 
                     if (isset($array_agentes_monitoreos[$id_agente][0]) AND $array_agentes_monitoreos[$id_agente][0]!='') {
-                        $gcm_auditoria='Si';
-                        $gcm_auditoria_responsable=$auditor_user;
-                        $gcm_id=$array_agentes_monitoreos[$id_agente][0];
+                        // Ejecuta sentencia preparada
                         $consulta_actualizar_auditoria->execute();
                         unset($array_agentes_monitoreos[$id_agente][0]);
                         $array_agentes_monitoreos[$id_agente]=array_values($array_agentes_monitoreos[$id_agente]);
                         $control_auditoria++;
                     }
 
-                    $intentos_tel++;
-                    if ($control_auditoria==$telefonico) { break; }
+                    if ($j>=count($array_agentes)) {
+                        $j=0;
+                    }
+
+                    if ($control_auditoria==$telefonico) {
+                        break;
+                    }
                 }
 
-                // FIX 1: mismo fix en query virtual
-                $consulta_string_auditoria_virtual="SELECT TMON.`gcm_id`, TMON.`gcm_matriz`, TMON.`gcm_analista`, CAST(TMON.`gcm_nota_general` AS UNSIGNED) FROM `tb_gestion_calidad_monitoreo` AS TMON WHERE (TMON.`gcm_aplica_indicador`='Indicador' OR TMON.`gcm_aplica_indicador`='Si') AND TMON.`gcm_registro_fecha`>=? AND TMON.`gcm_registro_fecha`<=? AND CAST(TMON.`gcm_nota_general` AS UNSIGNED)>=91 AND (TMON.`gcm_segmento`='Aseguramiento' OR TMON.`gcm_segmento`='Encuestas' OR TMON.`gcm_segmento`='Profesional Es Abogados' OR TMON.`gcm_segmento`='Profesional ES Psicólogos' OR TMON.`gcm_segmento`='WhatsApp' OR TMON.`gcm_segmento`='Video Llamada' OR TMON.`gcm_segmento`='Correos y Portales' OR TMON.`gcm_segmento`='Presencial' OR TMON.`gcm_segmento`='Chat ICBF' OR TMON.`gcm_segmento`='Canal escrito' OR TMON.`gcm_segmento`='Redes Sociales') ORDER BY CAST(TMON.`gcm_nota_general` AS UNSIGNED) ASC";
+
+                $consulta_string_auditoria_virtual="SELECT TMON.`gcm_id`, TMON.`gcm_matriz`, TMON.`gcm_analista`, CAST(TMON.`gcm_nota_general` AS UNSIGNED) FROM `tb_gestion_calidad_monitoreo` AS TMON WHERE TMON.`gcm_aplica_indicador`='Si' AND TMON.`gcm_registro_fecha`>=? AND TMON.`gcm_registro_fecha`<=? AND CAST(TMON.`gcm_nota_general` AS UNSIGNED)>=91 AND (TMON.`gcm_segmento`='Aseguramiento' OR TMON.`gcm_segmento`='Encuestas' OR TMON.`gcm_segmento`='Profesional Es Abogados' OR TMON.`gcm_segmento`='Profesional ES Psicólogos' OR TMON.`gcm_segmento`='WhatsApp' OR TMON.`gcm_segmento`='Video Llamada' OR TMON.`gcm_segmento`='Correos y Portales' OR TMON.`gcm_segmento`='Presencial' OR TMON.`gcm_segmento`='Chat ICBF' OR TMON.`gcm_segmento`='Canal escrito' OR TMON.`gcm_segmento`='Redes Sociales') ORDER BY CAST(TMON.`gcm_nota_general` AS UNSIGNED) ASC";
                 $consulta_registros_auditoria_virtual = $enlace_db->prepare($consulta_string_auditoria_virtual);
                 $consulta_registros_auditoria_virtual->bind_param("ss", $fecha_inicio, $fecha_fin_filtro);
                 $consulta_registros_auditoria_virtual->execute();
@@ -100,49 +87,50 @@
 
                 $array_agentes=array();
                 $array_agentes_monitoreos=array();
-                for ($i=0; $i < count($resultado_registros_auditoria_virtual); $i++) {
+                for ($i=0; $i < count($resultado_registros_auditoria_virtual); $i++) { 
                     $array_agentes[]=$resultado_registros_auditoria_virtual[$i][2];
                     $array_agentes_monitoreos[$resultado_registros_auditoria_virtual[$i][2]][]=$resultado_registros_auditoria_virtual[$i][0];
                     shuffle($array_agentes_monitoreos[$resultado_registros_auditoria_virtual[$i][2]]);
                 }
 
                 $array_agentes=array_values(array_unique($array_agentes));
+
                 shuffle($array_agentes);
                 shuffle($array_agentes);
 
+                // Prepara la sentencia
+                $consulta_actualizar_auditoria = $enlace_db->prepare("UPDATE `tb_gestion_calidad_monitoreo` SET `gcm_auditoria`=? WHERE  `gcm_id`=?");
+
+                // Agrega variables a sentencia preparada
+                $consulta_actualizar_auditoria->bind_param('ss', $gcm_auditoria, $gcm_id);
+                
                 $control_auditoria=0;
-                $virtual=max(0,$virtual);
-
-                // FIX 3: límite de intentos para virtual también
-                $max_intentos_vir = max(1, count($array_agentes)) * 3;
-                $intentos_vir = 0;
-
                 for ($j=0; $j < $virtual; $j++) {
-                    if (count($array_agentes)===0) { break; }
-                    if ($intentos_vir >= $max_intentos_vir) { break; }
-                    if ($j>=count($array_agentes)) { $j=0; }
-
                     $id_agente=$array_agentes[$j];
+                    $gcm_auditoria='Si';
+                    $gcm_id=$array_agentes_monitoreos[$id_agente][0];
 
                     if (isset($array_agentes_monitoreos[$id_agente][0]) AND $array_agentes_monitoreos[$id_agente][0]!='') {
-                        $gcm_auditoria='Si';
-                        $gcm_auditoria_responsable=$auditor_user;
-                        $gcm_id=$array_agentes_monitoreos[$id_agente][0];
+                        // Ejecuta sentencia preparada
                         $consulta_actualizar_auditoria->execute();
                         unset($array_agentes_monitoreos[$id_agente][0]);
                         $array_agentes_monitoreos[$id_agente]=array_values($array_agentes_monitoreos[$id_agente]);
                         $control_auditoria++;
                     }
 
-                    $intentos_vir++;
-                    if ($control_auditoria==$virtual) { break; }
+                    if ($j>=count($array_agentes)) {
+                        $j=0;
+                    }
+
+                    if ($control_auditoria==$virtual) {
+                        break;
+                    }
                 }
 
                 $respuesta_accion = "<script type='text/javascript'>alertify.success('¡Registro creado exitosamente!', 0);</script>";
                 $_SESSION['gcmta_registro_creado']=1;
-
             } else {
-                $respuesta_accion = "<script type='text/javascript'>alertify.warning('¡Problemas al crear el registro, por favor verifique e intente nuevamente!', 0);</script>";
+                $respuesta_accion = "<script type='text/javascript'>alertify.warning('¡1Problemas al crear el registro, por favor verifique e intente nuevamente!', 0);</script>";
             }
         } else {
             $respuesta_accion = "<script type='text/javascript'>alertify.success('¡Registro creado exitosamente, haga clic en <b>Finalizar</b> para salir!', 0);</script>";

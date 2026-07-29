@@ -26,7 +26,7 @@
 
     // Datos principales del paquete
     $consulta_paquete = $enlace_db->prepare(
-        "SELECT P.`gcp_id`, P.`gcp_origen_tipo`, P.`gcp_monitoreo_id`, T.`gct_nombre`, T.`gct_codigo`,
+        "SELECT P.`gcp_id`, P.`gcp_origen_tipo`, P.`gcp_monitoreo_id`, T.`gct_nombre`, T.`gct_codigo`, T.`gct_requiere_respuesta_agente`,
                 E.`gce_nombre`, E.`gce_codigo`,
                 TA.`usu_nombres_apellidos` AS agente_nombre, TA.`usu_id` AS agente_id,
                 TS.`usu_nombres_apellidos` AS supervisor_nombre, TS.`usu_id` AS supervisor_id,
@@ -67,6 +67,16 @@
     $consulta_compromisos->bind_param('s', $gcp_id);
     $consulta_compromisos->execute();
     $compromisos = $consulta_compromisos->get_result()->fetch_all(MYSQLI_ASSOC);
+
+    // Indicadores múltiples, escalamiento, encuesta y soportes (enfoque evolutivo)
+    $indicadores_paquete = listarIndicadoresPaquete($enlace_db, $gcp_id);
+    $escalamiento = obtenerEscalamiento($enlace_db, $gcp_id);
+    $encuesta_percepcion = obtenerEncuestaPercepcion($enlace_db, $gcp_id);
+    if (!function_exists('listarSoportesCoaching')) {
+        require_once("lib/coaching_complementos.php");
+    }
+    $soportes_paquete = listarSoportesCoaching($enlace_db, $gcp_id);
+    $hallazgos_paquete = listarHallazgosPaquete($enlace_db, $gcp_id);
 
     // Historial (timeline) - inmutable, orden cronológico
     $consulta_historial = $enlace_db->prepare(
@@ -147,12 +157,13 @@
      * (ver INTEGRACION.md/roadmap), por eso aquí solo se informa, sin
      * enlazar a una pantalla que todavía no existe.
      */
-    function proximoPasoTexto(string $gce_codigo, string $perfil_actual): ?string
+    function proximoPasoTexto(string $gce_codigo, string $perfil_actual, bool $requiere_respuesta = true): ?string
     {
         $mapa = [
             'ASIGNADO'               => 'El supervisor debe iniciar la retroalimentación de este paquete.',
             'PENDIENTE_SUPERVISOR'   => 'El supervisor debe completar la retroalimentación y enviarla al agente.',
-            'PENDIENTE_AGENTE'       => 'El agente debe registrar su respuesta y compromiso.',
+            'PENDIENTE_AGENTE'       => $requiere_respuesta ? 'El agente debe registrar su respuesta y compromiso (o refutar si no está de acuerdo).' : 'El agente debe acusar recibido del reconocimiento.',
+            'REFUTADO'               => 'El supervisor debe revisar la refutación del agente y decidir si reenvía o cierra el paquete.',
             'RESPONDIDO_AGENTE'      => 'El sistema generará el documento para firma del agente.',
             'PENDIENTE_FIRMA_AGENTE' => 'El agente debe firmar el documento generado.',
             'EN_SEGUIMIENTO'         => 'El supervisor debe hacer seguimiento a los compromisos pendientes.',
@@ -161,7 +172,7 @@
         return $mapa[$gce_codigo] ?? null;
     }
 
-    $proximo_paso = proximoPasoTexto($paquete['gce_codigo'], $perfil_coaching);
+    $proximo_paso = proximoPasoTexto($paquete['gce_codigo'], $perfil_coaching, (int) $paquete['gct_requiere_respuesta_agente'] === 1);
 
     // Días restantes / vencido, para el indicador de fecha límite.
     $dias_restantes = null;
@@ -185,7 +196,7 @@
         .coaching_vencido      { color: #FF0000; font-weight: bold; }
         .coaching_por_vencer   { color: #F39C12; font-weight: bold; }
 
-        .coaching_meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 15px; padding-top: 12px; border-top: 1px solid #D8D8D8; }
+        .coaching_meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 15px; padding-top: 12px; border-top: 1px solid #F2F2F2; }
         .coaching_meta .etiqueta { font-size: 10px; text-transform: uppercase; letter-spacing: .03em; color: #6E6E6E; font-weight: bold; }
         .coaching_meta .valor { font-size: 12px; color: #1A1A1A; margin-top: 2px; }
 
@@ -193,13 +204,13 @@
         .coaching_breadcrumb a { color: #4CAF50; }
 
         .coaching_timeline { position: relative; margin: 0; padding: 10px; list-style: none; }
-        .coaching_timeline::before { content: ''; position: absolute; left: 25px; top: 15px; bottom: 15px; width: 2px; background: #D8D8D8; }
+        .coaching_timeline::before { content: ''; position: absolute; left: 25px; top: 15px; bottom: 15px; width: 2px; background: #F2F2F2; }
         .coaching_timeline li { position: relative; padding-left: 40px; padding-bottom: 15px; font-size: 12px; }
         .coaching_timeline li:last-child { padding-bottom: 0; }
         .coaching_timeline .icono { position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 50%; background: #FFFFFF; border: 2px solid #4CAF50; color: #4CAF50; display: flex; align-items: center; justify-content: center; font-size: 11px; z-index: 1; }
         .coaching_timeline .accion { font-weight: bold; color: #1A1A1A; }
         .coaching_timeline .meta { font-size: 11px; color: #6E6E6E; }
-        .coaching_timeline .comentario { font-size: 11px; color: #555; margin-top: 3px; font-style: italic; }
+        .coaching_timeline .comentario { font-size: 11px; color: #6E6E6E; margin-top: 3px; font-style: italic; }
 
         .coaching_empty_mini { color: #6E6E6E; font-size: 12px; padding: 10px; }
 
@@ -296,12 +307,17 @@
                 <strong>Próximo paso:</strong> <?php echo validar_output($proximo_paso); ?>
             </div>
             <div class="mt-2 mt-md-0">
-                <?php if ($paquete['gce_codigo'] === 'ASIGNADO' && $perfil_coaching === 'Supervisor'): ?>
+                <?php if ($paquete['gce_codigo'] === 'ASIGNADO' && in_array($perfil_coaching, ['Supervisor', 'Gestor', 'Administrador'], true)): ?>
                     <a href="gestion_coaching_retroalimentacion.php?reg=<?php echo base64_encode($gcp_id); ?>" class="btn-corp px-3 py-1" style="border-radius:5px;">Iniciar retroalimentación</a>
-                <?php elseif ($paquete['gce_codigo'] === 'PENDIENTE_SUPERVISOR' && $perfil_coaching === 'Supervisor'): ?>
+                <?php elseif ($paquete['gce_codigo'] === 'PENDIENTE_SUPERVISOR' && in_array($perfil_coaching, ['Supervisor', 'Gestor', 'Administrador'], true)): ?>
                     <a href="gestion_coaching_retroalimentacion.php?reg=<?php echo base64_encode($gcp_id); ?>" class="btn-corp px-3 py-1" style="border-radius:5px;">Continuar retroalimentación</a>
-                <?php elseif ($paquete['gce_codigo'] === 'PENDIENTE_AGENTE' && $perfil_coaching === 'Agente'): ?>
+                <?php elseif ($paquete['gce_codigo'] === 'PENDIENTE_AGENTE' && $perfil_coaching === 'Agente' && (int) $paquete['gct_requiere_respuesta_agente'] === 1): ?>
                     <a href="gestion_coaching_responder_agente.php?reg=<?php echo base64_encode($gcp_id); ?>" class="btn-corp px-3 py-1" style="border-radius:5px;">Responder</a>
+                    <a href="gestion_coaching_refutar.php?reg=<?php echo base64_encode($gcp_id); ?>" class="btn-corp-2 px-3 py-1 ml-1 d-inline-block" style="border-radius:5px;">Refutar</a>
+                <?php elseif ($paquete['gce_codigo'] === 'REFUTADO' && in_array($perfil_coaching, ['Supervisor', 'Gestor', 'Administrador'], true)): ?>
+                    <a href="gestion_coaching_revisar_refutacion.php?reg=<?php echo base64_encode($gcp_id); ?>" class="btn-corp px-3 py-1" style="border-radius:5px;">Revisar refutación</a>
+                <?php elseif ($paquete['gce_codigo'] === 'PENDIENTE_AGENTE' && $perfil_coaching === 'Agente'): ?>
+                    <a href="gestion_coaching_acuse_recibo.php?reg=<?php echo base64_encode($gcp_id); ?>" class="btn-corp px-3 py-1" style="border-radius:5px;">Acusar recibido</a>
                 <?php elseif ($paquete['gce_codigo'] === 'RESPONDIDO_AGENTE' && in_array($perfil_coaching, ['Supervisor', 'Gestor', 'Administrador'], true)): ?>
                     <a href="gestion_coaching_documento_generar.php?reg=<?php echo base64_encode($gcp_id); ?>" class="btn-corp px-3 py-1" style="border-radius:5px;">Generar documento</a>
                 <?php elseif ($paquete['gce_codigo'] === 'PENDIENTE_FIRMA_AGENTE' && $perfil_coaching === 'Agente'): ?>
@@ -337,6 +353,18 @@
                                 <div class="etiqueta">PECUF</div>
                                 <div class="valor"><?php echo validar_output($calidad['gcc2_nota_ecuf'] ?? '—'); ?></div>
                             </div>
+                            <div>
+                                <div class="etiqueta">IDSIM / Radicado</div>
+                                <div class="valor"><?php echo validar_output($calidad['gcc2_id_sim'] ?? '—'); ?></div>
+                            </div>
+                            <div>
+                                <div class="etiqueta">Skill / Canal</div>
+                                <div class="valor"><?php echo validar_output($calidad['gcc2_skill_interaccion'] ?? '—'); ?></div>
+                            </div>
+                            <div>
+                                <div class="etiqueta">Tipo de monitoreo</div>
+                                <div class="valor"><?php echo validar_output($calidad['gcc2_tipo_monitoreo'] ?? '—'); ?></div>
+                            </div>
                         </div>
                         <?php if (!empty($calidad['gcc2_observaciones'])): ?>
                         <div class="mt-3">
@@ -347,6 +375,110 @@
                     </div>
                 </div>
                 <?php endif; ?>
+
+                <?php if (count($hallazgos_paquete) > 0): ?>
+                <div class="cuadro_dash mb-3">
+                    <div class="cuadro_dash_titulo p-2"><span class="fas fa-search"></span> Errores no críticos del monitoreo</div>
+                    <div class="p-3">
+                        <?php foreach ($hallazgos_paquete as $h): ?>
+                            <div style="padding:6px 0; border-bottom:1px solid #F2F2F2; font-size:12px;">
+                                <strong><?php echo validar_output($h['gcmi_descripcion'] ?? ('Pregunta ' . $h['gch_pregunta'])); ?></strong>
+                                <?php if (!empty($h['gch_afectacion'])): ?>
+                                    <div style="color:#6E6E6E; margin-top:2px;"><?php echo nl2br(validar_output($h['gch_afectacion'])); ?></div>
+                                <?php endif; ?>
+                                <?php if (!empty($h['gch_comentario'])): ?>
+                                    <div style="color:#6E6E6E; margin-top:2px; font-style:italic;">"<?php echo nl2br(validar_output($h['gch_comentario'])); ?>"</div>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if (count($indicadores_paquete) > 0): ?>
+                <div class="cuadro_dash mb-3">
+                    <div class="cuadro_dash_titulo p-2"><span class="fas fa-bullseye"></span> Indicadores</div>
+                    <div class="p-3">
+                        <?php foreach ($indicadores_paquete as $ind): ?>
+                            <span class="coaching_estado_pill coaching_estado_azul" style="margin:2px 4px 2px 0; display:inline-block;">
+                                <?php echo validar_output($ind['gci_nombre']); ?>
+                            </span>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if ($escalamiento): ?>
+                <div class="cuadro_dash mb-3">
+                    <div class="cuadro_dash_titulo p-2"><span class="fas fa-exclamation-triangle"></span> Detalle del escalamiento</div>
+                    <div class="p-3">
+                        <div class="coaching_meta">
+                            <div>
+                                <div class="etiqueta">Asunto del correo</div>
+                                <div class="valor"><?php echo validar_output($escalamiento['gcpe_asunto']); ?></div>
+                            </div>
+                            <div>
+                                <div class="etiqueta">Fecha y hora de envío</div>
+                                <div class="valor"><?php echo date('d/m/Y H:i', strtotime($escalamiento['gcpe_fecha_hora_envio'])); ?></div>
+                            </div>
+                            <div>
+                                <div class="etiqueta">Remitido a</div>
+                                <div class="valor"><?php echo validar_output($escalamiento['gcpe_destinatario_nombre']); ?></div>
+                            </div>
+                            <div>
+                                <div class="etiqueta">Correo destinatario</div>
+                                <div class="valor"><?php echo validar_output($escalamiento['gcpe_destinatario_correo']); ?></div>
+                            </div>
+                        </div>
+                        <?php if (!empty($escalamiento['gcpe_observaciones'])): ?>
+                            <div class="mt-2">
+                                <div class="etiqueta">Observaciones</div>
+                                <div class="valor"><?php echo nl2br(validar_output($escalamiento['gcpe_observaciones'])); ?></div>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php if ($encuesta_percepcion): ?>
+                <div class="cuadro_dash mb-3">
+                    <div class="cuadro_dash_titulo p-2"><span class="fas fa-poll"></span> Encuesta de percepción</div>
+                    <div class="p-3">
+                        <?php foreach ($encuesta_percepcion['respuestas'] as $r): ?>
+                            <div class="mb-2" style="font-size:12px;">
+                                <?php echo validar_output($r['gcenr_pregunta_texto']); ?>
+                                <strong style="color:#4CAF50; margin-left:6px;"><?php echo (int) $r['gcenr_respuesta_valor']; ?> / 5</strong>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <div class="cuadro_dash mb-3">
+                    <div class="cuadro_dash_titulo p-2" style="display:flex; justify-content:space-between; align-items:center;">
+                        <span><span class="fas fa-paperclip"></span> Soportes</span>
+                        <a href="gestion_coaching_soporte_cargar.php?reg=<?php echo base64_encode($gcp_id); ?>" style="color:#fff; font-size:11px;" title="Adjuntar soporte">
+                            <span class="fas fa-plus-circle"></span> Adjuntar
+                        </a>
+                    </div>
+                    <div class="p-3">
+                        <?php if (count($soportes_paquete) === 0): ?>
+                            <p class="coaching_empty_mini mb-0">No hay soportes adjuntos todavía.</p>
+                        <?php else: ?>
+                            <?php foreach ($soportes_paquete as $sp): ?>
+                                <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #F2F2F2; font-size:12px;">
+                                    <div>
+                                        <span class="fas fa-file"></span> <?php echo validar_output($sp['gcsp_nombre_original']); ?>
+                                        <span style="color:#6E6E6E; font-size:10px;">(<?php echo validar_output($sp['gcsp_tipo_documental'] ?? 'Evidencia'); ?> · <?php echo date('d/m/Y', strtotime($sp['gcsp_registro_fecha'])); ?>)</span>
+                                    </div>
+                                    <a href="gestion_coaching_soporte_descargar.php?id=<?php echo (int) $sp['gcsp_id']; ?>" class="btn-corp" style="width:24px; height:24px; padding:0; border-radius:4px; display:inline-flex; align-items:center; justify-content:center;" title="Descargar">
+                                        <span class="fas fa-download" style="font-size:11px;"></span>
+                                    </a>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
 
                 <div class="cuadro_dash mb-3">
                     <div class="cuadro_dash_titulo p-2"><span class="fas fa-handshake"></span> Compromisos</div>

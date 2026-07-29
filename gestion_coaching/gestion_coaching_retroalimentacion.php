@@ -101,10 +101,20 @@
 
                     guardarCompromisos($enlace_db, $gcp_id, $compromisos_post, $_SESSION['usu_id']);
 
-                    // 3) Envía al agente.
-                    ejecutarTransicion($enlace_db, $gcp_id, 'ENVIAR_A_AGENTE', $_SESSION['usu_id'], $_SERVER['REMOTE_ADDR'] ?? null, null);
+                    // 3) Envía al agente — salvo Escalamiento/No renovación, que son
+                    // 100% internos y nunca llegan a la bandeja del agente (acta de
+                    // reunión: "acciones 4-5... no se parametrizarán en el form para
+                    // colaboradores").
+                    $es_interno = in_array($paquete['gct_codigo'], ['ESCALAMIENTO_DISCIPLINARIO', 'NO_RENOVACION'], true);
+                    if ($es_interno) {
+                        ejecutarTransicion($enlace_db, $gcp_id, 'ENVIAR_INTERNO', $_SESSION['usu_id'], $_SERVER['REMOTE_ADDR'] ?? null, null);
+                        $mensaje_exito = 'Registro interno guardado. Listo para cierre — el colaborador no participa en este tipo de paquete.';
+                    } else {
+                        ejecutarTransicion($enlace_db, $gcp_id, 'ENVIAR_A_AGENTE', $_SESSION['usu_id'], $_SERVER['REMOTE_ADDR'] ?? null, null);
+                        $mensaje_exito = 'Retroalimentación enviada al agente.';
+                    }
 
-                    $respuesta_accion = "<script type='text/javascript'>alertify.success('Retroalimentación enviada al agente.', 0); setTimeout(function(){ window.location='gestion_coaching_ver.php?reg=" . base64_encode($gcp_id) . "'; }, 1200);</script>";
+                    $respuesta_accion = "<script type='text/javascript'>alertify.success('" . addslashes($mensaje_exito) . "', 0); setTimeout(function(){ window.location='gestion_coaching_ver.php?reg=" . base64_encode($gcp_id) . "'; }, 1200);</script>";
                 } catch (Throwable $e) {
                     $respuesta_accion = "<script type='text/javascript'>alertify.warning('" . addslashes($e->getMessage()) . "', 0);</script>";
                 }
@@ -126,7 +136,7 @@
         label.coaching_label .opcional { font-weight: normal; color: #6E6E6E; font-size: 10px; }
         .coaching_campo_error { border: 1px solid #FF0000 !important; }
         .coaching_campo_error_texto { color: #FF0000; font-size: 11px; margin-top: 3px; }
-        .coaching_compromiso_fila { border: 1px solid #D8D8D8; border-radius: 5px; padding: 12px; margin-bottom: 10px; position: relative; }
+        .coaching_compromiso_fila { border: 1px solid #F2F2F2; border-radius: 5px; padding: 12px; margin-bottom: 10px; position: relative; }
         .coaching_compromiso_quitar { position: absolute; top: 8px; right: 8px; color: #FF0000; cursor: pointer; font-size: 12px; }
         .coaching_acciones_form { display: flex; justify-content: center; align-items: center; gap: 10px; }
         #btn_guardar[disabled] { opacity: .7; cursor: not-allowed; }
