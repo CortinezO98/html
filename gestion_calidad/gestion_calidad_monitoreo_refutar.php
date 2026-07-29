@@ -4,6 +4,7 @@
 
     require_once("../config/validaciones_seguridad.php");
     require_once("../config/conexion_db.php");
+    require_once("../gestion_coaching/lib/coaching_disparador.php");
 
     /* =========================
        Helpers de seguridad
@@ -218,6 +219,12 @@
                         $respuesta_accion = "<script type='text/javascript'>alertify.success('¡Registro creado exitosamente!', 0);</script>";
                         $_SESSION['registro_creado_cambio_estado']=1;
 
+                        // Enganche del módulo de Coaching (Modelo 1): la nota
+                        // puede quedar firme aquí (Refutado-Rechazado) o
+                        // seguir en proceso (Refutado) — el disparador ya
+                        // filtra internamente cuál de los dos amerita acción.
+                        evaluarDisparoCoachingAutomatico($enlace_db, $id_registro, $estado, $_SESSION['usu_id']);
+
                         // Rotación del token tras acción exitosa
                         $_SESSION['csrf_token_refutar'] = bin2hex(random_bytes(32));
 
@@ -392,3 +399,4 @@
     ?>
 </body>
 </html>
+
