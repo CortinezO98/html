@@ -250,7 +250,7 @@
         <div class="cuadro_dash mb-3">
             <div class="cuadro_dash_titulo p-2">
                 <strong><?php echo validar_output($paquete['gcp_id']); ?></strong>
-                <span class="coaching_estado_pill <?php echo $clase_estado; ?> ml-2"><?php echo validar_output($paquete['gce_nombre']); ?></span>
+                <span class="coaching_estado_pill <?php echo claseEstadoCoaching($paquete['gce_codigo']); ?> ml-2"><?php echo validar_output($paquete['gce_nombre']); ?></span>
                 <?php if ((int) $paquete['gcp_activo'] === 0): ?>
                     <span class="coaching_estado_pill coaching_estado_gris">Anulado</span>
                 <?php endif; ?>
