@@ -80,7 +80,17 @@ function coachingFiltroAlcance(string $perfil, string $usu_id, string $vista = '
         case 'Administrador':
         case 'Coordinación':
         case 'Gerencia':
-            // Alcance amplio intencional, sin restricción de propietario.
+            // Alcance amplio intencional, sin restricción de propietario —
+            // salvo que la persona pida explícitamente "Mis paquetes"
+            // (vista='mis_paquetes'), en cuyo caso se acota a los paquetes
+            // donde ÉL/ELLA es literalmente el gcp_supervisor_id (los que
+            // asignó/gestiona en persona), igual criterio que la vista
+            // 'equipo' de Supervisor. Cualquier otro valor de $vista
+            // (incluido el 'equipo' que llega por defecto desde la
+            // bandeja cuando no aplica) se ignora aquí — sigue viendo todo.
+            if ($vista === 'mis_paquetes') {
+                return ['AND `gcp_supervisor_id` = ?', [$usu_id]];
+            }
             // Si negocio confirma un alcance por campaña para
             // Coordinación/Gerencia, se agrega aquí comparando contra
             // tb_administrador_usuario.usu_campania.

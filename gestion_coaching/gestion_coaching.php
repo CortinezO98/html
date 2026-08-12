@@ -19,14 +19,17 @@
     // Filtro de estado por pestaña (mismo patrón que gestion_alertas.php: ?est=)
     $estado_bandeja = validar_input($_GET['est']);
 
-    // Filtro de VISTA: solo aplica a perfil Supervisor, que puede tener
-    // paquetes en dos roles distintos sobre paquetes distintos — como
-    // gestor de su equipo ('equipo', valor por defecto) o como coacheado
-    // por su propio Coordinador ('recibidos'). Cualquier otro perfil
-    // ignora este parámetro (Agente siempre ve lo suyo; Administrador/
-    // Gestor/Calidad/Coordinación/Gerencia ya ven todo sin restricción).
+    // Filtro de VISTA: aplica a perfiles con más de un "rol" posible sobre
+    // paquetes distintos.
+    //  - Supervisor: 'equipo' (por defecto, su equipo como gcp_supervisor_id)
+    //    vs 'recibidos' (coacheado por su propio Coordinador).
+    //  - Administrador/Coordinación/Gerencia: 'todos' (por defecto, ve todo
+    //    sin restricción) vs 'mis_paquetes' (solo los que él/ella asignó,
+    //    donde es literalmente el gcp_supervisor_id).
+    // Cualquier otro perfil ignora este parámetro (Agente/Calidad siempre
+    // ven solo lo suyo).
     $vista_bandeja = validar_input($_GET['vista'] ?? 'equipo');
-    if (!in_array($vista_bandeja, ['equipo', 'recibidos'], true)) {
+    if (!in_array($vista_bandeja, ['equipo', 'recibidos', 'todos', 'mis_paquetes'], true)) {
         $vista_bandeja = 'equipo';
     }
 
@@ -183,6 +186,15 @@
             </a>
             <a class="coaching_pill coaching_pill_secundaria coaching_vista_link <?php echo $vista_bandeja === 'recibidos' ? 'activa' : ''; ?>" data-vista="recibidos" href="<?php echo coachingUrlBandeja(1, $filtro_permanente, $estado_bandeja, 'recibidos'); ?>">
                 <span class="fas fa-user-check"></span> Asignados a mí como supervisor
+            </a>
+        </div>
+        <?php elseif (in_array($perfil_coaching, ['Administrador', 'Coordinación', 'Gerencia'], true)): ?>
+        <div class="coaching_pills_tabs coaching_pills_vista" id="bandeja_vista_tabs">
+            <a class="coaching_pill coaching_pill_secundaria coaching_vista_link <?php echo $vista_bandeja !== 'mis_paquetes' ? 'activa' : ''; ?>" data-vista="todos" href="<?php echo coachingUrlBandeja(1, $filtro_permanente, $estado_bandeja, 'todos'); ?>">
+                <span class="fas fa-globe"></span> Todos
+            </a>
+            <a class="coaching_pill coaching_pill_secundaria coaching_vista_link <?php echo $vista_bandeja === 'mis_paquetes' ? 'activa' : ''; ?>" data-vista="mis_paquetes" href="<?php echo coachingUrlBandeja(1, $filtro_permanente, $estado_bandeja, 'mis_paquetes'); ?>">
+                <span class="fas fa-user-check"></span> Mis paquetes
             </a>
         </div>
         <?php endif; ?>
