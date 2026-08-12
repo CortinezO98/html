@@ -17,7 +17,11 @@
     $perfil_coaching = coachingPerfilUsuarioActual();
     $tiene_calidad = isset($_SESSION['modulos_acceso_permisos']['Calidad-Monitoreos'])
         && $_SESSION['modulos_acceso_permisos']['Calidad-Monitoreos'] !== '';
-    $es_admin_o_supervisor_coaching = in_array($perfil_coaching, ['Administrador', 'Supervisor', 'Gestor'], true);
+    // 'Gestor' (= Líder de Calidad en Coaching) no se incluye en este
+    // fallback: quien realmente es Líder de Calidad ya entra por el
+    // camino (a) de arriba, vía su permiso real de Calidad-Monitoreos —
+    // no necesita además un bypass genérico por su perfil de Coaching.
+    $es_admin_o_supervisor_coaching = in_array($perfil_coaching, ['Administrador', 'Supervisor'], true);
 
     if (!$tiene_calidad && !$es_admin_o_supervisor_coaching) {
         header("Location:../permiso_denegado.php");
@@ -171,3 +175,6 @@
     <?php include("../footer.php"); ?>
 </body>
 </html>
+
+
+

@@ -10,7 +10,10 @@
     $titulo_header = "Coaching | Refutar";
 
     $perfil_coaching = coachingPerfilUsuarioActual();
-    if ($perfil_coaching === null || $perfil_coaching !== 'Agente') {
+    // Ver nota en gestion_coaching_responder_agente.php: ya no se exige
+    // un string exacto, solo tener algún permiso en el módulo. El
+    // chequeo de recurso más abajo es la autorización real.
+    if ($perfil_coaching === null) {
         header("Location:../permiso_denegado.php");
         exit;
     }
@@ -144,3 +147,7 @@
     <?php include("../footer.php"); ?>
 </body>
 </html>
+
+
+
+~

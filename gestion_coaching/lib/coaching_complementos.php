@@ -202,9 +202,16 @@ function eliminarSoporteCoaching(mysqli $db, int $soporte_id, string $usu_id_act
         throw new RuntimeException('Los soportes solo pueden eliminarse mientras el paquete está en retroalimentación o pendiente de respuesta del agente.');
     }
 
-    $autorizado = in_array($perfil_actor, ['Administrador', 'Gestor'], true)
-        || ($perfil_actor === 'Supervisor' && $usu_id_actor === $fila['gcp_supervisor_id'])
-        || ($perfil_actor === 'Agente' && $usu_id_actor === $fila['gcp_agente_id']);
+    // Autorización por RECURSO real, sin depender del string de perfil
+    // (salvo el bypass amplio e intencional de Administrador — 'Gestor'
+    // representa al Líder de Calidad en este portal y no tiene bypass
+    // aquí; igual puede eliminar su propio soporte vía la coincidencia
+    // con gcp_agente_id más abajo) — ver nota extendida en
+    // gestion_coaching_ver.php sobre por qué no se puede confiar en la
+    // etiqueta exacta del perfil.
+    $autorizado = $perfil_actor === 'Administrador'
+        || $usu_id_actor === $fila['gcp_supervisor_id']
+        || $usu_id_actor === $fila['gcp_agente_id'];
 
     if (!$autorizado) {
         throw new RuntimeException('No tiene autorización para eliminar este soporte.');
@@ -226,3 +233,6 @@ function descargarSoporteCoaching(array $s): void
     readfile($s['gcsp_ruta']);
     exit;
 }
+
+
+

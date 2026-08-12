@@ -9,8 +9,11 @@
     $titulo_header = "Coaching | Nuevo paquete";
 
     $perfil_coaching = coachingPerfilUsuarioActual();
-    // Solo Supervisor/Gestor/Administrador pueden crear paquetes globales.
-    if ($perfil_coaching === null || !in_array($perfil_coaching, ['Supervisor', 'Gestor', 'Administrador'], true)) {
+    // Solo Supervisor/Administrador pueden crear paquetes globales.
+    // 'Gestor' (= Líder de Calidad en la convención de este portal) queda
+    // fuera a propósito: nunca crea paquetes, solo los recibe como
+    // coacheado — ver nota en lib/coaching_seguridad.php.
+    if ($perfil_coaching === null || !in_array($perfil_coaching, ['Supervisor', 'Administrador'], true)) {
         header("Location:../permiso_denegado.php");
         exit;
     }
@@ -43,7 +46,7 @@
             $tipos_validos = ['RETROALIMENTACION', 'ACTA_COMPROMISO', 'FELICITACION', 'RECONOCIMIENTO', 'LLAMADO_VERBAL', 'ESCALAMIENTO_DISCIPLINARIO', 'NO_RENOVACION'];
             $prioridades_validas = ['Baja', 'Normal', 'Alta', 'Urgente'];
 
-            if ($agente_id === '') { $errores_campo['agente_id'] = 'Seleccione un agente.'; }
+            if ($agente_id === '') { $errores_campo['agente_id'] = 'Seleccione un colaborador.'; }
             if (!in_array($tipo_codigo, $tipos_validos, true)) { $errores_campo['tipo_codigo'] = 'Seleccione un tipo de paquete válido.'; }
             if (count($indicador_ids) === 0) { $errores_campo['indicadores'] = 'Seleccione al menos un indicador.'; }
             if (count($indicador_ids) > 5) { $errores_campo['indicadores'] = 'Máximo 5 indicadores por paquete.'; }
@@ -97,10 +100,12 @@
         unset($_SESSION['registro_creado']);
     }
 
-    if (in_array($perfil_coaching, ['Gestor', 'Administrador'], true)) {
-        // Alcance global auditado: el Administrador/Gestor no necesariamente
-        // es "usu_supervisor" de nadie en la columna real, pero sí debe
-        // poder crear paquetes para cualquier agente activo.
+    if ($perfil_coaching === 'Administrador') {
+        // Alcance global auditado: el Administrador no necesariamente es
+        // "usu_supervisor" de nadie en la columna real (caso del
+        // Coordinador Nacional), pero sí debe poder crear paquetes para
+        // cualquier colaborador activo. 'Gestor' no llega aquí — la
+        // puerta de arriba ya lo bloqueó.
         $agentes = $enlace_db->query(
             "SELECT `usu_id`, `usu_nombres_apellidos` FROM `tb_administrador_usuario`
              WHERE `usu_estado` = 'Activo' ORDER BY `usu_nombres_apellidos`"
@@ -215,7 +220,7 @@
         <?php if (count($agentes) === 0): ?>
             <div class="coaching_empty">
                 <div class="coaching_empty_icono"><span class="fas fa-user-friends"></span></div>
-                <?php if (in_array($perfil_coaching, ['Gestor', 'Administrador'], true)): ?>
+                <?php if ($perfil_coaching === 'Administrador'): ?>
                     <h5>No hay agentes activos en el sistema</h5>
                     <p class="mb-0">
                         No se encontró ningún usuario con estado "Activo" para asignarle un paquete de coaching.
@@ -248,7 +253,7 @@
 
                 <div class="text-center mb-3">
                     <h4 class="titulo_seccion mb-0">Nuevo paquete de Coaching</h4>
-                    <span class="descripcion-seccion-conocimiento">Acompañamiento a un agente de su equipo — todos los tipos disponibles en un solo formulario.</span>
+                    <span class="descripcion-seccion-conocimiento">Acompañamiento a un colaborador de su equipo — todos los tipos disponibles en un solo formulario.</span>
                 </div>
 
                 <form method="POST" action="" id="form_coaching_crear" novalidate>
@@ -261,7 +266,7 @@
                                 <div class="col-md-6">
                                     <label class="coaching_label" for="agente_id">Colaborador intervenido</label>
                                     <select name="agente_id" id="agente_id" class="form-control <?php echo isset($errores_campo['agente_id']) ? 'coaching_campo_error' : ''; ?>" required>
-                                        <option value="">Seleccione un agente de su equipo...</option>
+                                        <option value="">Seleccione un colaborador de su equipo...</option>
                                         <?php foreach ($agentes as $a): ?>
                                             <option value="<?php echo htmlspecialchars($a['usu_id']); ?>" <?php echo (isset($_POST['agente_id']) && $_POST['agente_id'] === $a['usu_id']) ? 'selected' : ''; ?>>
                                                 <?php echo htmlspecialchars($a['usu_nombres_apellidos']); ?>
@@ -488,3 +493,6 @@
     <?php include("../footer.php"); ?>
 </body>
 </html>
+
+
+

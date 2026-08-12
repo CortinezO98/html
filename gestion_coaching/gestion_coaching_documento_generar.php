@@ -11,7 +11,9 @@
     $titulo_header = "Coaching | Generar documento";
 
     $perfil_coaching = coachingPerfilUsuarioActual();
-    if ($perfil_coaching === null || !in_array($perfil_coaching, ['Supervisor', 'Gestor', 'Administrador'], true)) {
+    // 'Gestor' (= Líder de Calidad) queda fuera: nunca actúa como
+    // supervisor de un paquete ajeno. Ver nota en lib/coaching_seguridad.php.
+    if ($perfil_coaching === null || !in_array($perfil_coaching, ['Supervisor', 'Administrador'], true)) {
         header("Location:../permiso_denegado.php");
         exit;
     }
@@ -26,6 +28,17 @@
     $paquete = obtenerPaqueteConDetalle($enlace_db, $gcp_id);
     if (!$paquete) {
         header("Location:gestion_coaching.php?pagina=1&id=null&est=Pendientes");
+        exit;
+    }
+
+    // Autorización por RECURSO explícita: usuarioPuedeVerPaquete() ya es
+    // puramente por recurso (compara contra agente_id O supervisor_id),
+    // lo cual es correcto para VER, pero "generar documento" es una
+    // acción del lado del supervisor — sin este chequeo adicional, un
+    // Supervisor que es el COACHEADO de este paquete concreto (coincide
+    // con agente_id, no con supervisor_id) podría colarse aquí.
+    if ($perfil_coaching !== 'Administrador' && $paquete['gcp_supervisor_id'] !== $_SESSION['usu_id']) {
+        header("Location:../permiso_denegado.php");
         exit;
     }
 
@@ -192,3 +205,6 @@
     <?php include("../footer.php"); ?>
 </body>
 </html>
+
+
+

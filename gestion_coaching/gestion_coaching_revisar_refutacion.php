@@ -10,7 +10,8 @@
     $titulo_header = "Coaching | Revisar refutación";
 
     $perfil_coaching = coachingPerfilUsuarioActual();
-    if ($perfil_coaching === null || !in_array($perfil_coaching, ['Supervisor', 'Gestor', 'Administrador'], true)) {
+    // Ver nota en gestion_coaching_retroalimentacion.php.
+    if ($perfil_coaching === null) {
         header("Location:../permiso_denegado.php");
         exit;
     }
@@ -23,7 +24,9 @@
     }
 
     $paquete = obtenerPaqueteConDetalle($enlace_db, $gcp_id);
-    $es_admin_o_gestor = in_array($perfil_coaching, ['Administrador', 'Gestor'], true);
+    // 'Gestor' (= Líder de Calidad) queda fuera del bypass. Ver nota en
+    // lib/coaching_seguridad.php.
+    $es_admin_o_gestor = $perfil_coaching === 'Administrador';
     if (!$paquete || (!$es_admin_o_gestor && $paquete['gcp_supervisor_id'] !== $_SESSION['usu_id'])) {
         header("Location:../permiso_denegado.php");
         exit;

@@ -88,9 +88,9 @@
     $puede_eliminar_soporte = (int) $paquete['gcp_activo'] === 1
         && in_array($paquete['gce_codigo'], COACHING_ESTADOS_PERMITEN_ELIMINAR_SOPORTE, true)
         && (
-            in_array($perfil_coaching, ['Administrador', 'Gestor'], true)
-            || ($perfil_coaching === 'Supervisor' && $_SESSION['usu_id'] === $paquete['supervisor_id'])
-            || ($perfil_coaching === 'Agente' && $_SESSION['usu_id'] === $paquete['agente_id'])
+            $perfil_coaching === 'Administrador'
+            || $_SESSION['usu_id'] === $paquete['supervisor_id']
+            || $_SESSION['usu_id'] === $paquete['agente_id']
         );
     $hallazgos_paquete = listarHallazgosPaquete($enlace_db, $gcp_id);
 
@@ -187,6 +187,31 @@
         ];
         return $mapa[$gce_codigo] ?? null;
     }
+
+    // Autorización por RECURSO para decidir qué botón de acción mostrar:
+    // NO basta con el perfil genérico del que mira la pantalla — un
+    // Supervisor puede ser el COACHEADO de este paquete concreto (cuando
+    // se lo asignó su Coordinador) y en ese caso debe ver los botones del
+    // coacheado (Responder/Firmar/Acusar recibido), no los del supervisor
+    // (Iniciar retroalimentación/Generar documento/Gestionar cierre) —
+    // aunque su perfil de módulo diga 'Supervisor'. Mismo criterio que ya
+    // aplican gestion_coaching_retroalimentacion.php, gestion_coaching_aprobar.php
+    // y gestion_coaching_revisar_refutacion.php en el servidor.
+    //
+    // NOTA: ninguno de los dos flags exige ya un string exacto de perfil
+    // para el lado del recurso (solo 'Administrador' conserva su bypass
+    // amplio intencional) — se confirmó que cuentas reales de Agente/
+    // Calidad en producción no traen 'Agente'/'Calidad' literal en
+    // tb_configuracion_perfil_usu_mod, sino la convención genérica del
+    // portal (Agente='Usuario', Líder de Calidad='Gestor'). Por eso
+    // 'Gestor' TAMPOCO tiene bypass amplio aquí — si lo tuviera,
+    // cualquier Líder de Calidad podría actuar como supervisor sobre
+    // paquetes ajenos, cuando en este módulo nunca es más que coacheado.
+    // Lo que de verdad autoriza es la coincidencia real de usu_id contra
+    // agente_id/supervisor_id del paquete, nunca la etiqueta del perfil.
+    $puede_actuar_como_supervisor = $perfil_coaching === 'Administrador'
+        || $_SESSION['usu_id'] === $paquete['supervisor_id'];
+    $puede_actuar_como_coacheado = $_SESSION['usu_id'] === $paquete['agente_id'];
 
     $proximo_paso = proximoPasoTexto($paquete['gce_codigo'], $perfil_coaching, (int) $paquete['gct_requiere_respuesta_agente'] === 1);
 
@@ -326,22 +351,22 @@
                 <strong>Próximo paso:</strong> <?php echo validar_output($proximo_paso); ?>
             </div>
             <div class="mt-2 mt-md-0">
-                <?php if ($paquete['gce_codigo'] === 'ASIGNADO' && in_array($perfil_coaching, ['Supervisor', 'Gestor', 'Administrador'], true)): ?>
+                <?php if ($paquete['gce_codigo'] === 'ASIGNADO' && $puede_actuar_como_supervisor): ?>
                     <a href="gestion_coaching_retroalimentacion.php?reg=<?php echo base64_encode($gcp_id); ?>" class="btn-corp px-3 py-1" style="border-radius:5px;">Iniciar retroalimentación</a>
-                <?php elseif ($paquete['gce_codigo'] === 'PENDIENTE_SUPERVISOR' && in_array($perfil_coaching, ['Supervisor', 'Gestor', 'Administrador'], true)): ?>
+                <?php elseif ($paquete['gce_codigo'] === 'PENDIENTE_SUPERVISOR' && $puede_actuar_como_supervisor): ?>
                     <a href="gestion_coaching_retroalimentacion.php?reg=<?php echo base64_encode($gcp_id); ?>" class="btn-corp px-3 py-1" style="border-radius:5px;">Continuar retroalimentación</a>
-                <?php elseif ($paquete['gce_codigo'] === 'PENDIENTE_AGENTE' && $perfil_coaching === 'Agente' && (int) $paquete['gct_requiere_respuesta_agente'] === 1): ?>
+                <?php elseif ($paquete['gce_codigo'] === 'PENDIENTE_AGENTE' && $puede_actuar_como_coacheado && (int) $paquete['gct_requiere_respuesta_agente'] === 1): ?>
                     <a href="gestion_coaching_responder_agente.php?reg=<?php echo base64_encode($gcp_id); ?>" class="btn-corp px-3 py-1" style="border-radius:5px;">Responder</a>
                     <a href="gestion_coaching_refutar.php?reg=<?php echo base64_encode($gcp_id); ?>" class="btn-corp-2 px-3 py-1 ml-1 d-inline-block" style="border-radius:5px;">Refutar</a>
-                <?php elseif ($paquete['gce_codigo'] === 'REFUTADO' && in_array($perfil_coaching, ['Supervisor', 'Gestor', 'Administrador'], true)): ?>
+                <?php elseif ($paquete['gce_codigo'] === 'REFUTADO' && $puede_actuar_como_supervisor): ?>
                     <a href="gestion_coaching_revisar_refutacion.php?reg=<?php echo base64_encode($gcp_id); ?>" class="btn-corp px-3 py-1" style="border-radius:5px;">Revisar refutación</a>
-                <?php elseif ($paquete['gce_codigo'] === 'PENDIENTE_AGENTE' && $perfil_coaching === 'Agente'): ?>
+                <?php elseif ($paquete['gce_codigo'] === 'PENDIENTE_AGENTE' && $puede_actuar_como_coacheado): ?>
                     <a href="gestion_coaching_acuse_recibo.php?reg=<?php echo base64_encode($gcp_id); ?>" class="btn-corp px-3 py-1" style="border-radius:5px;">Acusar recibido</a>
-                <?php elseif ($paquete['gce_codigo'] === 'RESPONDIDO_AGENTE' && in_array($perfil_coaching, ['Supervisor', 'Gestor', 'Administrador'], true)): ?>
+                <?php elseif ($paquete['gce_codigo'] === 'RESPONDIDO_AGENTE' && $puede_actuar_como_supervisor): ?>
                     <a href="gestion_coaching_documento_generar.php?reg=<?php echo base64_encode($gcp_id); ?>" class="btn-corp px-3 py-1" style="border-radius:5px;">Generar documento</a>
-                <?php elseif ($paquete['gce_codigo'] === 'PENDIENTE_FIRMA_AGENTE' && $perfil_coaching === 'Agente'): ?>
+                <?php elseif ($paquete['gce_codigo'] === 'PENDIENTE_FIRMA_AGENTE' && $puede_actuar_como_coacheado): ?>
                     <a href="gestion_coaching_firmar.php?reg=<?php echo base64_encode($gcp_id); ?>" class="btn-corp px-3 py-1" style="border-radius:5px;">Firmar documento</a>
-                <?php elseif (in_array($paquete['gce_codigo'], ['PENDIENTE_CIERRE', 'EN_SEGUIMIENTO'], true) && in_array($perfil_coaching, ['Supervisor', 'Gestor', 'Administrador'], true)): ?>
+                <?php elseif (in_array($paquete['gce_codigo'], ['PENDIENTE_CIERRE', 'EN_SEGUIMIENTO'], true) && $puede_actuar_como_supervisor): ?>
                     <a href="gestion_coaching_aprobar.php?reg=<?php echo base64_encode($gcp_id); ?>" class="btn-corp px-3 py-1" style="border-radius:5px;">Gestionar cierre</a>
                 <?php endif; ?>
             </div>
@@ -590,7 +615,7 @@
                             <div class="coaching_empty_mini text-center">
                                 el <?php echo date('d/m/Y H:i', strtotime($firma_vigente['gcf_registro_fecha'])); ?>
                             </div>
-                        <?php elseif ($paquete['gce_codigo'] === 'PENDIENTE_FIRMA_AGENTE' && $perfil_coaching === 'Agente'): ?>
+                        <?php elseif ($paquete['gce_codigo'] === 'PENDIENTE_FIRMA_AGENTE' && $puede_actuar_como_coacheado): ?>
                             <a href="gestion_coaching_firmar.php?reg=<?php echo base64_encode($gcp_id); ?>" class="btn-corp d-block text-center py-2" style="border-radius:5px;">
                                 <span class="fas fa-signature"></span> Firmar documento
                             </a>

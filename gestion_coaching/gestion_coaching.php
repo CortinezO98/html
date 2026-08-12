@@ -19,6 +19,17 @@
     // Filtro de estado por pestaña (mismo patrón que gestion_alertas.php: ?est=)
     $estado_bandeja = validar_input($_GET['est']);
 
+    // Filtro de VISTA: solo aplica a perfil Supervisor, que puede tener
+    // paquetes en dos roles distintos sobre paquetes distintos — como
+    // gestor de su equipo ('equipo', valor por defecto) o como coacheado
+    // por su propio Coordinador ('recibidos'). Cualquier otro perfil
+    // ignora este parámetro (Agente siempre ve lo suyo; Administrador/
+    // Gestor/Calidad/Coordinación/Gerencia ya ven todo sin restricción).
+    $vista_bandeja = validar_input($_GET['vista'] ?? 'equipo');
+    if (!in_array($vista_bandeja, ['equipo', 'recibidos'], true)) {
+        $vista_bandeja = 'equipo';
+    }
+
     // Es una petición AJAX de "solo la bandeja" (pestañas+tabla+paginación),
     // sin el resto de la página (menú, cabecera, buscador). Esto es lo que
     // hace que cambiar de pestaña/buscar/paginar sea atómico: solo se
@@ -28,7 +39,7 @@
     $data_consulta = array();
 
     // Alcance por rol: nunca se confía solo en lo que el frontend oculte.
-    [$filtro_alcance_sql, $parametros_alcance] = coachingFiltroAlcance($perfil_coaching, $_SESSION['usu_id']);
+    [$filtro_alcance_sql, $parametros_alcance] = coachingFiltroAlcance($perfil_coaching, $_SESSION['usu_id'], $vista_bandeja);
     foreach ($parametros_alcance as $p) {
         array_push($data_consulta, $p);
     }
@@ -147,10 +158,10 @@
         return $mapa[$gce_codigo] ?? 'coaching_estado_gris';
     }
 
-    /** Arma la URL de bandeja con los 3 parámetros que siempre viajan juntos. */
-    function coachingUrlBandeja(int $pagina, string $id, string $est, bool $ajax = false): string
+    /** Arma la URL de bandeja con los parámetros que siempre viajan juntos. */
+    function coachingUrlBandeja(int $pagina, string $id, string $est, string $vista = 'equipo', bool $ajax = false): string
     {
-        return 'gestion_coaching.php?pagina=' . $pagina . '&id=' . urlencode($id) . '&est=' . urlencode($est) . ($ajax ? '&ajax=1' : '');
+        return 'gestion_coaching.php?pagina=' . $pagina . '&id=' . urlencode($id) . '&est=' . urlencode($est) . '&vista=' . urlencode($vista) . ($ajax ? '&ajax=1' : '');
     }
 
     /**
@@ -162,21 +173,32 @@
      */
     function pintarBloqueBandeja(
         string $estado_bandeja, string $filtro_permanente, int $pagina, int $numero_paginas,
-        array $array_conteo_estado, array $resultado_registros, string $perfil_coaching
+        array $array_conteo_estado, array $resultado_registros, string $perfil_coaching, string $vista_bandeja
     ): void {
 ?>
+        <?php if ($perfil_coaching === 'Supervisor'): ?>
+        <div class="coaching_pills_tabs coaching_pills_vista" id="bandeja_vista_tabs">
+            <a class="coaching_pill coaching_pill_secundaria coaching_vista_link <?php echo $vista_bandeja === 'equipo' ? 'activa' : ''; ?>" data-vista="equipo" href="<?php echo coachingUrlBandeja(1, $filtro_permanente, $estado_bandeja, 'equipo'); ?>">
+                <span class="fas fa-users"></span> Mi grupo de trabajo
+            </a>
+            <a class="coaching_pill coaching_pill_secundaria coaching_vista_link <?php echo $vista_bandeja === 'recibidos' ? 'activa' : ''; ?>" data-vista="recibidos" href="<?php echo coachingUrlBandeja(1, $filtro_permanente, $estado_bandeja, 'recibidos'); ?>">
+                <span class="fas fa-user-check"></span> Asignados a mí como supervisor
+            </a>
+        </div>
+        <?php endif; ?>
+
         <div class="coaching_pills_tabs" id="bandeja_tabs">
-            <a class="coaching_pill coaching_tab_link <?php echo ($estado_bandeja == 'Pendientes' || $estado_bandeja == '') ? 'activa' : ''; ?>" data-est="Pendientes" href="<?php echo coachingUrlBandeja(1, $filtro_permanente, 'Pendientes'); ?>">
+            <a class="coaching_pill coaching_tab_link <?php echo ($estado_bandeja == 'Pendientes' || $estado_bandeja == '') ? 'activa' : ''; ?>" data-est="Pendientes" href="<?php echo coachingUrlBandeja(1, $filtro_permanente, 'Pendientes', $vista_bandeja); ?>">
                 <span class="fas fa-inbox"></span> Pendientes de acción
             </a>
-            <a class="coaching_pill coaching_tab_link <?php echo $estado_bandeja == 'Seguimiento' ? 'activa' : ''; ?>" data-est="Seguimiento" href="<?php echo coachingUrlBandeja(1, $filtro_permanente, 'Seguimiento'); ?>">
+            <a class="coaching_pill coaching_tab_link <?php echo $estado_bandeja == 'Seguimiento' ? 'activa' : ''; ?>" data-est="Seguimiento" href="<?php echo coachingUrlBandeja(1, $filtro_permanente, 'Seguimiento', $vista_bandeja); ?>">
                 <span class="fas fa-chart-line"></span> En seguimiento
                 <span class="coaching_pill_contador"><?php echo $array_conteo_estado['EN_SEGUIMIENTO'] ?? 0; ?></span>
             </a>
-            <a class="coaching_pill coaching_tab_link <?php echo $estado_bandeja == 'Cerrados' ? 'activa' : ''; ?>" data-est="Cerrados" href="<?php echo coachingUrlBandeja(1, $filtro_permanente, 'Cerrados'); ?>">
+            <a class="coaching_pill coaching_tab_link <?php echo $estado_bandeja == 'Cerrados' ? 'activa' : ''; ?>" data-est="Cerrados" href="<?php echo coachingUrlBandeja(1, $filtro_permanente, 'Cerrados', $vista_bandeja); ?>">
                 <span class="fas fa-check-circle"></span> Cerrados
             </a>
-            <a class="coaching_pill coaching_tab_link <?php echo $estado_bandeja == 'Todos' ? 'activa' : ''; ?>" data-est="Todos" href="<?php echo coachingUrlBandeja(1, $filtro_permanente, 'Todos'); ?>">
+            <a class="coaching_pill coaching_tab_link <?php echo $estado_bandeja == 'Todos' ? 'activa' : ''; ?>" data-est="Todos" href="<?php echo coachingUrlBandeja(1, $filtro_permanente, 'Todos', $vista_bandeja); ?>">
                 <span class="fas fa-layer-group"></span> Todos
             </a>
         </div>
@@ -238,7 +260,7 @@
                 <ul class="pagination justify-content-center">
                     <?php for ($p = 1; $p <= $numero_paginas; $p++): ?>
                         <li class="page-item <?php echo $p == $pagina ? 'active' : ''; ?>">
-                            <a class="page-link coaching_pagina_link" data-pagina="<?php echo $p; ?>" href="<?php echo coachingUrlBandeja($p, $filtro_permanente, $estado_bandeja); ?>"><?php echo $p; ?></a>
+                            <a class="page-link coaching_pagina_link" data-pagina="<?php echo $p; ?>" href="<?php echo coachingUrlBandeja($p, $filtro_permanente, $estado_bandeja, $vista_bandeja); ?>"><?php echo $p; ?></a>
                         </li>
                     <?php endfor; ?>
                 </ul>
@@ -249,7 +271,7 @@
 
     // ---- Respuesta AJAX: SOLO el fragmento, nada de <html>/menú/etc. ----
     if ($es_ajax) {
-        pintarBloqueBandeja($estado_bandeja, $filtro_permanente, (int) $pagina, (int) $numero_paginas, $array_conteo_estado, $resultado_registros, $perfil_coaching);
+        pintarBloqueBandeja($estado_bandeja, $filtro_permanente, (int) $pagina, (int) $numero_paginas, $array_conteo_estado, $resultado_registros, $perfil_coaching, $vista_bandeja);
         exit;
     }
 ?>
@@ -316,6 +338,15 @@
             background: rgba(255,255,255,.35); border-radius: 10px; padding: 1px 7px; font-size: 10px;
         }
         .coaching_pill:not(.activa) .coaching_pill_contador { background: #FFFFFF; color: #4CAF50; }
+
+        /* Fila de "vista" (Mi grupo / Asignados a mí): mismo lenguaje visual
+           que las pestañas de estado, pero en un tono distinto para que se
+           lea como una dimensión de filtro DISTINTA (a quién pertenecen los
+           paquetes), no como más pestañas de estado. */
+        .coaching_pills_vista { margin-bottom: 10px; }
+        .coaching_pill_secundaria { background: #FFFFFF; border: 1px solid #F2F2F2; color: #6E6E6E; }
+        .coaching_pill_secundaria:hover { background: #F1F8F2; border-color: #4CAF50; color: #4CAF50; }
+        .coaching_pill_secundaria.activa { background: #175E83; border-color: #175E83; color: #FFFFFF; }
     </style>
 </head>
 <body>
@@ -335,15 +366,15 @@
                 <button type="button" id="btn_buscar_bandeja" class="d-none"></button>
             </div>
             <div class="col-md-7 py-2 text-right">
-                <?php if (in_array($perfil_coaching, ['Administrador', 'Gestor', 'Supervisor'], true)): ?>
+                <?php if (in_array($perfil_coaching, ['Administrador', 'Supervisor'], true)): ?>
                     <a href="gestion_coaching_crear.php" class="btn-corp px-3 py-2" style="border-radius:5px;"><span class="fas fa-plus"></span> Nuevo paquete</a>
                 <?php endif; ?>
             </div>
         </div>
 
-        <div id="bandeja_ajax" data-est="<?php echo htmlspecialchars($estado_bandeja); ?>" data-id="<?php echo htmlspecialchars($filtro_permanente); ?>" data-pagina="<?php echo (int) $pagina; ?>">
+        <div id="bandeja_ajax" data-est="<?php echo htmlspecialchars($estado_bandeja); ?>" data-id="<?php echo htmlspecialchars($filtro_permanente); ?>" data-pagina="<?php echo (int) $pagina; ?>" data-vista="<?php echo htmlspecialchars($vista_bandeja); ?>" data-perfil="<?php echo htmlspecialchars($perfil_coaching); ?>">
             <span id="bandeja_spinner"><span class="fas fa-spinner fa-spin"></span></span>
-            <?php pintarBloqueBandeja($estado_bandeja, $filtro_permanente, (int) $pagina, (int) $numero_paginas, $array_conteo_estado, $resultado_registros, $perfil_coaching); ?>
+            <?php pintarBloqueBandeja($estado_bandeja, $filtro_permanente, (int) $pagina, (int) $numero_paginas, $array_conteo_estado, $resultado_registros, $perfil_coaching, $vista_bandeja); ?>
         </div>
     </div>
     <?php include("../footer.php"); ?>
@@ -355,9 +386,9 @@
         var CACHE_URL_BASE = 'gestion_coaching.php';
         var temporizadorBusqueda = null;
 
-        function cargarBandeja(pagina, id, est, actualizarUrl) {
+        function cargarBandeja(pagina, id, est, vista, actualizarUrl) {
             contenedor.classList.add('cargando');
-            var urlDatos = CACHE_URL_BASE + '?pagina=' + encodeURIComponent(pagina) + '&id=' + encodeURIComponent(id || 'null') + '&est=' + encodeURIComponent(est) + '&ajax=1';
+            var urlDatos = CACHE_URL_BASE + '?pagina=' + encodeURIComponent(pagina) + '&id=' + encodeURIComponent(id || 'null') + '&est=' + encodeURIComponent(est) + '&vista=' + encodeURIComponent(vista || 'equipo') + '&ajax=1';
 
             fetch(urlDatos, { credentials: 'same-origin' })
                 .then(function (resp) {
@@ -369,12 +400,13 @@
                     contenedor.dataset.est = est;
                     contenedor.dataset.id = id || 'null';
                     contenedor.dataset.pagina = pagina;
+                    contenedor.dataset.vista = vista || 'equipo';
                     contenedor.classList.remove('cargando');
                     vincularEventosBandeja();
 
                     if (actualizarUrl) {
-                        var urlVisible = CACHE_URL_BASE + '?pagina=' + pagina + '&id=' + encodeURIComponent(id || 'null') + '&est=' + encodeURIComponent(est);
-                        window.history.pushState({ pagina: pagina, id: id, est: est }, '', urlVisible);
+                        var urlVisible = CACHE_URL_BASE + '?pagina=' + pagina + '&id=' + encodeURIComponent(id || 'null') + '&est=' + encodeURIComponent(est) + '&vista=' + encodeURIComponent(vista || 'equipo');
+                        window.history.pushState({ pagina: pagina, id: id, est: est, vista: vista }, '', urlVisible);
                     }
                 })
                 .catch(function () {
@@ -387,13 +419,22 @@
             contenedor.querySelectorAll('.coaching_tab_link').forEach(function (enlace) {
                 enlace.addEventListener('click', function (e) {
                     e.preventDefault();
-                    cargarBandeja(1, campoBuscar.value.trim() || 'null', this.dataset.est, true);
+                    cargarBandeja(1, campoBuscar.value.trim() || 'null', this.dataset.est, contenedor.dataset.vista, true);
+                });
+            });
+            contenedor.querySelectorAll('.coaching_vista_link').forEach(function (enlace) {
+                enlace.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    // Cambiar de vista siempre vuelve a la página 1, igual que
+                    // cambiar de pestaña de estado — pero conserva la
+                    // pestaña de estado y la búsqueda actuales.
+                    cargarBandeja(1, campoBuscar.value.trim() || 'null', contenedor.dataset.est, this.dataset.vista, true);
                 });
             });
             contenedor.querySelectorAll('.coaching_pagina_link').forEach(function (enlace) {
                 enlace.addEventListener('click', function (e) {
                     e.preventDefault();
-                    cargarBandeja(parseInt(this.dataset.pagina, 10), contenedor.dataset.id, contenedor.dataset.est, true);
+                    cargarBandeja(parseInt(this.dataset.pagina, 10), contenedor.dataset.id, contenedor.dataset.est, contenedor.dataset.vista, true);
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                 });
             });
@@ -401,7 +442,7 @@
 
         function ejecutarBusqueda() {
             var valor = campoBuscar.value.trim() || 'null';
-            cargarBandeja(1, valor, contenedor.dataset.est, true);
+            cargarBandeja(1, valor, contenedor.dataset.est, contenedor.dataset.vista, true);
         }
         campoBuscar.addEventListener('input', function () {
             clearTimeout(temporizadorBusqueda);
@@ -416,12 +457,12 @@
         });
         document.getElementById('btn_refrescar_bandeja').addEventListener('click', function () {
             campoBuscar.value = '';
-            cargarBandeja(1, 'null', contenedor.dataset.est, true);
+            cargarBandeja(1, 'null', contenedor.dataset.est, contenedor.dataset.vista, true);
         });
 
         window.addEventListener('popstate', function () {
             var params = new URLSearchParams(window.location.search);
-            cargarBandeja(params.get('pagina') || 1, params.get('id') || 'null', params.get('est') || 'Pendientes', false);
+            cargarBandeja(params.get('pagina') || 1, params.get('id') || 'null', params.get('est') || 'Pendientes', params.get('vista') || 'equipo', false);
         });
 
         vincularEventosBandeja();

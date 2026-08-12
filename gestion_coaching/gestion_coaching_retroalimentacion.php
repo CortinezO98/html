@@ -10,7 +10,12 @@
     $titulo_header = "Coaching | Retroalimentación";
 
     $perfil_coaching = coachingPerfilUsuarioActual();
-    if ($perfil_coaching === null || !in_array($perfil_coaching, ['Supervisor', 'Gestor', 'Administrador'], true)) {
+    // La puerta ya no exige un string exacto — se confirmó que cuentas
+    // reales de Supervisor pueden traer etiquetas distintas según cómo
+    // se configuró cada una. El chequeo de recurso más abajo
+    // ($paquete['gcp_supervisor_id'] === $_SESSION['usu_id'], salvo
+    // Administrador/Gestor) es la autorización real y obligatoria.
+    if ($perfil_coaching === null) {
         header("Location:../permiso_denegado.php");
         exit;
     }
@@ -25,6 +30,22 @@
     $paquete = obtenerPaqueteConDetalle($enlace_db, $gcp_id);
     if (!$paquete) {
         header("Location:gestion_coaching.php?pagina=1&id=null&est=Pendientes");
+        exit;
+    }
+
+    // Autorización por RECURSO: la puerta de arriba solo filtra por el
+    // perfil GENÉRICO de módulo del usuario (Supervisor/Gestor/
+    // Administrador), lo cual no basta — un Supervisor puede ser el
+    // COACHEADO de este paquete concreto (asignado por su Coordinador),
+    // y en ese caso NO debe poder retroalimentarse a sí mismo. Solo quien
+    // realmente figura como gcp_supervisor_id de ESTE paquete (o
+    // Administrador/Gestor, con alcance amplio ya establecido en el
+    // resto del módulo) puede iniciar o continuar la retroalimentación.
+    // 'Gestor' (= Líder de Calidad) queda fuera del bypass. Ver nota en
+    // lib/coaching_seguridad.php.
+    $es_admin_o_gestor = $perfil_coaching === 'Administrador';
+    if (!$es_admin_o_gestor && $paquete['gcp_supervisor_id'] !== $_SESSION['usu_id']) {
+        header("Location:../permiso_denegado.php");
         exit;
     }
 
@@ -282,3 +303,6 @@
     <?php include("../footer.php"); ?>
 </body>
 </html>
+
+
+

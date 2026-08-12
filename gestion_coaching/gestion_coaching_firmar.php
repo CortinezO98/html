@@ -10,7 +10,9 @@
     $titulo_header = "Coaching | Firmar documento";
 
     $perfil_coaching = coachingPerfilUsuarioActual();
-    if ($perfil_coaching === null || $perfil_coaching !== 'Agente') {
+    // Ver nota en gestion_coaching_responder_agente.php: ya no se exige
+    // un string exacto, solo tener algún permiso en el módulo.
+    if ($perfil_coaching === null) {
         header("Location:../permiso_denegado.php");
         exit;
     }
@@ -29,6 +31,18 @@
     $paquete = obtenerPaqueteConDetalle($enlace_db, $gcp_id);
     if (!$paquete) {
         header("Location:gestion_coaching.php?pagina=1&id=null&est=Pendientes");
+        exit;
+    }
+
+    // Autorización por RECURSO explícita: usuarioPuedeVerPaquete() de
+    // arriba deja pasar sin más a perfiles con alcance amplio de LECTURA
+    // (Administrador/Gestor/Calidad/Coordinación/Gerencia) — eso es
+    // correcto para VER el paquete, pero firmar es un acto personal
+    // (consentimiento/firma electrónica) que nunca debe poder delegarse
+    // ni ejecutarse en nombre de otro. Solo quien es literalmente el
+    // gcp_agente_id de ESTE paquete puede firmar, sin excepción de perfil.
+    if ($paquete['gcp_agente_id'] !== $_SESSION['usu_id']) {
+        header("Location:../permiso_denegado.php");
         exit;
     }
     // La encuesta de percepción solo aplica al formato de Retroalimentación
@@ -304,7 +318,7 @@
             </div>
         </form>
 
-        <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+        <script src="../js/signature_pad.umd.min.js"></script>
         <script>
         (function () {
             // ---- Pestañas: elegir método de firma ----

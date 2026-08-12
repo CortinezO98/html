@@ -11,7 +11,16 @@
     $titulo_header = "Coaching | Mi respuesta";
 
     $perfil_coaching = coachingPerfilUsuarioActual();
-    if ($perfil_coaching === null || $perfil_coaching !== 'Agente') {
+    // La puerta ya NO exige un string exacto ('Agente'/'Supervisor'/
+    // 'Calidad') — en producción se confirmó que muchas cuentas reales
+    // traen etiquetas genéricas del sistema ('Usuario', vacío) en vez de
+    // esos valores específicos de Coaching. Aquí solo se exige tener
+    // ALGÚN permiso configurado para el módulo; la autorización real y
+    // obligatoria es el chequeo de recurso más abajo
+    // ($paquete['gcp_agente_id'] === $_SESSION['usu_id']), que exige ser
+    // exactamente el dueño de ESTE paquete concreto, sin excepción —
+    // ese chequeo no depende de qué etiqueta tenga el perfil.
+    if ($perfil_coaching === null) {
         header("Location:../permiso_denegado.php");
         exit;
     }
@@ -272,3 +281,6 @@
     <?php include("../footer.php"); ?>
 </body>
 </html>
+
+
+

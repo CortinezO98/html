@@ -905,6 +905,16 @@ function obtenerEscalamiento(mysqli $enlace_db, string $gcp_id): ?array
  * realmente le pertenezca a ese supervisor (autorización por recurso,
  * evita que un supervisor cree paquetes para agentes ajenos).
  *
+ * NOTA: pese al nombre heredado del parámetro/columna (`agente_id` /
+ * `gcp_agente_id`), el destinatario del paquete puede ser CUALQUIER
+ * colaborador — incluido un Supervisor, cuando quien crea el paquete es
+ * su Coordinador (configurado con perfil 'Administrador' en este módulo,
+ * ver tb_configuracion_perfil_usu_mod). El `gcp_supervisor_id` resultante
+ * se toma del `usu_supervisor` REAL del destinatario en
+ * tb_administrador_usuario, sea cual sea su rol — por eso esto ya
+ * funciona igual para un Agente que para un Supervisor sin necesitar
+ * lógica adicional aquí.
+ *
  * @param array $datos ['agente_id','tipo_codigo','indicador_id'(nullable),
  *                       'prioridad','fecha_limite'(nullable Y-m-d),'contexto'(nullable)]
  * @return string gcp_id
@@ -932,7 +942,12 @@ function crearPaqueteGlobal(mysqli $enlace_db, array $datos, string $usu_id_acto
             throw new RuntimeException('El agente seleccionado no existe o no está activo.');
         }
 
-        $es_admin_o_gestor = in_array($perfil_actor, ['Administrador', 'Gestor'], true);
+        // 'Gestor' (= Líder de Calidad) no tiene bypass amplio aquí — en
+        // la práctica nunca debería llegar a esta función porque
+        // gestion_coaching_crear.php ya lo bloquea antes, pero se deja
+        // explícito por si esta función se invoca alguna vez desde otro
+        // punto de entrada. Ver nota en lib/coaching_seguridad.php.
+        $es_admin_o_gestor = $perfil_actor === 'Administrador';
         if (!$es_admin_o_gestor && $agente['usu_supervisor'] !== $usu_id_actor) {
             throw new RuntimeException('El agente seleccionado no pertenece a su equipo.');
         }
@@ -1041,3 +1056,6 @@ function registrarErrorCoaching(mysqli $enlace_db, string $referencia, string $d
     $log->bind_param('sssss', $modulo, $tipo, $accion, $detalle_completo, $usuario);
     $log->execute();
 }
+
+
+

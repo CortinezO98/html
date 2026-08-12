@@ -29,26 +29,51 @@ function coachingPerfilUsuarioActual(): ?string
  * frontend muestre u oculte.
  *
  * Perfiles reconocidos (ver tb_configuracion_perfil_usu_mod.per_perfil):
- *  - 'Administrador' / 'Gestor'  -> ve todo (sujeto a filtros de UI, no de seguridad)
- *  - 'Supervisor'                -> solo paquetes donde gcp_supervisor_id = su usu_id
- *  - 'Agente'                    -> solo paquetes donde gcp_agente_id = su usu_id
- *  - Calidad/Coordinación/Gerencia -> ven todo en modo solo-lectura (ampliar aquí si negocio define alcance por campaña)
+ *  - 'Agente' / 'Calidad'        -> solo paquetes donde ÉL/ELLA es el coacheado (gcp_agente_id = su usu_id)
+ *  - 'Supervisor'                -> según $vista:
+ *       'equipo'    (por defecto) -> paquetes de su equipo, donde gcp_supervisor_id = su usu_id
+ *       'recibidos'               -> paquetes donde a ÉL/ELLA se le hizo coaching, gcp_agente_id = su usu_id
+ *  - 'Administrador' / 'Coordinación' / 'Gerencia' -> ven todo, alcance amplio intencional
+ *  - 'Gestor' NO tiene alcance amplio en este módulo: en este portal, el
+ *    valor 'Gestor' representa al Líder de Calidad (ver convención de
+ *    per_perfil por módulo), que debe ver solo lo suyo — por eso NO está
+ *    en la lista de arriba y cae en el "default" de más abajo (mismo
+ *    tratamiento que 'Usuario'/Agente).
+ *  - CUALQUIER OTRO VALOR (incluye 'Usuario', vacío, o cualquier etiqueta
+ *    no anticipada) -> FALLA SEGURA: en producción, muchas cuentas reales
+ *    tienen guardadas etiquetas genéricas de todo el sistema en vez de
+ *    los strings específicos de Coaching (se confirmó con cuentas reales
+ *    que traían 'Usuario' o el módulo sin configurar). Antes, cualquier
+ *    valor no reconocido caía en "sin restricción" — el default quedaba
+ *    MÁS permisivo que los perfiles explícitamente definidos, que es
+ *    exactamente al revés de lo que debe ser. Ahora el default es el
+ *    alcance mínimo por recurso real: solo paquetes donde el usuario es
+ *    el coacheado O el supervisor asignado. Un perfil mal configurado se
+ *    traduce en "ver menos de lo esperado", nunca en "ver más de lo debido".
  *
  * @return array{0:string,1:array} [fragmento SQL a concatenar con AND, parámetros correspondientes]
  */
-function coachingFiltroAlcance(string $perfil, string $usu_id): array
+function coachingFiltroAlcance(string $perfil, string $usu_id, string $vista = 'equipo'): array
 {
     switch ($perfil) {
         case 'Agente':
+        case 'Calidad':
             return ['AND `gcp_agente_id` = ?', [$usu_id]];
         case 'Supervisor':
+            if ($vista === 'recibidos') {
+                return ['AND `gcp_agente_id` = ?', [$usu_id]];
+            }
             return ['AND `gcp_supervisor_id` = ?', [$usu_id]];
-        default:
-            // Administrador, Gestor, Calidad, Coordinación, Gerencia: sin
-            // restricción adicional de propietario. Si negocio confirma un
-            // alcance por campaña para Coordinación/Gerencia, se agrega aquí
-            // comparando contra tb_administrador_usuario.usu_campania.
+        case 'Administrador':
+        case 'Coordinación':
+        case 'Gerencia':
+            // Alcance amplio intencional, sin restricción de propietario.
+            // Si negocio confirma un alcance por campaña para
+            // Coordinación/Gerencia, se agrega aquí comparando contra
+            // tb_administrador_usuario.usu_campania.
             return ['', []];
+        default:
+            return ['AND (`gcp_agente_id` = ? OR `gcp_supervisor_id` = ?)', [$usu_id, $usu_id]];
     }
 }
 
@@ -59,7 +84,42 @@ function coachingFiltroAlcance(string $perfil, string $usu_id): array
  */
 function coachingContarPendientesAccion(mysqli $enlace_db, string $usu_id, string $perfil): int
 {
-    if ($perfil === 'Agente') {
+    if ($perfil === 'Supervisor') {
+        // Un Supervisor puede tener pendientes en DOS roles distintos sobre
+        // paquetes distintos: como gestor de su equipo (gcp_supervisor_id)
+        // y como coacheado por su propio Coordinador (gcp_agente_id) — se
+        // cuentan ambos con UNION ALL, cada uno con los estados que
+        // realmente le corresponden a ese rol.
+        $consulta = $enlace_db->prepare(
+            "SELECT COUNT(*) AS total FROM (
+                SELECT `gcp_id` FROM `tb_gestion_coaching_paquete`
+                WHERE `gcp_supervisor_id` = ? AND `gcp_activo` = 1
+                  AND `gcp_estado_id` IN (
+                      SELECT `gce_id` FROM `tb_gestion_coaching_estado` WHERE `gce_codigo` IN ('ASIGNADO','PENDIENTE_SUPERVISOR','RESPONDIDO_AGENTE','PENDIENTE_CIERRE')
+                  )
+                UNION ALL
+                SELECT `gcp_id` FROM `tb_gestion_coaching_paquete`
+                WHERE `gcp_agente_id` = ? AND `gcp_activo` = 1
+                  AND `gcp_estado_id` IN (
+                      SELECT `gce_id` FROM `tb_gestion_coaching_estado` WHERE `gce_codigo` IN ('PENDIENTE_AGENTE','PENDIENTE_FIRMA_AGENTE')
+                  )
+            ) AS pendientes_supervisor"
+        );
+        $consulta->bind_param('ss', $usu_id, $usu_id);
+    } elseif (in_array($perfil, ['Administrador', 'Coordinación', 'Gerencia'], true)) {
+        // Estos perfiles tienen alcance amplio de LECTURA sobre todo el
+        // módulo, pero no son "el coacheado" de ningún paquete en
+        // particular por defecto — no tiene sentido una alerta personal
+        // aquí (si el Administrador SÍ resulta ser el gcp_agente_id de
+        // algún paquete puntual, ese caso queda fuera del widget, igual
+        // que ya pasaba antes de este ajuste).
+        return 0;
+    } else {
+        // Fallback seguro para cualquier otro perfil — incluye 'Agente',
+        // 'Calidad', y las etiquetas genéricas reales del portal
+        // ('Usuario' = Agente, 'Gestor' = Líder de Calidad, ver
+        // coachingFiltroAlcance()). Su rol aquí es siempre el del
+        // coacheado, nunca el de un "equipo".
         $consulta = $enlace_db->prepare(
             "SELECT COUNT(*) AS total FROM `tb_gestion_coaching_paquete`
              WHERE `gcp_agente_id` = ? AND `gcp_activo` = 1
@@ -68,17 +128,6 @@ function coachingContarPendientesAccion(mysqli $enlace_db, string $usu_id, strin
                )"
         );
         $consulta->bind_param('s', $usu_id);
-    } elseif ($perfil === 'Supervisor') {
-        $consulta = $enlace_db->prepare(
-            "SELECT COUNT(*) AS total FROM `tb_gestion_coaching_paquete`
-             WHERE `gcp_supervisor_id` = ? AND `gcp_activo` = 1
-               AND `gcp_estado_id` IN (
-                   SELECT `gce_id` FROM `tb_gestion_coaching_estado` WHERE `gce_codigo` IN ('ASIGNADO','PENDIENTE_SUPERVISOR','RESPONDIDO_AGENTE','PENDIENTE_CIERRE')
-               )"
-        );
-        $consulta->bind_param('s', $usu_id);
-    } else {
-        return 0;
     }
     $consulta->execute();
     $fila = $consulta->get_result()->fetch_assoc();
@@ -93,7 +142,28 @@ function coachingContarPendientesAccion(mysqli $enlace_db, string $usu_id, strin
  */
 function coachingPendientesDetalle(mysqli $enlace_db, string $usu_id, string $perfil): array
 {
-    if ($perfil === 'Agente') {
+    if ($perfil === 'Supervisor') {
+        // Mismo criterio dual que coachingContarPendientesAccion(): un
+        // Supervisor puede tener pendientes como gestor de su equipo y,
+        // por separado, como coacheado por su propio Coordinador.
+        $consulta = $enlace_db->prepare(
+            "SELECT `gcp_id` FROM `tb_gestion_coaching_paquete`
+             WHERE `gcp_supervisor_id` = ? AND `gcp_activo` = 1
+               AND `gcp_estado_id` IN (
+                   SELECT `gce_id` FROM `tb_gestion_coaching_estado` WHERE `gce_codigo` IN ('ASIGNADO','PENDIENTE_SUPERVISOR','RESPONDIDO_AGENTE','PENDIENTE_CIERRE')
+               )
+             UNION ALL
+             SELECT `gcp_id` FROM `tb_gestion_coaching_paquete`
+             WHERE `gcp_agente_id` = ? AND `gcp_activo` = 1
+               AND `gcp_estado_id` IN (
+                   SELECT `gce_id` FROM `tb_gestion_coaching_estado` WHERE `gce_codigo` IN ('PENDIENTE_AGENTE','PENDIENTE_FIRMA_AGENTE')
+               )"
+        );
+        $consulta->bind_param('ss', $usu_id, $usu_id);
+    } elseif (in_array($perfil, ['Administrador', 'Coordinación', 'Gerencia'], true)) {
+        return ['total' => 0, 'unico_gcp_id' => null];
+    } else {
+        // Fallback seguro — ver nota en coachingContarPendientesAccion().
         $consulta = $enlace_db->prepare(
             "SELECT `gcp_id` FROM `tb_gestion_coaching_paquete`
              WHERE `gcp_agente_id` = ? AND `gcp_activo` = 1
@@ -102,17 +172,6 @@ function coachingPendientesDetalle(mysqli $enlace_db, string $usu_id, string $pe
                )"
         );
         $consulta->bind_param('s', $usu_id);
-    } elseif ($perfil === 'Supervisor') {
-        $consulta = $enlace_db->prepare(
-            "SELECT `gcp_id` FROM `tb_gestion_coaching_paquete`
-             WHERE `gcp_supervisor_id` = ? AND `gcp_activo` = 1
-               AND `gcp_estado_id` IN (
-                   SELECT `gce_id` FROM `tb_gestion_coaching_estado` WHERE `gce_codigo` IN ('ASIGNADO','PENDIENTE_SUPERVISOR','RESPONDIDO_AGENTE','PENDIENTE_CIERRE')
-               )"
-        );
-        $consulta->bind_param('s', $usu_id);
-    } else {
-        return ['total' => 0, 'unico_gcp_id' => null];
     }
     $consulta->execute();
     $filas = $consulta->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -130,7 +189,11 @@ function coachingPendientesDetalle(mysqli $enlace_db, string $usu_id, string $pe
  */
 function usuarioPuedeVerPaquete(mysqli $enlace_db, string $usu_id, string $perfil, string $gcp_id): bool
 {
-    if (in_array($perfil, ['Administrador', 'Gestor', 'Calidad', 'Coordinación', 'Gerencia'], true)) {
+    // 'Gestor' NO tiene bypass amplio aquí — en este portal ese valor
+    // representa al Líder de Calidad, que debe quedar sujeto al mismo
+    // chequeo de recurso que cualquier otro perfil (ver nota extendida
+    // en coachingFiltroAlcance()).
+    if (in_array($perfil, ['Administrador', 'Calidad', 'Coordinación', 'Gerencia'], true)) {
         return true;
     }
 
@@ -145,11 +208,17 @@ function usuarioPuedeVerPaquete(mysqli $enlace_db, string $usu_id, string $perfi
         return false;
     }
 
-    if ($perfil === 'Agente') {
-        return $fila['gcp_agente_id'] === $usu_id;
-    }
-    if ($perfil === 'Supervisor') {
-        return $fila['gcp_supervisor_id'] === $usu_id;
-    }
-    return false;
+    // Autorización por RECURSO real, sin ramificar por el perfil de
+    // módulo del actor: se compara directamente contra los dueños reales
+    // del paquete (gcp_agente_id = a quién se le hace coaching,
+    // gcp_supervisor_id = quién lo gestiona). Esto es lo que permite que
+    // un Supervisor sea el COACHEADO de un paquete armado por su
+    // Coordinador (perfil 'Administrador' en este módulo) y aun así pueda
+    // ver su propio paquete — con el branching anterior por `$perfil`,
+    // un Supervisor solo podía calzar contra gcp_supervisor_id y jamás
+    // contra gcp_agente_id, aunque el paquete fuera suyo.
+    return $usu_id === $fila['gcp_agente_id'] || $usu_id === $fila['gcp_supervisor_id'];
 }
+
+
+
