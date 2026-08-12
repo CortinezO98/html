@@ -1057,5 +1057,68 @@ function registrarErrorCoaching(mysqli $enlace_db, string $referencia, string $d
     $log->execute();
 }
 
+/**
+ * Fechas por hito de trazabilidad (Asignado, Enviado a agente, Respondido,
+ * Firmado, Cerrado) para un conjunto de paquetes — usado por la
+ * reportería (gestion_coaching_reporte.php y gestion_coaching_reporte_excel.php)
+ * para poder calcular tiempos de cumplimiento sin tener que abrir cada
+ * paquete uno por uno.
+ *
+ * 'Cerrado' se identifica por el ESTADO RESULTANTE de la transición
+ * (gce_codigo = 'CERRADO'), no por el nombre de la acción — así cubre
+ * cualquier camino de cierre (CERRAR, CERRAR_TRAS_SEGUIMIENTO, o
+ * ACUSAR_RECIBIDO en tipos sin firma como Felicitación/Reconocimiento)
+ * sin tener que enumerarlos todos y sin romperse si el negocio agrega
+ * un camino de cierre nuevo más adelante.
+ *
+ * @param string[] $ids_paquetes
+ * @return array<string, array{asignado:?string, enviado_agente:?string, respondido:?string, firmado:?string, cerrado:?string}>
+ */
+function coachingHitosTrazabilidad(mysqli $enlace_db, array $ids_paquetes): array
+{
+    $hitos_por_paquete = [];
+    if (count($ids_paquetes) === 0) {
+        return $hitos_por_paquete;
+    }
 
+    $marcadores = implode(',', array_fill(0, count($ids_paquetes), '?'));
+    $sql = "SELECT H.`gch2_paquete`, H.`gch2_accion`, H.`gch2_registro_fecha`, E2.`gce_codigo` AS estado_resultante
+            FROM `tb_gestion_coaching_historial` AS H
+            LEFT JOIN `tb_gestion_coaching_estado` AS E2 ON H.`gch2_estado_nuevo` = E2.`gce_id`
+            WHERE H.`gch2_paquete` IN ({$marcadores})
+            ORDER BY H.`gch2_registro_fecha` ASC";
+    $stmt = $enlace_db->prepare($sql);
+    $stmt->bind_param(str_repeat('s', count($ids_paquetes)), ...$ids_paquetes);
+    $stmt->execute();
+    $filas = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
+    $accion_a_hito = [
+        'CREAR_MANUAL'     => 'asignado',
+        'CREAR_AUTOMATICO' => 'asignado',
+        'ENVIAR_A_AGENTE'  => 'enviado_agente',
+        'RESPONDER'        => 'respondido',
+        'FIRMAR'           => 'firmado',
+    ];
+
+    foreach ($filas as $h) {
+        $pid = $h['gch2_paquete'];
+        if (!isset($hitos_por_paquete[$pid])) {
+            $hitos_por_paquete[$pid] = ['asignado' => null, 'enviado_agente' => null, 'respondido' => null, 'firmado' => null, 'cerrado' => null];
+        }
+        $hito = $accion_a_hito[$h['gch2_accion']] ?? null;
+        if ($hito !== null && $hitos_por_paquete[$pid][$hito] === null) {
+            $hitos_por_paquete[$pid][$hito] = $h['gch2_registro_fecha'];
+        }
+        if ($h['estado_resultante'] === 'CERRADO' && $hitos_por_paquete[$pid]['cerrado'] === null) {
+            $hitos_por_paquete[$pid]['cerrado'] = $h['gch2_registro_fecha'];
+        }
+    }
+
+    return $hitos_por_paquete;
+}
+
+/** Fecha (o null) de un hito de trazabilidad para un paquete concreto — ver coachingHitosTrazabilidad(). */
+function coachingFechaHito(array $hitos_por_paquete, string $gcp_id, string $clave): ?string
+{
+    return $hitos_por_paquete[$gcp_id][$clave] ?? null;
+}

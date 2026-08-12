@@ -4,6 +4,7 @@
     require_once("../config/validaciones_seguridad.php");
     require_once("../config/conexion_db.php");
     require_once("lib/coaching_seguridad.php");
+    require_once("lib/coaching_datos.php");
     require_once('../PHPOffice/vendor/autoload.php');
 
     use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -67,35 +68,41 @@
     $stmt->execute();
     $registros = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
+    // Fechas por hito de trazabilidad — ver coachingHitosTrazabilidad()
+    // en lib/coaching_datos.php. Mismo mecanismo que gestion_coaching_reporte.php,
+    // para que el Excel traiga exactamente las mismas columnas de hitos
+    // que ya se ven en pantalla.
+    $hitos_por_paquete = coachingHitosTrazabilidad($enlace_db, array_column($registros, 'gcp_id'));
+
     // ---- Construcción del Excel ----
     $spreadsheet = new Spreadsheet();
     $sheet = $spreadsheet->getActiveSheet();
     $spreadsheet->getActiveSheet()->setTitle('Coaching');
 
-    $encabezados = ['Código', 'Origen', 'Tipo', 'Agente', 'Supervisor', 'Prioridad', 'Estado', 'Fecha creación', 'Fecha límite', 'Fecha cierre', 'Indicadores', 'Escalamiento - Destinatario', 'Escalamiento - Asunto'];
-    $columnas = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M'];
+    $encabezados = ['Código', 'Origen', 'Tipo', 'Agente', 'Supervisor', 'Prioridad', 'Estado', 'Fecha creación', 'Fecha límite', 'Fecha cierre', 'Indicadores', 'Escalamiento - Destinatario', 'Escalamiento - Asunto', 'Asignado', 'Enviado a agente', 'Respondido', 'Firmado', 'Cerrado'];
+    $columnas = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R'];
 
     foreach ($columnas as $col) {
         $sheet->getColumnDimension($col)->setWidth(20);
     }
 
     $sheet->setCellValue('A1', 'Reporte de Coaching — IQ-ICBF');
-    $sheet->mergeCells('A1:M1');
+    $sheet->mergeCells('A1:R1');
     $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
 
     $sheet->setCellValue('A2', 'Rango: ' . $fecha_desde . ' a ' . $fecha_hasta . ' — Generado: ' . date('d/m/Y H:i') . ' por ' . $_SESSION['usu_id']);
-    $sheet->mergeCells('A2:M2');
+    $sheet->mergeCells('A2:R2');
     $sheet->getStyle('A2')->getFont()->setItalic(true)->setSize(9);
 
     $fila_actual = 4;
     foreach ($columnas as $i => $col) {
         $sheet->setCellValue($col . $fila_actual, $encabezados[$i]);
     }
-    $sheet->getStyle('A' . $fila_actual . ':M' . $fila_actual)->getFont()->setBold(true);
-    $sheet->getStyle('A' . $fila_actual . ':M' . $fila_actual)->getFill()
+    $sheet->getStyle('A' . $fila_actual . ':R' . $fila_actual)->getFont()->setBold(true);
+    $sheet->getStyle('A' . $fila_actual . ':R' . $fila_actual)->getFill()
         ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
         ->getStartColor()->setRGB('4CAF50');
-    $sheet->getStyle('A' . $fila_actual . ':M' . $fila_actual)->getFont()->getColor()->setRGB('FFFFFF');
+    $sheet->getStyle('A' . $fila_actual . ':R' . $fila_actual)->getFont()->getColor()->setRGB('FFFFFF');
 
     $fila_actual++;
     foreach ($registros as $r) {
@@ -112,6 +119,16 @@
         $sheet->setCellValue('K' . $fila_actual, $r['indicadores_multiples'] ?? '');
         $sheet->setCellValue('L' . $fila_actual, $r['gcpe_destinatario_nombre'] ?? '');
         $sheet->setCellValue('M' . $fila_actual, $r['gcpe_asunto'] ?? '');
+        $hito_asignado = coachingFechaHito($hitos_por_paquete, $r['gcp_id'], 'asignado');
+        $hito_enviado = coachingFechaHito($hitos_por_paquete, $r['gcp_id'], 'enviado_agente');
+        $hito_respondido = coachingFechaHito($hitos_por_paquete, $r['gcp_id'], 'respondido');
+        $hito_firmado = coachingFechaHito($hitos_por_paquete, $r['gcp_id'], 'firmado');
+        $hito_cerrado = coachingFechaHito($hitos_por_paquete, $r['gcp_id'], 'cerrado');
+        $sheet->setCellValue('N' . $fila_actual, $hito_asignado ? date('d/m/Y H:i', strtotime($hito_asignado)) : '');
+        $sheet->setCellValue('O' . $fila_actual, $hito_enviado ? date('d/m/Y H:i', strtotime($hito_enviado)) : '');
+        $sheet->setCellValue('P' . $fila_actual, $hito_respondido ? date('d/m/Y H:i', strtotime($hito_respondido)) : '');
+        $sheet->setCellValue('Q' . $fila_actual, $hito_firmado ? date('d/m/Y H:i', strtotime($hito_firmado)) : '');
+        $sheet->setCellValue('R' . $fila_actual, $hito_cerrado ? date('d/m/Y H:i', strtotime($hito_cerrado)) : '');
         $fila_actual++;
     }
 

@@ -4,6 +4,7 @@
     require_once("../config/validaciones_seguridad.php");
     require_once("../config/conexion_db.php");
     require_once("lib/coaching_seguridad.php");
+    require_once("lib/coaching_datos.php");
 
     $titulo_header = "Coaching | Reporte";
 
@@ -52,6 +53,41 @@
 
     $tipos_bind = str_repeat('s', count($parametros));
 
+    // ---- Paginación ----
+    $registros_x_pagina = 50;
+    $pagina = (int) validar_input($_GET['pagina'] ?? '1');
+    if ($pagina <= 0) { $pagina = 1; }
+
+    // KPIs y total de páginas se calculan sobre TODO el conjunto filtrado
+    // (agregado en SQL), nunca sobre solo los 50 registros de la página
+    // actual — si no, los KPIs mentirían apenas hubiera más de una página.
+    $sql_kpis =
+        "SELECT COUNT(*) AS total,
+                SUM(CASE WHEN E.`gce_codigo` IN ('CERRADO', 'RECHAZADO') THEN 1 ELSE 0 END) AS cerrados,
+                SUM(CASE WHEN P.`gcp_fecha_limite` IS NOT NULL
+                          AND E.`gce_codigo` NOT IN ('CERRADO', 'RECHAZADO', 'ANULADO')
+                          AND P.`gcp_fecha_limite` < CURDATE() THEN 1 ELSE 0 END) AS vencidos
+         FROM `tb_gestion_coaching_paquete` AS P
+         LEFT JOIN `tb_gestion_coaching_estado` AS E ON P.`gcp_estado_id` = E.`gce_id`
+         LEFT JOIN `tb_gestion_coaching_tipo` AS T ON P.`gcp_tipo_id` = T.`gct_id`
+         WHERE P.`gcp_activo` = 1 {$filtro_alcance_sql} {$condiciones}";
+    $stmt_kpis = $enlace_db->prepare($sql_kpis);
+    if (count($parametros) > 0) {
+        $stmt_kpis->bind_param($tipos_bind, ...$parametros);
+    }
+    $stmt_kpis->execute();
+    $fila_kpis = $stmt_kpis->get_result()->fetch_assoc();
+
+    $kpi_total = (int) ($fila_kpis['total'] ?? 0);
+    $kpi_cerrados = (int) ($fila_kpis['cerrados'] ?? 0);
+    $kpi_vencidos = (int) ($fila_kpis['vencidos'] ?? 0);
+    $kpi_pendientes = $kpi_total - $kpi_cerrados;
+    $kpi_pct_cerrados = $kpi_total > 0 ? round(($kpi_cerrados / $kpi_total) * 100) : 0;
+
+    $numero_paginas = (int) ceil($kpi_total / $registros_x_pagina);
+    if ($pagina > $numero_paginas && $numero_paginas > 0) { $pagina = $numero_paginas; }
+    $inicio_pagina = ($pagina - 1) * $registros_x_pagina;
+
     $sql =
         "SELECT P.`gcp_id`, P.`gcp_origen_tipo`, T.`gct_nombre`, E.`gce_nombre`, E.`gce_codigo`,
                 TA.`usu_nombres_apellidos` AS agente_nombre, TS.`usu_nombres_apellidos` AS supervisor_nombre,
@@ -69,14 +105,23 @@
          LEFT JOIN `tb_gestion_coaching_paquete_escalamiento` AS ESC ON P.`gcp_id` = ESC.`gcpe_paquete`
          WHERE P.`gcp_activo` = 1 {$filtro_alcance_sql} {$condiciones}
          ORDER BY P.`gcp_registro_fecha` DESC
-         LIMIT 500";
+         LIMIT ?, ?";
+
+    $parametros_pagina = $parametros;
+    $parametros_pagina[] = $inicio_pagina;
+    $parametros_pagina[] = $registros_x_pagina;
 
     $stmt = $enlace_db->prepare($sql);
-    if (count($parametros) > 0) {
-        $stmt->bind_param($tipos_bind, ...$parametros);
-    }
+    $stmt->bind_param($tipos_bind . 'ii', ...$parametros_pagina);
     $stmt->execute();
     $registros = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+    // Fechas por hito de trazabilidad (Asignado, Enviado a agente,
+    // Respondido, Firmado, Cerrado) — ver coachingHitosTrazabilidad()
+    // en lib/coaching_datos.php. Consulta SEPARADA y deliberadamente
+    // simple, no se mete dentro del SQL principal de arriba (con su
+    // propio conjunto de JOINs ya establecido).
+    $hitos_por_paquete = coachingHitosTrazabilidad($enlace_db, array_column($registros, 'gcp_id'));
 
     // Catálogos para los <select> de filtro
     $tipos_catalogo = $enlace_db->query("SELECT `gct_codigo`, `gct_nombre` FROM `tb_gestion_coaching_tipo` WHERE `gct_activo`=1 ORDER BY `gct_nombre`")->fetch_all(MYSQLI_ASSOC);
@@ -95,18 +140,15 @@
     }
 
     // Query string para reusar los filtros actuales en el link de Excel/estadísticas
+    // (SIN 'pagina' a propósito: esos exportables siempre traen el conjunto
+    // COMPLETO que cumple el filtro, no solo la página que se está viendo).
     $query_filtros = http_build_query(['desde' => $fecha_desde, 'hasta' => $fecha_hasta, 'estado' => $filtro_estado, 'tipo' => $filtro_tipo, 'origen' => $filtro_origen]);
 
-    // KPIs simples sobre el resultado ya filtrado (sin consultas extra)
-    $kpi_total = count($registros);
-    $kpi_cerrados = 0;
-    $kpi_vencidos = 0;
-    foreach ($registros as $r) {
-        if (in_array($r['gce_codigo'], ['CERRADO', 'RECHAZADO'], true)) { $kpi_cerrados++; }
-        if ($r['gcp_fecha_limite'] && !in_array($r['gce_codigo'], ['CERRADO', 'RECHAZADO', 'ANULADO'], true) && strtotime($r['gcp_fecha_limite']) < strtotime(date('Y-m-d'))) { $kpi_vencidos++; }
+    /** Arma la URL de esta misma pantalla con una página específica, conservando los filtros actuales. */
+    function coachingUrlReportePagina(int $pagina, string $query_filtros_base): string
+    {
+        return 'gestion_coaching_reporte.php?' . $query_filtros_base . '&pagina=' . $pagina;
     }
-    $kpi_pendientes = $kpi_total - $kpi_cerrados;
-    $kpi_pct_cerrados = $kpi_total > 0 ? round(($kpi_cerrados / $kpi_total) * 100) : 0;
 ?>
 <!DOCTYPE html>
 <html lang="ES">
@@ -240,7 +282,7 @@
         </div>
 
         <p style="font-size:11px; color:#6E6E6E;">
-            <?php echo count($registros); ?> resultado(s) <?php echo count($registros) === 500 ? '(máximo 500, refine el filtro para ver todos)' : ''; ?>
+            <?php echo $kpi_total; ?> resultado(s) en total <?php echo $numero_paginas > 1 ? '— página ' . $pagina . ' de ' . $numero_paginas : ''; ?>
         </p>
 
         <div class="div_tabla">
@@ -255,13 +297,17 @@
                         <th class="col-izq">Indicadores</th>
                         <th class="col-centro">Estado</th>
                         <th class="col-centro">Creado</th>
-                        <th class="col-centro">Cierre</th>
+                        <th class="col-centro">Asignado</th>
+                        <th class="col-centro">Enviado a agente</th>
+                        <th class="col-centro">Respondido</th>
+                        <th class="col-centro">Firmado</th>
+                        <th class="col-centro">Cerrado</th>
                         <th class="col-centro"></th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (count($registros) === 0): ?>
-                        <tr><td colspan="10" class="text-center" style="font-size:12px; color:#6E6E6E; padding:15px;">No hay resultados para los filtros seleccionados.</td></tr>
+                        <tr><td colspan="14" class="text-center" style="font-size:12px; color:#6E6E6E; padding:15px;">No hay resultados para los filtros seleccionados.</td></tr>
                     <?php endif; ?>
                     <?php foreach ($registros as $r): ?>
                         <tr class="tabla_contenido_1">
@@ -273,7 +319,18 @@
                             <td class="col-izq" style="font-size:11px; max-width:200px;"><?php echo validar_output($r['indicadores_multiples'] ?? '—'); ?></td>
                             <td class="col-centro"><span class="coaching_estado_pill <?php echo claseEstadoCoachingRep($r['gce_codigo']); ?>"><?php echo validar_output($r['gce_nombre']); ?></span></td>
                             <td class="col-centro"><?php echo date('d/m/Y', strtotime($r['gcp_registro_fecha'])); ?></td>
-                            <td class="col-centro"><?php echo $r['gcp_fecha_cierre'] ? date('d/m/Y', strtotime($r['gcp_fecha_cierre'])) : '—'; ?></td>
+                            <?php
+                                $hito_asignado = coachingFechaHito($hitos_por_paquete, $r['gcp_id'], 'asignado');
+                                $hito_enviado = coachingFechaHito($hitos_por_paquete, $r['gcp_id'], 'enviado_agente');
+                                $hito_respondido = coachingFechaHito($hitos_por_paquete, $r['gcp_id'], 'respondido');
+                                $hito_firmado = coachingFechaHito($hitos_por_paquete, $r['gcp_id'], 'firmado');
+                                $hito_cerrado = coachingFechaHito($hitos_por_paquete, $r['gcp_id'], 'cerrado');
+                            ?>
+                            <td class="col-centro" style="font-size:11px;"><?php echo $hito_asignado ? date('d/m/Y H:i', strtotime($hito_asignado)) : '—'; ?></td>
+                            <td class="col-centro" style="font-size:11px;"><?php echo $hito_enviado ? date('d/m/Y H:i', strtotime($hito_enviado)) : '—'; ?></td>
+                            <td class="col-centro" style="font-size:11px;"><?php echo $hito_respondido ? date('d/m/Y H:i', strtotime($hito_respondido)) : '—'; ?></td>
+                            <td class="col-centro" style="font-size:11px;"><?php echo $hito_firmado ? date('d/m/Y H:i', strtotime($hito_firmado)) : '—'; ?></td>
+                            <td class="col-centro" style="font-size:11px;"><?php echo $hito_cerrado ? date('d/m/Y H:i', strtotime($hito_cerrado)) : '—'; ?></td>
                             <td class="col-centro">
                                 <a href="gestion_coaching_ver.php?reg=<?php echo base64_encode($r['gcp_id']); ?>" class="btn-corp" style="width:26px;height:26px;padding:0;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;" title="Ver">
                                     <span class="fas fa-eye"></span>
@@ -284,6 +341,18 @@
                 </tbody>
             </table>
         </div>
+
+        <?php if ($numero_paginas > 1): ?>
+            <nav class="mt-3">
+                <ul class="pagination justify-content-center">
+                    <?php for ($p = 1; $p <= $numero_paginas; $p++): ?>
+                        <li class="page-item <?php echo $p === $pagina ? 'active' : ''; ?>">
+                            <a class="page-link" href="<?php echo coachingUrlReportePagina($p, $query_filtros); ?>"><?php echo $p; ?></a>
+                        </li>
+                    <?php endfor; ?>
+                </ul>
+            </nav>
+        <?php endif; ?>
     </div>
     <?php include("../footer.php"); ?>
 </body>
