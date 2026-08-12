@@ -171,12 +171,12 @@ function coachingEncabezadoDocumento(string $titulo): string
     return '
     <table width="100%" style="margin-bottom:14px;">
         <tr>
-            <td style="width:35%; vertical-align:middle;">
-                <img src="' . coachingLogoInstitucionalBase64() . '" style="width:150px;">
+            <td style="width:55%; vertical-align:middle;">
+                <img src="' . coachingLogoInstitucionalBase64() . '" style="width:340px;">
             </td>
-            <td style="width:65%; text-align:right; vertical-align:middle;">
-                <div style="color:#156082; font-weight:bold; font-size:16px; font-family:sans-serif;">' . htmlspecialchars($titulo) . '</div>
-                <div style="color:#156082; font-weight:bold; font-size:11px; font-family:sans-serif;">Línea ICBF</div>
+            <td style="width:45%; text-align:right; vertical-align:middle;">
+                <div style="color:#156082; font-weight:bold; font-size:13px; font-family:sans-serif;">' . htmlspecialchars($titulo) . '</div>
+                <div style="color:#156082; font-weight:bold; font-size:9px; font-family:sans-serif;">Línea ICBF</div>
             </td>
         </tr>
     </table>';
@@ -269,17 +269,9 @@ function construirHtmlRetroalimentacion(string $gcp_id, array $paquete, ?array $
 
     <table border="1" cellpadding="7" cellspacing="0" style="width:100%; border-collapse:collapse; margin-bottom:12px; font-size:10px;">
         <tr><td style="background:#156082; color:#FFFFFF; font-weight:bold;">COMPROMISOS PACTADOS (Documenta colaborador)</td></tr>
-        <tr><td>En este espacio, el colaborador deberá describir:
-            <ul style="margin:4px 0 4px 16px; padding:0;">
-                <li>Su compromiso frente a la falta.</li>
-                <li>Acciones que realizara para la no reincidencia.</li>
-                <li>Describir acciones o actividades puntuales en la que describa que, como y cuando usted se compromete a trabajar en las oportunidades de mejora mencionadas.</li>
-            </ul>
-            ' . nl2br(htmlspecialchars($respuesta['gcra_compromiso_general'] ?? '(pendiente de respuesta del agente)')) . '
+        <tr><td>' . nl2br(htmlspecialchars($respuesta['gcra_compromiso_general'] ?? '(pendiente de respuesta del agente)')) . '
         </td></tr>
-        <tr><td>Reseñar que puntos le parecieron relevantes de la información suministrada por su líder en el ejercicio frente a fortalezas y áreas de mejora.<br>
-            ' . nl2br(htmlspecialchars($respuesta['gcra_acciones_no_reincidencia'] ?? '')) . '</td></tr>
-        <tr><td>¿Relacionar finalmente si el ejercicio fue claro y le permitirá mejorar el área de mejora detectada?</td></tr>
+        <tr><td>' . nl2br(htmlspecialchars($respuesta['gcra_acciones_no_reincidencia'] ?? '')) . '</td></tr>
     </table>';
 
     if (count($compromisos) > 0) {
@@ -348,27 +340,10 @@ function construirHtmlActaCompromiso(string $gcp_id, array $paquete, ?array $ret
         </tr>
         <tr>
             <td style="vertical-align:top;">
-                Jefe inmediato, relacionar en este campo los eventos de forma detalla, describiendo:
-                <ul style="margin:4px 0 4px 16px; padding:0;">
-                    <li>Fecha de ocurrencia</li>
-                    <li>Falta</li>
-                    <li>Impacto: ¿Qué indicador, métrica o Kpi, resultó afectado?</li>
-                    <li>Evidencias</li>
-                    <li>¿Es reincidente en la falta? (Si/No)</li>
-                    <li>Si es reincidente, relacionar con fecha y tipo de soporte generado las últimas retroalimentaciones previas.</li>
-                </ul>
                 ' . nl2br(htmlspecialchars($retro['gcr_causa_raiz'] ?? '')) . '
                 ' . nl2br(htmlspecialchars($retro['gcr_estrategia_correctiva'] ?? '')) . '
             </td>
             <td style="vertical-align:top;">
-                En este espacio, el colaborador deberá describir:
-                <ul style="margin:4px 0 4px 16px; padding:0;">
-                    <li>Su compromiso frente a la falta.</li>
-                    <li>Acciones que realizara para la no reincidencia.</li>
-                    <li>Describir acciones o actividades puntuales en la que describa que, como y cuando usted se compromete a trabajar en las oportunidades de mejora mencionadas.</li>
-                    <li>Reseñar que puntos le parecieron relevantes de la información suministrada por su líder en el ejercicio frente a fortalezas y áreas de mejora.</li>
-                    <li>¿Relacionar finalmente si el ejercicio fue claro y le permitirá mejorar el área de mejora detectada?</li>
-                </ul>
                 ' . nl2br(htmlspecialchars($respuesta['gcra_compromiso_general'] ?? '(pendiente de respuesta del agente)')) . '
                 ' . nl2br(htmlspecialchars($respuesta['gcra_acciones_no_reincidencia'] ?? '')) . '
             </td>
@@ -409,7 +384,7 @@ function construirHtmlFelicitacion(string $gcp_id, array $paquete): string
     $es_reconocimiento = $paquete['gct_codigo'] === 'RECONOCIMIENTO';
     $referencia = $es_reconocimiento ? 'MEMORANDO DE RECONOCIMIENTO' : 'MEMORANDO DE FELICITACIÓN';
 
-    $html = '<div style="text-align:right; margin-bottom:20px;"><img src="' . coachingLogoInstitucionalBase64() . '" style="width:150px;"></div>';
+    $html = '<div style="text-align:right; margin-bottom:20px;"><img src="' . coachingLogoInstitucionalBase64() . '" style="width:340px;"></div>';
 
     $html .= '
     <p style="text-align:right;">Bogotá, ' . date('d \d\e F \d\e Y') . '</p>
@@ -449,4 +424,3 @@ function construirHtmlFelicitacion(string $gcp_id, array $paquete): string
 
     return $html;
 }
-
