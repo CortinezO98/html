@@ -23,9 +23,28 @@
             $mensaje = "<div class='coaching_aviso_error'><span class='fas fa-exclamation-circle'></span> Solicitud inválida (CSRF). Recargue e intente de nuevo.</div>";
         } else {
             try {
-                guardarSoporteCoaching($enlace_db, $gcp_id, $_FILES['soporte'] ?? [], trim($_POST['tipo_documental'] ?? 'Evidencia'), $_SESSION['usu_id']);
-                header('Location:gestion_coaching_ver.php?reg=' . base64_encode($gcp_id));
-                exit;
+                $resultado = guardarSoportesMultiples($enlace_db, $gcp_id, $_FILES['soporte'] ?? [], trim($_POST['tipo_documental'] ?? 'Evidencia'), $_SESSION['usu_id']);
+
+                if (count($resultado['fallidos']) === 0) {
+                    // Todo salió bien: mismo comportamiento de siempre, redirige al detalle.
+                    header('Location:gestion_coaching_ver.php?reg=' . base64_encode($gcp_id) . '&sop_subido=' . $resultado['exitosos']);
+                    exit;
+                }
+
+                // Éxito parcial o total fallo: se queda en esta pantalla mostrando
+                // exactamente cuáles archivos sí quedaron y cuáles no (y por qué),
+                // para que el usuario solo tenga que reintentar los que fallaron.
+                $partes_mensaje = [];
+                if ($resultado['exitosos'] > 0) {
+                    $partes_mensaje[] = "<div class='coaching_aviso_ok'><span class='fas fa-check-circle'></span> " . $resultado['exitosos'] . " archivo(s) cargado(s) correctamente.</div>";
+                }
+                $lista_fallidos = '<ul style="margin:6px 0 0 18px; padding:0;">';
+                foreach ($resultado['fallidos'] as $f) {
+                    $lista_fallidos .= '<li>' . coachingEsc($f['nombre']) . ': ' . coachingEsc($f['motivo']) . '</li>';
+                }
+                $lista_fallidos .= '</ul>';
+                $partes_mensaje[] = "<div class='coaching_aviso_error'><span class='fas fa-exclamation-circle'></span> " . count($resultado['fallidos']) . " archivo(s) no se pudieron cargar:" . $lista_fallidos . "</div>";
+                $mensaje = implode('', $partes_mensaje);
             } catch (Throwable $e) {
                 $mensaje = "<div class='coaching_aviso_error'><span class='fas fa-exclamation-circle'></span> " . coachingEsc($e->getMessage()) . "</div>";
             }
@@ -42,6 +61,7 @@
         .coaching_breadcrumb { font-size: 11px; color: #6E6E6E; margin-bottom: 10px; }
         .coaching_breadcrumb a { color: #4CAF50; }
         .coaching_aviso_error { background: #FDEDED; border: 1px solid #FF0000; color: #FF0000; border-radius: 5px; padding: 10px 12px; font-size: 12px; margin-bottom: 14px; }
+        .coaching_aviso_ok { background: #EAF7EF; border: 1px solid #4CAF50; color: #1A7A3C; border-radius: 5px; padding: 10px 12px; font-size: 12px; margin-bottom: 14px; }
         label.coaching_label { font-weight: bold; font-size: 12px; margin-bottom: 6px; display: block; color: #1A1A1A; }
         label.coaching_label .opcional { font-weight: normal; color: #6E6E6E; font-size: 10px; }
 
@@ -57,17 +77,20 @@
         .coaching_dropzone .texto_secundario { font-size: 11px; color: #6E6E6E; margin-top: 4px; }
         .coaching_dropzone input[type="file"] { display: none; }
 
+        .coaching_lista_archivos { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
         .coaching_archivo_elegido {
-            display: none; align-items: center; gap: 10px; background: #F1F8F2; border: 1px solid #4CAF50;
-            border-radius: 6px; padding: 10px 12px; margin-top: 12px;
+            display: flex; align-items: center; gap: 10px; background: #F1F8F2; border: 1px solid #4CAF50;
+            border-radius: 6px; padding: 10px 12px;
         }
-        .coaching_archivo_elegido.visible { display: flex; }
         .coaching_archivo_elegido .icono { font-size: 20px; color: #4CAF50; }
         .coaching_archivo_elegido .info { flex: 1; min-width: 0; }
         .coaching_archivo_elegido .nombre { font-size: 12px; font-weight: bold; color: #1A1A1A; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .coaching_archivo_elegido .tamano { font-size: 10px; color: #6E6E6E; }
         .coaching_archivo_elegido .quitar { background: none; border: none; color: #6E6E6E; cursor: pointer; font-size: 14px; }
         .coaching_archivo_elegido .quitar:hover { color: #FF0000; }
+
+        .coaching_contador_archivos { font-size: 10px; color: #6E6E6E; margin-top: 6px; text-align: right; }
+        .coaching_contador_archivos.limite { color: #FF0000; font-weight: bold; }
 
         #btn_cargar[disabled] { opacity: .7; cursor: not-allowed; }
     </style>
@@ -106,25 +129,17 @@
                                 <option>Reconocimiento</option>
                             </select>
 
-                            <label class="coaching_label">Archivo <span class="opcional">(máximo 10 MB — pdf, doc, docx, xls, xlsx, jpg, png)</span></label>
+                            <label class="coaching_label">Archivos <span class="opcional">(máximo 10 MB c/u, hasta 10 archivos — pdf, doc, docx, xls, xlsx, jpg, png)</span></label>
 
                             <label class="coaching_dropzone" id="dropzone" for="soporte">
                                 <div class="icono"><span class="fas fa-cloud-upload-alt"></span></div>
-                                <div class="texto_principal">Arrastre su archivo aquí, o haga clic para seleccionar</div>
-                                <div class="texto_secundario">PDF, Word, Excel o imagen — máximo 10 MB</div>
-                                <input type="file" name="soporte" id="soporte" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" required>
+                                <div class="texto_principal">Arrastre sus archivos aquí, o haga clic para seleccionar</div>
+                                <div class="texto_secundario">Puede elegir varios a la vez — PDF, Word, Excel o imagen</div>
+                                <input type="file" name="soporte[]" id="soporte" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" multiple required>
                             </label>
 
-                            <div class="coaching_archivo_elegido" id="archivo_elegido">
-                                <span class="icono fas fa-file" id="archivo_icono"></span>
-                                <div class="info">
-                                    <div class="nombre" id="archivo_nombre"></div>
-                                    <div class="tamano" id="archivo_tamano"></div>
-                                </div>
-                                <button type="button" class="quitar" id="btn_quitar_archivo" title="Quitar">
-                                    <span class="fas fa-times-circle"></span>
-                                </button>
-                            </div>
+                            <div class="coaching_lista_archivos" id="lista_archivos"></div>
+                            <div class="coaching_contador_archivos" id="contador_archivos"></div>
 
                             <div class="mt-4" style="display:flex; justify-content:center; align-items:center; gap:10px;">
                                 <button type="submit" id="btn_cargar" class="btn-corp px-4 py-2" style="border-radius:5px; border:0;">
@@ -140,13 +155,12 @@
 
         <script>
         (function () {
+            var LIMITE_ARCHIVOS = <?php echo (int) COACHING_SOPORTES_MAX_POR_CARGA; ?>;
+
             var dropzone = document.getElementById('dropzone');
             var inputArchivo = document.getElementById('soporte');
-            var cajaElegido = document.getElementById('archivo_elegido');
-            var nombreEl = document.getElementById('archivo_nombre');
-            var tamanoEl = document.getElementById('archivo_tamano');
-            var iconoEl = document.getElementById('archivo_icono');
-            var btnQuitar = document.getElementById('btn_quitar_archivo');
+            var listaArchivos = document.getElementById('lista_archivos');
+            var contadorArchivos = document.getElementById('contador_archivos');
             var textoPrincipal = dropzone.querySelector('.texto_principal');
             var textoSecundario = dropzone.querySelector('.texto_secundario');
 
@@ -156,32 +170,80 @@
                 jpg: 'fa-file-image', jpeg: 'fa-file-image', png: 'fa-file-image'
             };
 
+            // Los <input type="file"> nativos no permiten quitar UN solo
+            // archivo de la selección — se mantiene la lista real aquí (en
+            // JS) y se reconstruye el input completo con DataTransfer cada
+            // vez que cambia, en vez de depender de la FileList original
+            // (que es de solo lectura).
+            var archivosElegidos = [];
+
             function formatearTamano(bytes) {
                 if (bytes < 1024) { return bytes + ' B'; }
                 if (bytes < 1024 * 1024) { return (bytes / 1024).toFixed(0) + ' KB'; }
                 return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
             }
 
-            function mostrarArchivo(archivo) {
-                var ext = archivo.name.split('.').pop().toLowerCase();
-                iconoEl.className = 'icono fas ' + (ICONOS[ext] || 'fa-file');
-                nombreEl.textContent = archivo.name;
-                tamanoEl.textContent = formatearTamano(archivo.size);
-                cajaElegido.classList.add('visible');
-                textoPrincipal.textContent = 'Archivo listo — haga clic para cambiarlo';
-                textoSecundario.textContent = archivo.name;
+            function sincronizarInput() {
+                var dt = new DataTransfer();
+                archivosElegidos.forEach(function (archivo) { dt.items.add(archivo); });
+                inputArchivo.files = dt.files;
+            }
+
+            function renderizarLista() {
+                listaArchivos.innerHTML = '';
+                archivosElegidos.forEach(function (archivo, indice) {
+                    var ext = archivo.name.split('.').pop().toLowerCase();
+                    var fila = document.createElement('div');
+                    fila.className = 'coaching_archivo_elegido';
+                    fila.innerHTML =
+                        '<span class="icono fas ' + (ICONOS[ext] || 'fa-file') + '"></span>' +
+                        '<div class="info">' +
+                            '<div class="nombre"></div>' +
+                            '<div class="tamano">' + formatearTamano(archivo.size) + '</div>' +
+                        '</div>' +
+                        '<button type="button" class="quitar" title="Quitar"><span class="fas fa-times-circle"></span></button>';
+                    fila.querySelector('.nombre').textContent = archivo.name;
+                    fila.querySelector('.quitar').addEventListener('click', function () {
+                        archivosElegidos.splice(indice, 1);
+                        sincronizarInput();
+                        renderizarLista();
+                    });
+                    listaArchivos.appendChild(fila);
+                });
+
+                if (archivosElegidos.length > 0) {
+                    textoPrincipal.textContent = 'Archivos listos — haga clic para agregar más';
+                    textoSecundario.textContent = archivosElegidos.length + ' archivo(s) seleccionado(s)';
+                    contadorArchivos.textContent = archivosElegidos.length + ' / ' + LIMITE_ARCHIVOS + ' archivo(s)';
+                    contadorArchivos.classList.toggle('limite', archivosElegidos.length >= LIMITE_ARCHIVOS);
+                } else {
+                    textoPrincipal.textContent = 'Arrastre sus archivos aquí, o haga clic para seleccionar';
+                    textoSecundario.textContent = 'Puede elegir varios a la vez — PDF, Word, Excel o imagen';
+                    contadorArchivos.textContent = '';
+                    contadorArchivos.classList.remove('limite');
+                }
+            }
+
+            function agregarArchivos(nuevaLista) {
+                for (var i = 0; i < nuevaLista.length; i++) {
+                    if (archivosElegidos.length >= LIMITE_ARCHIVOS) {
+                        if (window.alertify) { alertify.warning('Máximo ' + LIMITE_ARCHIVOS + ' archivos por carga.', 0); }
+                        break;
+                    }
+                    // Evita duplicar el mismo archivo (mismo nombre+tamaño) si
+                    // el usuario abre el selector varias veces por error.
+                    var archivo = nuevaLista[i];
+                    var yaExiste = archivosElegidos.some(function (a) {
+                        return a.name === archivo.name && a.size === archivo.size;
+                    });
+                    if (!yaExiste) { archivosElegidos.push(archivo); }
+                }
+                sincronizarInput();
+                renderizarLista();
             }
 
             inputArchivo.addEventListener('change', function () {
-                if (inputArchivo.files.length > 0) { mostrarArchivo(inputArchivo.files[0]); }
-            });
-
-            btnQuitar.addEventListener('click', function (e) {
-                e.preventDefault();
-                inputArchivo.value = '';
-                cajaElegido.classList.remove('visible');
-                textoPrincipal.textContent = 'Arrastre su archivo aquí, o haga clic para seleccionar';
-                textoSecundario.textContent = 'PDF, Word, Excel o imagen — máximo 10 MB';
+                agregarArchivos(inputArchivo.files);
             });
 
             ['dragenter', 'dragover'].forEach(function (evento) {
@@ -197,16 +259,17 @@
                 });
             });
             dropzone.addEventListener('drop', function (e) {
-                var archivos = e.dataTransfer.files;
-                if (archivos.length > 0) {
-                    inputArchivo.files = archivos;
-                    mostrarArchivo(archivos[0]);
-                }
+                if (e.dataTransfer.files.length > 0) { agregarArchivos(e.dataTransfer.files); }
             });
 
             var form = document.getElementById('form_soporte');
             var boton = document.getElementById('btn_cargar');
-            form.addEventListener('submit', function () {
+            form.addEventListener('submit', function (e) {
+                if (archivosElegidos.length === 0) {
+                    e.preventDefault();
+                    if (window.alertify) { alertify.warning('Seleccione al menos un archivo.', 0); }
+                    return;
+                }
                 setTimeout(function () {
                     boton.disabled = true;
                     boton.innerHTML = '<span class="fas fa-spinner fa-spin"></span> Cargando...';

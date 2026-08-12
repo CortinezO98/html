@@ -138,6 +138,80 @@ function guardarSoporteCoaching(mysqli $db, string $paquete, array $archivo, str
     return $db->insert_id;
 }
 
+/** Máximo de archivos permitidos en una sola carga de soportes. */
+const COACHING_SOPORTES_MAX_POR_CARGA = 10;
+
+/**
+ * Reorganiza la estructura multi-archivo que PHP entrega para
+ * `<input type="file" name="soporte[]" multiple>` — por defecto PHP
+ * agrupa TODOS los "name"/"tmp_name"/"error"/etc. de todos los archivos
+ * en un solo array paralelo (formato "raro" heredado de PHP, no algo
+ * intuitivo), en vez de un array de archivos individuales. Esta función
+ * lo convierte en una lista de arrays "normales", uno por archivo, con
+ * el mismo formato que ya espera guardarSoporteCoaching().
+ */
+function reorganizarArchivosMultiples(array $files_soporte): array
+{
+    if (!isset($files_soporte['name']) || !is_array($files_soporte['name'])) {
+        return [];
+    }
+    $reorganizados = [];
+    $total = count($files_soporte['name']);
+    for ($i = 0; $i < $total; $i++) {
+        // Slots vacíos (el usuario abrió el selector pero no eligió nada
+        // en esa posición) se ignoran, no cuentan como error.
+        if (($files_soporte['error'][$i] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE && ($files_soporte['name'][$i] ?? '') === '') {
+            continue;
+        }
+        $reorganizados[] = [
+            'name'     => $files_soporte['name'][$i] ?? '',
+            'type'     => $files_soporte['type'][$i] ?? '',
+            'tmp_name' => $files_soporte['tmp_name'][$i] ?? '',
+            'error'    => $files_soporte['error'][$i] ?? UPLOAD_ERR_NO_FILE,
+            'size'     => $files_soporte['size'][$i] ?? 0,
+        ];
+    }
+    return $reorganizados;
+}
+
+/**
+ * Sube VARIOS soportes en una sola operación — a diferencia de
+ * guardarSoporteCoaching() (un archivo, lanza excepción y aborta todo
+ * ante cualquier error), esta función intenta cada archivo por separado:
+ * un archivo inválido (tipo no permitido, muy pesado, etc.) NO bloquea
+ * la carga de los demás que sí sean válidos.
+ *
+ * @return array{exitosos: int, fallidos: array<array{nombre: string, motivo: string}>}
+ */
+function guardarSoportesMultiples(mysqli $db, string $paquete, array $files_soporte, string $tipo, string $usuario): array
+{
+    $archivos = reorganizarArchivosMultiples($files_soporte);
+
+    if (count($archivos) === 0) {
+        throw new RuntimeException('Debe seleccionar al menos un archivo.');
+    }
+    if (count($archivos) > COACHING_SOPORTES_MAX_POR_CARGA) {
+        throw new RuntimeException('Máximo ' . COACHING_SOPORTES_MAX_POR_CARGA . ' archivos por carga. Seleccionó ' . count($archivos) . '.');
+    }
+
+    $exitosos = 0;
+    $fallidos = [];
+
+    foreach ($archivos as $archivo) {
+        try {
+            guardarSoporteCoaching($db, $paquete, $archivo, $tipo, $usuario);
+            $exitosos++;
+        } catch (Throwable $e) {
+            $fallidos[] = [
+                'nombre' => (string) ($archivo['name'] ?? 'archivo sin nombre'),
+                'motivo' => $e->getMessage(),
+            ];
+        }
+    }
+
+    return ['exitosos' => $exitosos, 'fallidos' => $fallidos];
+}
+
 function obtenerSoporteCoaching(mysqli $db, int $id): ?array
 {
     $s = $db->prepare("SELECT * FROM `tb_gestion_coaching_soporte` WHERE `gcsp_id` = ? AND `gcsp_estado` = 'Activo' LIMIT 1");
@@ -233,6 +307,3 @@ function descargarSoporteCoaching(array $s): void
     readfile($s['gcsp_ruta']);
     exit;
 }
-
-
-

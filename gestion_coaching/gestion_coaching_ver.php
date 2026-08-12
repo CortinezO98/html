@@ -508,6 +508,9 @@
                     <div class="p-3">
                         <?php if (isset($_GET['sop_ok'])): ?>
                             <div class="coaching_aviso_ok mb-3"><span class="fas fa-check-circle"></span> Soporte eliminado correctamente.</div>
+                        <?php elseif (isset($_GET['sop_subido'])): ?>
+                            <?php $cantidad_subida = (int) $_GET['sop_subido']; ?>
+                            <div class="coaching_aviso_ok mb-3"><span class="fas fa-check-circle"></span> <?php echo $cantidad_subida === 1 ? '1 soporte cargado correctamente.' : $cantidad_subida . ' soportes cargados correctamente.'; ?></div>
                         <?php elseif (!empty($_GET['sop_error'])): ?>
                             <div class="coaching_aviso_error mb-3"><span class="fas fa-exclamation-circle"></span> <?php echo validar_output($_GET['sop_error']); ?></div>
                         <?php endif; ?>
