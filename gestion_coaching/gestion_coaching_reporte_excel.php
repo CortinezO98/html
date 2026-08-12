@@ -16,11 +16,9 @@
     }
 
     $perfil_coaching = coachingPerfilUsuarioActual();
-    $filtro_alcance_sql = '';
-    $parametros_alcance = [];
-    if (in_array($perfil_coaching, ['Supervisor', 'Agente'], true)) {
-        [$filtro_alcance_sql, $parametros_alcance] = coachingFiltroAlcance($perfil_coaching, $_SESSION['usu_id']);
-    }
+    // Ver nota en gestion_coaching_reporte.php: coachingFiltroAlcance()
+    // ya es fail-safe por sí sola, no se condiciona por perfil.
+    [$filtro_alcance_sql, $parametros_alcance] = coachingFiltroAlcance($perfil_coaching ?? '', $_SESSION['usu_id']);
 
     // Mismos filtros que gestion_coaching_reporte.php, para que el Excel
     // exportado sea exactamente lo que la persona ya está viendo en pantalla.

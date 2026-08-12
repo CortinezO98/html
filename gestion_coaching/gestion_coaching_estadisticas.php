@@ -14,11 +14,13 @@
     }
 
     $perfil_coaching = coachingPerfilUsuarioActual();
-    $filtro_alcance_sql = '';
-    $parametros_alcance = [];
-    if ($perfil_coaching === 'Supervisor') {
-        [$filtro_alcance_sql, $parametros_alcance] = coachingFiltroAlcance('Supervisor', $_SESSION['usu_id']);
-    }
+    // Antes solo se aplicaba el filtro si el perfil coincidía exactamente
+    // con 'Supervisor' — el mismo bug ya corregido en
+    // gestion_coaching_reporte.php: cuentas reales de Agente/Calidad
+    // traen 'Usuario'/'Gestor', nunca calzaban, y veían las estadísticas
+    // completas sin restricción. coachingFiltroAlcance() ya es fail-safe
+    // por sí sola, así que se llama siempre, sin condicionar por perfil.
+    [$filtro_alcance_sql, $parametros_alcance] = coachingFiltroAlcance($perfil_coaching ?? '', $_SESSION['usu_id']);
 
     // ---- Pestaña activa ----
     $vistas_validas = ['consolidado', 'lider', 'agente', 'historico'];

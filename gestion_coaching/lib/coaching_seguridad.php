@@ -51,17 +51,30 @@ function coachingPerfilUsuarioActual(): ?string
  *    el coacheado O el supervisor asignado. Un perfil mal configurado se
  *    traduce en "ver menos de lo esperado", nunca en "ver más de lo debido".
  *
+ * IMPORTANTE — Escalamiento Disciplinario: en TODA vista donde el usuario
+ * aparece como COACHEADO (gcp_agente_id), se excluyen los paquetes de tipo
+ * ESCALAMIENTO_DISCIPLINARIO — ese tipo se documenta para trazabilidad
+ * interna del supervisor/Coordinador, pero nunca debe mostrársele al
+ * agente/colaborador afectado (ni en su bandeja ni en sus reportes). La
+ * vista donde el usuario aparece como SUPERVISOR nunca excluye nada: ahí
+ * sí necesita ver los escalamientos que él mismo gestiona.
+ *
  * @return array{0:string,1:array} [fragmento SQL a concatenar con AND, parámetros correspondientes]
  */
 function coachingFiltroAlcance(string $perfil, string $usu_id, string $vista = 'equipo'): array
 {
+    // Subconsulta independiente (no depende de que el llamador haya
+    // unido tb_gestion_coaching_tipo bajo un alias específico como "T" —
+    // este fragmento se reutiliza en varias pantallas con distintos JOINs).
+    $excluir_escalamiento = "AND `gcp_tipo_id` NOT IN (SELECT `gct_id` FROM `tb_gestion_coaching_tipo` WHERE `gct_codigo` = 'ESCALAMIENTO_DISCIPLINARIO')";
+
     switch ($perfil) {
         case 'Agente':
         case 'Calidad':
-            return ['AND `gcp_agente_id` = ?', [$usu_id]];
+            return ['AND `gcp_agente_id` = ? ' . $excluir_escalamiento, [$usu_id]];
         case 'Supervisor':
             if ($vista === 'recibidos') {
-                return ['AND `gcp_agente_id` = ?', [$usu_id]];
+                return ['AND `gcp_agente_id` = ? ' . $excluir_escalamiento, [$usu_id]];
             }
             return ['AND `gcp_supervisor_id` = ?', [$usu_id]];
         case 'Administrador':
@@ -73,7 +86,10 @@ function coachingFiltroAlcance(string $perfil, string $usu_id, string $vista = '
             // tb_administrador_usuario.usu_campania.
             return ['', []];
         default:
-            return ['AND (`gcp_agente_id` = ? OR `gcp_supervisor_id` = ?)', [$usu_id, $usu_id]];
+            return [
+                "AND ((`gcp_agente_id` = ? {$excluir_escalamiento}) OR `gcp_supervisor_id` = ?)",
+                [$usu_id, $usu_id],
+            ];
     }
 }
 
@@ -89,7 +105,9 @@ function coachingContarPendientesAccion(mysqli $enlace_db, string $usu_id, strin
         // paquetes distintos: como gestor de su equipo (gcp_supervisor_id)
         // y como coacheado por su propio Coordinador (gcp_agente_id) — se
         // cuentan ambos con UNION ALL, cada uno con los estados que
-        // realmente le corresponden a ese rol.
+        // realmente le corresponden a ese rol. El lado "coacheado" excluye
+        // Escalamiento Disciplinario (ver nota en coachingFiltroAlcance());
+        // el lado "gestor de su equipo" NO lo excluye — ahí sí debe verlo.
         $consulta = $enlace_db->prepare(
             "SELECT COUNT(*) AS total FROM (
                 SELECT `gcp_id` FROM `tb_gestion_coaching_paquete`
@@ -103,6 +121,7 @@ function coachingContarPendientesAccion(mysqli $enlace_db, string $usu_id, strin
                   AND `gcp_estado_id` IN (
                       SELECT `gce_id` FROM `tb_gestion_coaching_estado` WHERE `gce_codigo` IN ('PENDIENTE_AGENTE','PENDIENTE_FIRMA_AGENTE')
                   )
+                  AND `gcp_tipo_id` NOT IN (SELECT `gct_id` FROM `tb_gestion_coaching_tipo` WHERE `gct_codigo` = 'ESCALAMIENTO_DISCIPLINARIO')
             ) AS pendientes_supervisor"
         );
         $consulta->bind_param('ss', $usu_id, $usu_id);
@@ -119,13 +138,15 @@ function coachingContarPendientesAccion(mysqli $enlace_db, string $usu_id, strin
         // 'Calidad', y las etiquetas genéricas reales del portal
         // ('Usuario' = Agente, 'Gestor' = Líder de Calidad, ver
         // coachingFiltroAlcance()). Su rol aquí es siempre el del
-        // coacheado, nunca el de un "equipo".
+        // coacheado, nunca el de un "equipo" — por eso también excluye
+        // Escalamiento Disciplinario.
         $consulta = $enlace_db->prepare(
             "SELECT COUNT(*) AS total FROM `tb_gestion_coaching_paquete`
              WHERE `gcp_agente_id` = ? AND `gcp_activo` = 1
                AND `gcp_estado_id` IN (
                    SELECT `gce_id` FROM `tb_gestion_coaching_estado` WHERE `gce_codigo` IN ('PENDIENTE_AGENTE','PENDIENTE_FIRMA_AGENTE')
-               )"
+               )
+               AND `gcp_tipo_id` NOT IN (SELECT `gct_id` FROM `tb_gestion_coaching_tipo` WHERE `gct_codigo` = 'ESCALAMIENTO_DISCIPLINARIO')"
         );
         $consulta->bind_param('s', $usu_id);
     }
@@ -145,7 +166,8 @@ function coachingPendientesDetalle(mysqli $enlace_db, string $usu_id, string $pe
     if ($perfil === 'Supervisor') {
         // Mismo criterio dual que coachingContarPendientesAccion(): un
         // Supervisor puede tener pendientes como gestor de su equipo y,
-        // por separado, como coacheado por su propio Coordinador.
+        // por separado, como coacheado por su propio Coordinador. El lado
+        // "coacheado" excluye Escalamiento Disciplinario.
         $consulta = $enlace_db->prepare(
             "SELECT `gcp_id` FROM `tb_gestion_coaching_paquete`
              WHERE `gcp_supervisor_id` = ? AND `gcp_activo` = 1
@@ -157,7 +179,8 @@ function coachingPendientesDetalle(mysqli $enlace_db, string $usu_id, string $pe
              WHERE `gcp_agente_id` = ? AND `gcp_activo` = 1
                AND `gcp_estado_id` IN (
                    SELECT `gce_id` FROM `tb_gestion_coaching_estado` WHERE `gce_codigo` IN ('PENDIENTE_AGENTE','PENDIENTE_FIRMA_AGENTE')
-               )"
+               )
+               AND `gcp_tipo_id` NOT IN (SELECT `gct_id` FROM `tb_gestion_coaching_tipo` WHERE `gct_codigo` = 'ESCALAMIENTO_DISCIPLINARIO')"
         );
         $consulta->bind_param('ss', $usu_id, $usu_id);
     } elseif (in_array($perfil, ['Administrador', 'Coordinación', 'Gerencia'], true)) {
@@ -169,7 +192,8 @@ function coachingPendientesDetalle(mysqli $enlace_db, string $usu_id, string $pe
              WHERE `gcp_agente_id` = ? AND `gcp_activo` = 1
                AND `gcp_estado_id` IN (
                    SELECT `gce_id` FROM `tb_gestion_coaching_estado` WHERE `gce_codigo` IN ('PENDIENTE_AGENTE','PENDIENTE_FIRMA_AGENTE')
-               )"
+               )
+               AND `gcp_tipo_id` NOT IN (SELECT `gct_id` FROM `tb_gestion_coaching_tipo` WHERE `gct_codigo` = 'ESCALAMIENTO_DISCIPLINARIO')"
         );
         $consulta->bind_param('s', $usu_id);
     }
@@ -189,16 +213,19 @@ function coachingPendientesDetalle(mysqli $enlace_db, string $usu_id, string $pe
  */
 function usuarioPuedeVerPaquete(mysqli $enlace_db, string $usu_id, string $perfil, string $gcp_id): bool
 {
-    // 'Gestor' NO tiene bypass amplio aquí — en este portal ese valor
-    // representa al Líder de Calidad, que debe quedar sujeto al mismo
-    // chequeo de recurso que cualquier otro perfil (ver nota extendida
-    // en coachingFiltroAlcance()).
-    if (in_array($perfil, ['Administrador', 'Calidad', 'Coordinación', 'Gerencia'], true)) {
+    // Ni 'Gestor' ni 'Calidad' tienen bypass amplio aquí — ambos
+    // representan al Líder de Calidad en distintas convenciones posibles,
+    // y deben quedar sujetos al mismo chequeo de recurso que cualquier
+    // otro perfil (ver nota extendida en coachingFiltroAlcance()).
+    if (in_array($perfil, ['Administrador', 'Coordinación', 'Gerencia'], true)) {
         return true;
     }
 
     $consulta = $enlace_db->prepare(
-        "SELECT `gcp_agente_id`, `gcp_supervisor_id` FROM `tb_gestion_coaching_paquete` WHERE `gcp_id` = ? LIMIT 1"
+        "SELECT P.`gcp_agente_id`, P.`gcp_supervisor_id`, T.`gct_codigo`
+         FROM `tb_gestion_coaching_paquete` AS P
+         LEFT JOIN `tb_gestion_coaching_tipo` AS T ON P.`gcp_tipo_id` = T.`gct_id`
+         WHERE P.`gcp_id` = ? LIMIT 1"
     );
     $consulta->bind_param('s', $gcp_id);
     $consulta->execute();
@@ -208,17 +235,21 @@ function usuarioPuedeVerPaquete(mysqli $enlace_db, string $usu_id, string $perfi
         return false;
     }
 
-    // Autorización por RECURSO real, sin ramificar por el perfil de
-    // módulo del actor: se compara directamente contra los dueños reales
-    // del paquete (gcp_agente_id = a quién se le hace coaching,
-    // gcp_supervisor_id = quién lo gestiona). Esto es lo que permite que
-    // un Supervisor sea el COACHEADO de un paquete armado por su
-    // Coordinador (perfil 'Administrador' en este módulo) y aun así pueda
-    // ver su propio paquete — con el branching anterior por `$perfil`,
-    // un Supervisor solo podía calzar contra gcp_supervisor_id y jamás
-    // contra gcp_agente_id, aunque el paquete fuera suyo.
-    return $usu_id === $fila['gcp_agente_id'] || $usu_id === $fila['gcp_supervisor_id'];
+    // El supervisor real del paquete siempre puede verlo, sin excepción
+    // de tipo — un Escalamiento Disciplinario es precisamente algo que él
+    // mismo (o su Coordinador) documentó y necesita poder consultar.
+    if ($usu_id === $fila['gcp_supervisor_id']) {
+        return true;
+    }
+
+    // El COACHEADO puede ver su propio paquete — EXCEPTO cuando es un
+    // Escalamiento Disciplinario: ese tipo se documenta para trazabilidad
+    // interna del supervisor/Coordinador, pero nunca se le muestra al
+    // agente/colaborador afectado. Esta es una excepción deliberada al
+    // principio general de "el coacheado siempre ve lo suyo".
+    if ($usu_id === $fila['gcp_agente_id']) {
+        return $fila['gct_codigo'] !== 'ESCALAMIENTO_DISCIPLINARIO';
+    }
+
+    return false;
 }
-
-
-

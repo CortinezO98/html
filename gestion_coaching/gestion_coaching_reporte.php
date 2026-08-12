@@ -14,11 +14,15 @@
     }
 
     $perfil_coaching = coachingPerfilUsuarioActual();
-    $filtro_alcance_sql = '';
-    $parametros_alcance = [];
-    if (in_array($perfil_coaching, ['Supervisor', 'Agente'], true)) {
-        [$filtro_alcance_sql, $parametros_alcance] = coachingFiltroAlcance($perfil_coaching, $_SESSION['usu_id']);
-    }
+    // Antes solo se aplicaba el filtro de alcance si el perfil coincidía
+    // exactamente con 'Supervisor'/'Agente' — pero se confirmó que cuentas
+    // reales traen etiquetas genéricas del portal ('Usuario', 'Gestor')
+    // que nunca calzaban con ese string, dejando a CUALQUIER otro perfil
+    // (incluidos Agentes reales) ver el reporte completo sin restricción.
+    // coachingFiltroAlcance() ya es fail-safe por sí sola (ver
+    // lib/coaching_seguridad.php): se llama siempre, sin condicionar por
+    // perfil, y ella misma decide el alcance correcto para cada caso.
+    [$filtro_alcance_sql, $parametros_alcance] = coachingFiltroAlcance($perfil_coaching ?? '', $_SESSION['usu_id']);
 
     // ---- Filtros ----
     $fecha_desde = validar_input($_GET['desde'] ?? '');
@@ -158,8 +162,19 @@
                 <a href="gestion_coaching_reporte_excel.php?<?php echo $query_filtros; ?>" class="btn-corp px-3 py-1" style="border-radius:5px;">
                     <span class="fas fa-file-excel"></span> Exportar a Excel
                 </a>
+                <?php if ($perfil_coaching === 'Administrador'): ?>
+                    <a href="gestion_coaching_descarga_masiva.php?<?php echo $query_filtros; ?>" class="btn-corp px-3 py-1" style="border-radius:5px; background-color:#175E83;" title="Descarga en un .zip los PDF vigentes de todos los paquetes que cumplan el filtro actual">
+                        <span class="fas fa-file-archive"></span> Descargar PDF (.zip)
+                    </a>
+                <?php endif; ?>
             </div>
         </div>
+
+        <?php if (!empty($_GET['zip_error'])): ?>
+            <div class="coaching_aviso_error" style="background: #FDEDED; border: 1px solid #FF0000; color: #FF0000; border-radius: 5px; padding: 10px 12px; font-size: 12px; margin-bottom: 15px;">
+                <span class="fas fa-exclamation-circle"></span> <?php echo validar_output($_GET['zip_error']); ?>
+            </div>
+        <?php endif; ?>
 
         <div class="coaching_kpis">
             <div class="coaching_kpi">
