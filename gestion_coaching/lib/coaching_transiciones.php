@@ -70,13 +70,14 @@ function ejecutarTransicion(
         $actualizar = $enlace_db->prepare(
             "UPDATE `tb_gestion_coaching_paquete`
              SET `gcp_estado_id` = ?, `gcp_version` = `gcp_version` + 1,
-                 `gcp_fecha_cierre` = IF(? = 'CERRADO', NOW(), `gcp_fecha_cierre`)
+                 `gcp_fecha_cierre` = IF(? = 'CERRADO', NOW(), `gcp_fecha_cierre`),
+                 `gcp_veces_refutado` = `gcp_veces_refutado` + IF(? = 'REFUTAR', 1, 0)
              WHERE `gcp_id` = ? AND `gcp_version` = ?"
         );
         $estado_destino = (int) $transicion['gcet_estado_destino'];
         $codigo_destino = (string) $transicion['estado_destino_codigo'];
         $version_esperada = (int) $paquete['gcp_version'];
-        $actualizar->bind_param('issi', $estado_destino, $codigo_destino, $gcp_id, $version_esperada);
+        $actualizar->bind_param('isssi', $estado_destino, $codigo_destino, $codigo_accion, $gcp_id, $version_esperada);
         $actualizar->execute();
 
         if ($actualizar->affected_rows === 0) {

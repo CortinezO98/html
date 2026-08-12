@@ -13,6 +13,32 @@ declare(strict_types=1);
  * sesión, solo se usa lo que ya existe).
  */
 
+/**
+ * IP real del visitante, considerando que el sitio corre detrás de un
+ * proxy reverso (nginx) — se confirmó porque validaciones_seguridad.php
+ * ya depende de HTTP_X_FORWARDED_PROTO/HOST para protocolo y dominio,
+ * pero nada en el sistema hacía lo mismo para la IP. Sin este ajuste,
+ * $_SERVER['REMOTE_ADDR'] devuelve la IP interna del proxy (siempre la
+ * misma) en vez de la IP real de quien firma/actúa — invalidando el
+ * registro de trazabilidad (gcf_ip, gch2_ip) como respaldo real.
+ *
+ * X-Forwarded-For puede traer una cadena "cliente, proxy1, proxy2" si
+ * hay varios saltos — se toma el PRIMERO (el cliente original). Se
+ * valida con filter_var para no guardar basura si el header viene
+ * malformado; si no es una IP válida, cae de vuelta a REMOTE_ADDR.
+ */
+function coachingObtenerIpCliente(): string
+{
+    $encabezado = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '';
+    if ($encabezado !== '') {
+        $primera = trim(explode(',', $encabezado)[0]);
+        if (filter_var($primera, FILTER_VALIDATE_IP) !== false) {
+            return $primera;
+        }
+    }
+    return $_SERVER['REMOTE_ADDR'] ?? '';
+}
+
 /** Perfil que tiene el usuario actual para el módulo 'Coaching', o null si no tiene acceso. */
 function coachingPerfilUsuarioActual(): ?string
 {

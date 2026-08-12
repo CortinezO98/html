@@ -35,6 +35,18 @@
         exit;
     }
 
+    // Candado de UN SOLO CICLO de refutación: REVISAR_REFUTACION_REENVIAR
+    // manda el paquete de vuelta a este mismo estado (PENDIENTE_AGENTE),
+    // que es desde donde también se autoriza REFUTAR — sin este candado,
+    // el ciclo refutar→reenviar→refutar podría repetirse indefinidamente.
+    // Una vez el paquete ya fue refutado una vez, solo queda "Responder"
+    // disponible; "Refutar" se agota, sin importar cuántas veces se
+    // reenvíe después.
+    if ((int) ($paquete['gcp_veces_refutado'] ?? 0) >= 1) {
+        header("Location:gestion_coaching_ver.php?reg=" . base64_encode($gcp_id) . "&refutar_error=" . urlencode('Este paquete ya fue refutado una vez. Solo puede responder para continuar el proceso.'));
+        exit;
+    }
+
     if (empty($_SESSION['_csrf_token'])) {
         $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
     }
@@ -54,7 +66,7 @@
             $error_motivo = 'Explique con al menos 20 caracteres por qué refuta este paquete.';
         } else {
             try {
-                ejecutarTransicion($enlace_db, $gcp_id, 'REFUTAR', $_SESSION['usu_id'], $_SERVER['REMOTE_ADDR'] ?? null, $motivo);
+                ejecutarTransicion($enlace_db, $gcp_id, 'REFUTAR', $_SESSION['usu_id'], coachingObtenerIpCliente() ?: null, $motivo);
                 $respuesta_accion = "<script type='text/javascript'>alertify.success('Refutación registrada. Su supervisor la revisará.', 0); setTimeout(function(){ window.location='gestion_coaching_ver.php?reg=" . base64_encode($gcp_id) . "'; }, 1300);</script>";
             } catch (Throwable $e) {
                 $respuesta_accion = "<script type='text/javascript'>alertify.warning('" . addslashes($e->getMessage()) . "', 0);</script>";
@@ -147,7 +159,3 @@
     <?php include("../footer.php"); ?>
 </body>
 </html>
-
-
-
-~

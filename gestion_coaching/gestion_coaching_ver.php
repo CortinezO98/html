@@ -344,6 +344,10 @@
             </div>
         </div>
 
+        <?php if (!empty($_GET['refutar_error'])): ?>
+            <div class="coaching_aviso_error mb-3"><span class="fas fa-exclamation-circle"></span> <?php echo validar_output($_GET['refutar_error']); ?></div>
+        <?php endif; ?>
+
         <?php if ($proximo_paso && (int) $paquete['gcp_activo'] === 1): ?>
         <div class="coaching_siguiente_paso mb-3 d-flex justify-content-between align-items-center flex-wrap">
             <div>
@@ -357,7 +361,9 @@
                     <a href="gestion_coaching_retroalimentacion.php?reg=<?php echo base64_encode($gcp_id); ?>" class="btn-corp px-3 py-1" style="border-radius:5px;">Continuar retroalimentación</a>
                 <?php elseif ($paquete['gce_codigo'] === 'PENDIENTE_AGENTE' && $puede_actuar_como_coacheado && (int) $paquete['gct_requiere_respuesta_agente'] === 1): ?>
                     <a href="gestion_coaching_responder_agente.php?reg=<?php echo base64_encode($gcp_id); ?>" class="btn-corp px-3 py-1" style="border-radius:5px;">Responder</a>
-                    <a href="gestion_coaching_refutar.php?reg=<?php echo base64_encode($gcp_id); ?>" class="btn-corp-2 px-3 py-1 ml-1 d-inline-block" style="border-radius:5px;">Refutar</a>
+                    <?php if ((int) ($paquete['gcp_veces_refutado'] ?? 0) < 1): ?>
+                        <a href="gestion_coaching_refutar.php?reg=<?php echo base64_encode($gcp_id); ?>" class="btn-corp-2 px-3 py-1 ml-1 d-inline-block" style="border-radius:5px;">Refutar</a>
+                    <?php endif; ?>
                 <?php elseif ($paquete['gce_codigo'] === 'REFUTADO' && $puede_actuar_como_supervisor): ?>
                     <a href="gestion_coaching_revisar_refutacion.php?reg=<?php echo base64_encode($gcp_id); ?>" class="btn-corp px-3 py-1" style="border-radius:5px;">Revisar refutación</a>
                 <?php elseif ($paquete['gce_codigo'] === 'PENDIENTE_AGENTE' && $puede_actuar_como_coacheado): ?>
