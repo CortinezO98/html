@@ -24,6 +24,11 @@
         exit;
     }
 
+    // Token para el formulario de eliminar soporte (ver sección "Soportes").
+    if (empty($_SESSION['_csrf_token'])) {
+        $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
+    }
+
     // Datos principales del paquete
     $consulta_paquete = $enlace_db->prepare(
         "SELECT P.`gcp_id`, P.`gcp_origen_tipo`, P.`gcp_monitoreo_id`, T.`gct_nombre`, T.`gct_codigo`, T.`gct_requiere_respuesta_agente`,
@@ -76,6 +81,17 @@
         require_once("lib/coaching_complementos.php");
     }
     $soportes_paquete = listarSoportesCoaching($enlace_db, $gcp_id);
+
+    // Solo para decidir si se PINTA el botón de eliminar — la validación
+    // real y obligatoria ocurre en eliminarSoporteCoaching() al procesar el
+    // POST, sin confiar en lo que el frontend oculte o muestre.
+    $puede_eliminar_soporte = (int) $paquete['gcp_activo'] === 1
+        && in_array($paquete['gce_codigo'], COACHING_ESTADOS_PERMITEN_ELIMINAR_SOPORTE, true)
+        && (
+            in_array($perfil_coaching, ['Administrador', 'Gestor'], true)
+            || ($perfil_coaching === 'Supervisor' && $_SESSION['usu_id'] === $paquete['supervisor_id'])
+            || ($perfil_coaching === 'Agente' && $_SESSION['usu_id'] === $paquete['agente_id'])
+        );
     $hallazgos_paquete = listarHallazgosPaquete($enlace_db, $gcp_id);
 
     // Historial (timeline) - inmutable, orden cronológico
@@ -224,6 +240,9 @@
             color: #1A1A1A;
         }
         .coaching_siguiente_paso .fas { color: #4CAF50; margin-right: 5px; }
+
+        .coaching_aviso_error { background: #FDEDED; border: 1px solid #FF0000; color: #FF0000; border-radius: 5px; padding: 10px 12px; font-size: 12px; }
+        .coaching_aviso_ok { background: #EAF7EF; border: 1px solid #4CAF50; color: #1A7A3C; border-radius: 5px; padding: 10px 12px; font-size: 12px; }
     </style>
 </head>
 <body onresize="tabla_fixed();" onload="tabla_fixed();">
@@ -462,6 +481,12 @@
                         </a>
                     </div>
                     <div class="p-3">
+                        <?php if (isset($_GET['sop_ok'])): ?>
+                            <div class="coaching_aviso_ok mb-3"><span class="fas fa-check-circle"></span> Soporte eliminado correctamente.</div>
+                        <?php elseif (!empty($_GET['sop_error'])): ?>
+                            <div class="coaching_aviso_error mb-3"><span class="fas fa-exclamation-circle"></span> <?php echo validar_output($_GET['sop_error']); ?></div>
+                        <?php endif; ?>
+
                         <?php if (count($soportes_paquete) === 0): ?>
                             <p class="coaching_empty_mini mb-0">No hay soportes adjuntos todavía.</p>
                         <?php else: ?>
@@ -471,9 +496,21 @@
                                         <span class="fas fa-file"></span> <?php echo validar_output($sp['gcsp_nombre_original']); ?>
                                         <span style="color:#6E6E6E; font-size:10px;">(<?php echo validar_output($sp['gcsp_tipo_documental'] ?? 'Evidencia'); ?> · <?php echo date('d/m/Y', strtotime($sp['gcsp_registro_fecha'])); ?>)</span>
                                     </div>
-                                    <a href="gestion_coaching_soporte_descargar.php?id=<?php echo (int) $sp['gcsp_id']; ?>" class="btn-corp" style="width:24px; height:24px; padding:0; border-radius:4px; display:inline-flex; align-items:center; justify-content:center;" title="Descargar">
-                                        <span class="fas fa-download" style="font-size:11px;"></span>
-                                    </a>
+                                    <div style="display:flex; gap:6px; flex-shrink:0;">
+                                        <a href="gestion_coaching_soporte_descargar.php?id=<?php echo (int) $sp['gcsp_id']; ?>" class="btn-corp" style="width:24px; height:24px; padding:0; border-radius:4px; display:inline-flex; align-items:center; justify-content:center;" title="Descargar">
+                                            <span class="fas fa-download" style="font-size:11px;"></span>
+                                        </a>
+                                        <?php if ($puede_eliminar_soporte): ?>
+                                            <form method="post" action="gestion_coaching_soporte_eliminar.php" class="coaching_form_eliminar_soporte" style="margin:0;">
+                                                <input type="hidden" name="_csrf_token" value="<?php echo htmlspecialchars($_SESSION['_csrf_token']); ?>">
+                                                <input type="hidden" name="reg" value="<?php echo base64_encode($gcp_id); ?>">
+                                                <input type="hidden" name="gcsp_id" value="<?php echo (int) $sp['gcsp_id']; ?>">
+                                                <button type="submit" class="btn-corp-2" style="width:24px; height:24px; padding:0; border-radius:4px; display:inline-flex; align-items:center; justify-content:center; border:0; color:#FF0000;" title="Eliminar soporte">
+                                                    <span class="fas fa-trash-alt" style="font-size:11px;"></span>
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
                             <?php endforeach; ?>
                         <?php endif; ?>
@@ -567,6 +604,24 @@
         </div>
 
     </div>
+    <script>
+        document.querySelectorAll('.coaching_form_eliminar_soporte').forEach(function (form) {
+            form.addEventListener('submit', function (e) {
+                e.preventDefault();
+                alertify.confirm(
+                    '¿Eliminar este soporte?',
+                    'Esta acción no se puede deshacer desde la interfaz.',
+                    function () {
+                        // form.submit() (nativo) no vuelve a disparar el
+                        // evento 'submit', a diferencia de requestSubmit()
+                        // o un clic real — así se evita reabrir el diálogo.
+                        form.submit();
+                    },
+                    ''
+                );
+            });
+        });
+    </script>
     <?php include("../footer.php"); ?>
 </body>
 </html>

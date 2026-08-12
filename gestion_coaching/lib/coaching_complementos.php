@@ -156,6 +156,63 @@ function inactivarSoporteCoaching(mysqli $db, int $id): void
     }
 }
 
+/**
+ * Estados del paquete en los que aún se permite eliminar soportes: mientras
+ * el supervisor está construyendo la retroalimentación (ASIGNADO,
+ * PENDIENTE_SUPERVISOR) o mientras el paquete ya está en manos del agente
+ * pero este todavía no ha respondido (PENDIENTE_AGENTE). Una vez el agente
+ * responde o el paquete avanza más allá de estos tres estados, los soportes
+ * quedan fijos por trazabilidad de auditoría.
+ */
+const COACHING_ESTADOS_PERMITEN_ELIMINAR_SOPORTE = ['ASIGNADO', 'PENDIENTE_SUPERVISOR', 'PENDIENTE_AGENTE'];
+
+/**
+ * Elimina (inactiva) un soporte, validando en el SERVIDOR — no solo
+ * ocultando el botón en el frontend — que:
+ *  1) El paquete dueño del soporte esté en un estado que admite borrado.
+ *  2) El paquete esté activo (no anulado).
+ *  3) El usuario actuante tenga relación real con el recurso: sea
+ *     Administrador/Gestor, o sea el supervisor/agente asignado a ESE
+ *     paquete concreto (defensa contra IDOR, mismo patrón que
+ *     usuarioPuedeVerPaquete() y coaching_transiciones.php).
+ *
+ * No borra el archivo físico (requisito de auditoría) — reutiliza
+ * inactivarSoporteCoaching() para eso.
+ */
+function eliminarSoporteCoaching(mysqli $db, int $soporte_id, string $usu_id_actor, string $perfil_actor): void
+{
+    $s = $db->prepare(
+        "SELECT SP.`gcsp_id`, SP.`gcsp_paquete`, P.`gcp_agente_id`, P.`gcp_supervisor_id`, P.`gcp_activo`, E.`gce_codigo`
+         FROM `tb_gestion_coaching_soporte` AS SP
+         INNER JOIN `tb_gestion_coaching_paquete` AS P ON SP.`gcsp_paquete` = P.`gcp_id`
+         INNER JOIN `tb_gestion_coaching_estado` AS E ON P.`gcp_estado_id` = E.`gce_id`
+         WHERE SP.`gcsp_id` = ? AND SP.`gcsp_estado` = 'Activo' LIMIT 1"
+    );
+    $s->bind_param('i', $soporte_id);
+    $s->execute();
+    $fila = $s->get_result()->fetch_assoc();
+
+    if (!$fila) {
+        throw new RuntimeException('El soporte indicado no existe o ya fue eliminado.');
+    }
+    if ((int) $fila['gcp_activo'] !== 1) {
+        throw new RuntimeException('El paquete está anulado; no se pueden modificar sus soportes.');
+    }
+    if (!in_array($fila['gce_codigo'], COACHING_ESTADOS_PERMITEN_ELIMINAR_SOPORTE, true)) {
+        throw new RuntimeException('Los soportes solo pueden eliminarse mientras el paquete está en retroalimentación o pendiente de respuesta del agente.');
+    }
+
+    $autorizado = in_array($perfil_actor, ['Administrador', 'Gestor'], true)
+        || ($perfil_actor === 'Supervisor' && $usu_id_actor === $fila['gcp_supervisor_id'])
+        || ($perfil_actor === 'Agente' && $usu_id_actor === $fila['gcp_agente_id']);
+
+    if (!$autorizado) {
+        throw new RuntimeException('No tiene autorización para eliminar este soporte.');
+    }
+
+    inactivarSoporteCoaching($db, $soporte_id);
+}
+
 function descargarSoporteCoaching(array $s): void
 {
     if (!is_readable($s['gcsp_ruta']) || hash_file('sha256', $s['gcsp_ruta']) !== $s['gcsp_hash_sha256']) {
