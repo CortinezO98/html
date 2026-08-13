@@ -7,6 +7,10 @@
     require_once("lib/coaching_datos.php");
     require_once("lib/coaching_transiciones.php");
 
+    error_reporting(E_ALL);
+    ini_set('display_errors', '1');
+
+
     $titulo_header = "Coaching | Retroalimentación";
 
     $perfil_coaching = coachingPerfilUsuarioActual();

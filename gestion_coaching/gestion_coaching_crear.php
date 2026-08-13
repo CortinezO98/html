@@ -25,9 +25,6 @@
     $respuesta_accion = "";
     $errores_campo = [];
 
-    // Tipos que requieren el bloque de escalamiento (asunto/fecha/destinatario).
-    $tipos_con_escalamiento = ['ESCALAMIENTO_DISCIPLINARIO'];
-
     if (isset($_POST["guardar_registro"])) {
         $csrf_ok = isset($_POST['_csrf_token'], $_SESSION['_csrf_token'])
             && hash_equals($_SESSION['_csrf_token'], $_POST['_csrf_token']);
@@ -52,22 +49,6 @@
             if (count($indicador_ids) > 5) { $errores_campo['indicadores'] = 'Máximo 5 indicadores por paquete.'; }
             if (!in_array($prioridad, $prioridades_validas, true)) { $errores_campo['prioridad'] = 'Seleccione una prioridad válida.'; }
 
-            $es_escalamiento = in_array($tipo_codigo, $tipos_con_escalamiento, true);
-            $escalamiento_datos = null;
-            if ($es_escalamiento) {
-                $escalamiento_datos = [
-                    'asunto'              => validar_input($_POST['escalamiento_asunto'] ?? ''),
-                    'fecha_hora_envio'    => validar_input($_POST['escalamiento_fecha'] ?? ''),
-                    'destinatario_nombre' => validar_input($_POST['escalamiento_destinatario'] ?? ''),
-                    'destinatario_correo' => validar_input($_POST['escalamiento_correo'] ?? ''),
-                    'observaciones'       => validar_input($_POST['escalamiento_observaciones'] ?? ''),
-                ];
-                if ($escalamiento_datos['asunto'] === '') { $errores_campo['escalamiento_asunto'] = 'Requerido.'; }
-                if ($escalamiento_datos['fecha_hora_envio'] === '') { $errores_campo['escalamiento_fecha'] = 'Requerido.'; }
-                if ($escalamiento_datos['destinatario_nombre'] === '') { $errores_campo['escalamiento_destinatario'] = 'Requerido.'; }
-                if (!filter_var($escalamiento_datos['destinatario_correo'], FILTER_VALIDATE_EMAIL)) { $errores_campo['escalamiento_correo'] = 'Correo no válido.'; }
-            }
-
             if (count($errores_campo) > 0) {
                 $respuesta_accion = "<script type='text/javascript'>alertify.warning('Revise los campos marcados en rojo.', 0);</script>";
             } else {
@@ -83,10 +64,6 @@
                     ], $_SESSION['usu_id'], $perfil_coaching);
 
                     guardarIndicadoresPaquete($enlace_db, $gcp_id, $indicador_ids);
-
-                    if ($es_escalamiento) {
-                        guardarEscalamiento($enlace_db, $gcp_id, $escalamiento_datos, $_SESSION['usu_id']);
-                    }
 
                     $_SESSION['registro_creado'] = 1;
                     $gcp_id_seguro = htmlspecialchars($gcp_id, ENT_QUOTES);
@@ -140,7 +117,7 @@
         'FELICITACION'               => 'Reconoce un resultado destacado. No requiere respuesta ni firma.',
         'RECONOCIMIENTO'             => 'Reconocimiento institucional. No requiere respuesta ni firma.',
         'LLAMADO_VERBAL'             => 'Notificación verbal formalizada. Requiere respuesta y firma del agente.',
-        'ESCALAMIENTO_DISCIPLINARIO' => 'Requiere completar los datos exactos del correo con el que se escaló el caso.',
+        'ESCALAMIENTO_DISCIPLINARIO' => 'Documentación interna del hecho. No requiere respuesta ni firma, y no se le muestra al colaborador afectado en ningún punto de la plataforma.',
         'NO_RENOVACION'              => 'Decisión de no renovación / no aprobación de periodo de prueba. Requiere respuesta y firma.',
     ];
 ?>
@@ -199,8 +176,6 @@
         .coaching_indicador_check::before, .coaching_indicador_check::after { content: none !important; display: none !important; }
         .coaching_indicador_contador { font-size: 11px; color: #6E6E6E; margin-top: 6px; }
 
-        .coaching_bloque_escalamiento { display: none; background: #FFF8E6; border: 1px solid #F39C12; border-radius: 5px; padding: 12px; margin-top: 14px; }
-        .coaching_bloque_escalamiento.activo { display: block; }
     </style>
 </head>
 <body>
@@ -352,37 +327,6 @@
                                 </div>
                             </div>
 
-                            <div class="coaching_bloque_escalamiento" id="bloque_escalamiento">
-                                <p style="font-size:11px; color:#1A1A1A; margin-bottom:10px;">
-                                    <span class="fas fa-exclamation-triangle"></span> Complete los datos exactos del correo con el que se hizo el escalamiento.
-                                </p>
-                                <div class="row">
-                                    <div class="col-md-8">
-                                        <label class="coaching_label" for="escalamiento_asunto">Asunto del correo escalado</label>
-                                        <input type="text" name="escalamiento_asunto" id="escalamiento_asunto" class="form-control <?php echo isset($errores_campo['escalamiento_asunto']) ? 'coaching_campo_error' : ''; ?>" maxlength="255"
-                                            value="<?php echo isset($_POST['escalamiento_asunto']) ? htmlspecialchars($_POST['escalamiento_asunto']) : ''; ?>">
-                                    </div>
-                                    <div class="col-md-4">
-                                        <label class="coaching_label" for="escalamiento_fecha">Fecha y hora de envío</label>
-                                        <input type="datetime-local" name="escalamiento_fecha" id="escalamiento_fecha" class="form-control <?php echo isset($errores_campo['escalamiento_fecha']) ? 'coaching_campo_error' : ''; ?>"
-                                            value="<?php echo isset($_POST['escalamiento_fecha']) ? htmlspecialchars($_POST['escalamiento_fecha']) : ''; ?>">
-                                    </div>
-                                    <div class="col-md-6 mt-2">
-                                        <label class="coaching_label" for="escalamiento_destinatario">Escalamiento remitido a</label>
-                                        <input type="text" name="escalamiento_destinatario" id="escalamiento_destinatario" class="form-control <?php echo isset($errores_campo['escalamiento_destinatario']) ? 'coaching_campo_error' : ''; ?>" maxlength="150"
-                                            value="<?php echo isset($_POST['escalamiento_destinatario']) ? htmlspecialchars($_POST['escalamiento_destinatario']) : ''; ?>">
-                                    </div>
-                                    <div class="col-md-6 mt-2">
-                                        <label class="coaching_label" for="escalamiento_correo">Correo del destinatario</label>
-                                        <input type="email" name="escalamiento_correo" id="escalamiento_correo" class="form-control <?php echo isset($errores_campo['escalamiento_correo']) ? 'coaching_campo_error' : ''; ?>" maxlength="150"
-                                            value="<?php echo isset($_POST['escalamiento_correo']) ? htmlspecialchars($_POST['escalamiento_correo']) : ''; ?>">
-                                    </div>
-                                    <div class="col-md-12 mt-2">
-                                        <label class="coaching_label" for="escalamiento_observaciones">Observaciones del escalamiento <span class="opcional">(opcional)</span></label>
-                                        <textarea name="escalamiento_observaciones" id="escalamiento_observaciones" class="form-control" style="height:60px;"><?php echo isset($_POST['escalamiento_observaciones']) ? htmlspecialchars($_POST['escalamiento_observaciones']) : ''; ?></textarea>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
                     </div>
 
@@ -434,19 +378,11 @@
 
             var selectTipo = document.getElementById('tipo_codigo');
             var paneles = document.querySelectorAll('[data-ayuda-tipo]');
-            var bloqueEscalamiento = document.getElementById('bloque_escalamiento');
-            var TIPOS_ESCALAMIENTO = <?php echo json_encode($tipos_con_escalamiento); ?>;
-            var camposEscalamiento = bloqueEscalamiento.querySelectorAll('input[type="text"], input[type="datetime-local"], input[type="email"]');
 
             function actualizarTipo() {
                 var actual = selectTipo.value;
                 paneles.forEach(function (panel) {
                     panel.classList.toggle('activa', panel.getAttribute('data-ayuda-tipo') === actual);
-                });
-                var esEscalamiento = TIPOS_ESCALAMIENTO.indexOf(actual) !== -1;
-                bloqueEscalamiento.classList.toggle('activo', esEscalamiento);
-                camposEscalamiento.forEach(function (campo) {
-                    if (campo.id !== 'escalamiento_observaciones') { campo.required = esEscalamiento; }
                 });
             }
             selectTipo.addEventListener('change', actualizarTipo);
@@ -493,6 +429,3 @@
     <?php include("../footer.php"); ?>
 </body>
 </html>
-
-
-

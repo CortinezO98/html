@@ -97,6 +97,35 @@ function coachingNotificarPorTransicion(mysqli $enlace_db, string $gcp_id, strin
     try {
         $enlace_url_base = '(enlace disponible en la plataforma → módulo Coaching)';
 
+        // Un Escalamiento Disciplinario nunca debe notificarse por correo
+        // a la persona afectada (gcp_agente_id) — es documentación interna
+        // del supervisor/Coordinador, la misma regla que ya aplica para
+        // ocultarlo en bandeja/reportes/URL directa (ver usuarioPuedeVerPaquete()
+        // en lib/coaching_seguridad.php). Sin este chequeo, el sistema
+        // seguía enviando correos reales ("tiene una retroalimentación
+        // pendiente...") que delataban el proceso disciplinario aunque el
+        // paquete estuviera oculto en la plataforma — se verifica aquí,
+        // no en cada 'case', para que aplique sin importar qué estado
+        // dispare la notificación en el futuro.
+        $es_escalamiento_disciplinario = false;
+        $consulta_tipo = $enlace_db->prepare(
+            "SELECT T.`gct_codigo` FROM `tb_gestion_coaching_paquete` AS P
+             LEFT JOIN `tb_gestion_coaching_tipo` AS T ON P.`gcp_tipo_id` = T.`gct_id`
+             WHERE P.`gcp_id` = ? LIMIT 1"
+        );
+        $consulta_tipo->bind_param('s', $gcp_id);
+        $consulta_tipo->execute();
+        $fila_tipo = $consulta_tipo->get_result()->fetch_assoc();
+        $es_escalamiento_disciplinario = ($fila_tipo['gct_codigo'] ?? '') === 'ESCALAMIENTO_DISCIPLINARIO';
+
+        // Estados cuya notificación va dirigida al AGENTE/COACHEADO
+        // (gcp_agente_id) — estos son los que se omiten para Escalamiento
+        // Disciplinario. Los que van al supervisor (PENDIENTE_CIERRE,
+        // RECHAZADO) no se tocan: él sí debe enterarse, es quien lo gestiona.
+        if ($es_escalamiento_disciplinario && in_array($gce_codigo_destino, ['PENDIENTE_AGENTE', 'PENDIENTE_FIRMA_AGENTE', 'CERRADO'], true)) {
+            return;
+        }
+
         switch ($gce_codigo_destino) {
             case 'PENDIENTE_AGENTE':
                 $destino = coachingCorreoYNombre($enlace_db, $paquete['gcp_agente_id']);
@@ -168,3 +197,5 @@ function coachingNotificarPorTransicion(mysqli $enlace_db, string $gcp_id, strin
         }
     }
 }
+
+
