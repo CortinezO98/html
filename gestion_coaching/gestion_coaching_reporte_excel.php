@@ -39,6 +39,16 @@
     if ($filtro_tipo !== '' && $filtro_tipo !== 'Todos') { $condiciones .= " AND T.`gct_codigo` = ? "; $parametros[] = $filtro_tipo; }
     if ($filtro_origen !== '' && $filtro_origen !== 'Todos') { $condiciones .= " AND P.`gcp_origen_tipo` = ? "; $parametros[] = $filtro_origen; }
 
+    // Mismo filtro Rol + Usuario que gestion_coaching_reporte.php — ver
+    // nota extendida allá.
+    $filtro_rol = validar_input($_GET['rol'] ?? '');
+    if (!in_array($filtro_rol, ['agente', 'supervisor', 'lider_calidad'], true)) { $filtro_rol = ''; }
+    $filtro_usuario_id = validar_input($_GET['usuario_id'] ?? '');
+    if ($filtro_rol !== '' && $filtro_usuario_id !== '') {
+        $condiciones .= $filtro_rol === 'supervisor' ? " AND P.`gcp_supervisor_id` = ? " : " AND P.`gcp_agente_id` = ? ";
+        $parametros[] = $filtro_usuario_id;
+    }
+
     $tipos_bind = str_repeat('s', count($parametros));
 
     // Sin límite de 500 aquí (a diferencia de la vista en pantalla): el

@@ -55,6 +55,16 @@
         $parametros[] = $filtro_origen;
     }
 
+    // Mismo filtro Rol + Usuario que gestion_coaching_reporte.php — ver
+    // nota extendida allá.
+    $filtro_rol = validar_input($_GET['rol'] ?? '');
+    if (!in_array($filtro_rol, ['agente', 'supervisor', 'lider_calidad'], true)) { $filtro_rol = ''; }
+    $filtro_usuario_id = validar_input($_GET['usuario_id'] ?? '');
+    if ($filtro_rol !== '' && $filtro_usuario_id !== '') {
+        $condiciones .= $filtro_rol === 'supervisor' ? " AND P.`gcp_supervisor_id` = ? " : " AND P.`gcp_agente_id` = ? ";
+        $parametros[] = $filtro_usuario_id;
+    }
+
     $tipos_bind = str_repeat('s', count($parametros));
 
     // Solo interesan paquetes cuyo tipo real SÍ genera documento (Retroalimentación
@@ -81,7 +91,7 @@
     $paquetes = $consulta_paquetes->get_result()->fetch_all(MYSQLI_ASSOC);
 
     if (count($paquetes) > COACHING_DESCARGA_MASIVA_LIMITE) {
-        header("Location:gestion_coaching_reporte.php?" . http_build_query(['desde' => $fecha_desde, 'hasta' => $fecha_hasta, 'estado' => $filtro_estado, 'tipo' => $filtro_tipo, 'origen' => $filtro_origen]) . "&zip_error=" . urlencode('El periodo seleccionado tiene más de ' . COACHING_DESCARGA_MASIVA_LIMITE . ' paquetes. Acote el rango de fechas e intente de nuevo.'));
+        header("Location:gestion_coaching_reporte.php?" . http_build_query(['desde' => $fecha_desde, 'hasta' => $fecha_hasta, 'estado' => $filtro_estado, 'tipo' => $filtro_tipo, 'origen' => $filtro_origen, 'rol' => $filtro_rol, 'usuario_id' => $filtro_usuario_id]) . "&zip_error=" . urlencode('El periodo seleccionado tiene más de ' . COACHING_DESCARGA_MASIVA_LIMITE . ' paquetes. Acote el rango de fechas e intente de nuevo.'));
         exit;
     }
 
@@ -97,7 +107,7 @@
     }
 
     if (count($documentos_a_incluir) === 0) {
-        header("Location:gestion_coaching_reporte.php?" . http_build_query(['desde' => $fecha_desde, 'hasta' => $fecha_hasta, 'estado' => $filtro_estado, 'tipo' => $filtro_tipo, 'origen' => $filtro_origen]) . "&zip_error=" . urlencode('No hay documentos PDF generados para los filtros seleccionados.'));
+        header("Location:gestion_coaching_reporte.php?" . http_build_query(['desde' => $fecha_desde, 'hasta' => $fecha_hasta, 'estado' => $filtro_estado, 'tipo' => $filtro_tipo, 'origen' => $filtro_origen, 'rol' => $filtro_rol, 'usuario_id' => $filtro_usuario_id]) . "&zip_error=" . urlencode('No hay documentos PDF generados para los filtros seleccionados.'));
         exit;
     }
 

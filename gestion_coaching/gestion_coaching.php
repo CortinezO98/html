@@ -389,7 +389,7 @@
             <?php pintarBloqueBandeja($estado_bandeja, $filtro_permanente, (int) $pagina, (int) $numero_paginas, $array_conteo_estado, $resultado_registros, $perfil_coaching, $vista_bandeja); ?>
         </div>
     </div>
-    <?php include("../footer.php"); ?>
+    <?php include("../footer.php"); include("../config/configuracion_js.php"); ?>
 
     <script>
     (function () {

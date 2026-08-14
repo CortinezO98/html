@@ -270,7 +270,7 @@
         .coaching_aviso_ok { background: #EAF7EF; border: 1px solid #4CAF50; color: #1A7A3C; border-radius: 5px; padding: 10px 12px; font-size: 12px; }
     </style>
 </head>
-<body onresize="tabla_fixed();" onload="tabla_fixed();">
+<body>
     <?php
         include("../menu_principal.php");
         include("../menu_header.php");
@@ -656,6 +656,6 @@
             });
         });
     </script>
-    <?php include("../footer.php"); ?>
+    <?php include("../footer.php"); include("../config/configuracion_js.php"); ?>
 </body>
 </html>

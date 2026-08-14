@@ -108,8 +108,8 @@
                         <p style="font-size:11px; color:#6E6E6E; text-align:center;">Nota general — inferior a 90, amerita seguimiento de Coaching</p>
 
                         <div class="coaching_ficha_mini">
-                            <div class="fila"><span class="etiqueta">Analista</span><strong><?php echo validar_output($snapshot['analista_id']); ?></strong></div>
                             <div class="fila"><span class="etiqueta">Agente evaluado</span><strong><?php echo validar_output($snapshot['agente_id']); ?></strong></div>
+                            <div class="fila"><span class="etiqueta">Supervisor</span><strong><?php echo validar_output($snapshot['supervisor_directo']); ?></strong></div>
                             <div class="fila"><span class="etiqueta">Tipo de monitoreo</span><strong><?php echo validar_output($snapshot['tipo_monitoreo'] ?? '—'); ?></strong></div>
                             <div class="fila"><span class="etiqueta">Skill / Canal</span><strong><?php echo validar_output($snapshot['skill_interaccion'] ?? '—'); ?></strong></div>
                         </div>
@@ -172,9 +172,6 @@
         })();
         </script>
     </div>
-    <?php include("../footer.php"); ?>
+    <?php include("../footer.php"); include("../config/configuracion_js.php"); ?>
 </body>
 </html>
-
-
-

@@ -160,13 +160,19 @@ function crearPaqueteAutomatico(mysqli $enlace_db, array $snapshot, ?string $paq
     try {
         $gcp_id = generarConsecutivoPaquete($enlace_db);
 
+        // El supervisor del paquete viene DIRECTO del campo "Responsable"
+        // del monitoreo que lo originó (confirmado con negocio — ver nota
+        // extendida en obtenerSnapshotMonitoreoCalidad(), coaching_disparador.php),
+        // NO por jerarquía (usu_supervisor) del agente. lider_calidad y
+        // campania sí se siguen derivando de la ficha real del agente.
         $supervision = obtenerSupervisionActualAgente($enlace_db, $snapshot['agente_id']);
-        if (empty($supervision['supervisor'])) {
+        $supervisor_id = $snapshot['supervisor_directo'] ?? null;
+        if (empty($supervisor_id)) {
             // No se puede asignar un paquete sin supervisor: se registra el
             // problema y se aborta de forma controlada, sin tumbar la
             // transacción del monitoreo que disparó esto (ver coaching_disparador.php).
             throw new RuntimeException(
-                "El agente {$snapshot['agente_id']} no tiene supervisor asignado en tb_administrador_usuario; " .
+                "El monitoreo {$snapshot['monitoreo_id']} no trae un 'Responsable' válido; " .
                 "no fue posible crear el paquete de coaching automático."
             );
         }
@@ -189,6 +195,11 @@ function crearPaqueteAutomatico(mysqli $enlace_db, array $snapshot, ?string $paq
         $fila_campania_agente = $consulta_campania_agente->get_result()->fetch_assoc();
         $campania_id = $fila_campania_agente && $fila_campania_agente['usu_campania'] !== '' ? (int) $fila_campania_agente['usu_campania'] : null;
 
+        // gcp_analista_calidad_id queda en null: con el mapeo corregido ya
+        // no hay una tercera identidad distinta disponible en el snapshot
+        // (el valor que antes ocupaba este lugar ahora es gcp_supervisor_id).
+        $analista_calidad_id = null;
+
         $insertar_paquete = $enlace_db->prepare(
             "INSERT INTO `tb_gestion_coaching_paquete`
                 (`gcp_id`, `gcp_origen_tipo`, `gcp_monitoreo_id`, `gcp_paquete_anterior`, `gcp_tipo_id`,
@@ -203,9 +214,9 @@ function crearPaqueteAutomatico(mysqli $enlace_db, array $snapshot, ?string $paq
             $paquete_anterior,
             $tipo_id,
             $snapshot['agente_id'],
-            $supervision['supervisor'],
+            $supervisor_id,
             $supervision['lider_calidad'],
-            $snapshot['analista_id'],
+            $analista_calidad_id,
             $estado_id,
             $campania_id,
             $snapshot['segmento'],
@@ -1121,4 +1132,60 @@ function coachingHitosTrazabilidad(mysqli $enlace_db, array $ids_paquetes): arra
 function coachingFechaHito(array $hitos_por_paquete, string $gcp_id, string $clave): ?string
 {
     return $hitos_por_paquete[$gcp_id][$clave] ?? null;
+}
+
+/**
+ * Lista de usuarios ACTIVOS del sistema que tienen un cargo/rol real
+ * correspondiente al rol de Coaching pedido — usada por los filtros
+ * "Rol" + "Usuario" de reportería (gestion_coaching_reporte.php,
+ * gestion_coaching_reporte_excel.php, gestion_coaching_descarga_masiva.php).
+ *
+ * IMPORTANTE — por qué NO se usa tb_configuracion_perfil_usu_mod aquí:
+ * se confirmó en producción que la enorme mayoría de cuentas de Agente
+ * reales NUNCA tienen configurado explícitamente el permiso del módulo
+ * Coaching (queda en "Seleccione"/vacío) — esa tabla gobierna ACCESO al
+ * módulo, no el cargo real de la persona, y usarla aquí devolvía casi
+ * siempre 0 o 1 resultado. La fuente confiable y consistentemente
+ * poblada es `tb_administrador_usuario`.`usu_cargo_rol` (el campo
+ * "Cargo/rol" de Gestión de Usuarios), con estos valores reales
+ * confirmados en el código de esa pantalla:
+ *   Agente-General / Agente-Técnico / Agente-Profesional
+ *   Supervisor
+ *   Coordinador
+ *   Líder de calidad y formación
+ *   Monitor calidad / Auditor calidad
+ *
+ * Devuelve TODOS los usuarios activos con ese cargo, tengan o no algún
+ * paquete de coaching ya registrado — a propósito, para que el filtro
+ * sirva también para alguien que todavía no tiene historial.
+ *
+ * @param string $rol 'agente' | 'supervisor' | 'lider_calidad'
+ * @return array<array{usu_id:string, usu_nombres_apellidos:string}>
+ */
+function coachingUsuariosPorRol(mysqli $enlace_db, string $rol): array
+{
+    switch ($rol) {
+        case 'agente':
+            // Cubre las 3 variantes de Agente con un solo LIKE, en vez de
+            // enumerar cada una — si negocio agrega una nueva variante
+            // "Agente-X" en el futuro, ya queda cubierta sin tocar código.
+            $condicion = "`usu_cargo_rol` LIKE 'Agente-%'";
+            break;
+        case 'supervisor':
+            $condicion = "`usu_cargo_rol` = 'Supervisor'";
+            break;
+        case 'lider_calidad':
+            $condicion = "`usu_cargo_rol` = 'Líder de calidad y formación'";
+            break;
+        default:
+            return [];
+    }
+
+    $consulta = $enlace_db->prepare(
+        "SELECT `usu_id`, `usu_nombres_apellidos` FROM `tb_administrador_usuario`
+         WHERE {$condicion} AND `usu_estado` = 'Activo'
+         ORDER BY `usu_nombres_apellidos`"
+    );
+    $consulta->execute();
+    return $consulta->get_result()->fetch_all(MYSQLI_ASSOC);
 }

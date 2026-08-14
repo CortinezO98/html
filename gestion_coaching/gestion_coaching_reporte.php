@@ -51,6 +51,24 @@
         $parametros[] = $filtro_origen;
     }
 
+    // Filtro por Rol + Usuario: 'agente' y 'lider_calidad' son ambos
+    // posibles ocupantes de la columna "Agente" (gcp_agente_id, el
+    // coacheado) — un Líder de Calidad también puede ser coacheado por su
+    // Supervisor, ver lib/coaching_seguridad.php. 'supervisor' filtra por
+    // gcp_supervisor_id. El alcance normal (coachingFiltroAlcance) sigue
+    // aplicando de forma independiente vía $filtro_alcance_sql — si
+    // alguien selecciona un usuario fuera de su propio alcance, el AND
+    // combinado simplemente no trae resultados, nunca se salta la
+    // restricción de por sí.
+    $filtro_rol = validar_input($_GET['rol'] ?? '');
+    if (!in_array($filtro_rol, ['agente', 'supervisor', 'lider_calidad'], true)) { $filtro_rol = ''; }
+    $filtro_usuario_id = validar_input($_GET['usuario_id'] ?? '');
+
+    if ($filtro_rol !== '' && $filtro_usuario_id !== '') {
+        $condiciones .= $filtro_rol === 'supervisor' ? " AND P.`gcp_supervisor_id` = ? " : " AND P.`gcp_agente_id` = ? ";
+        $parametros[] = $filtro_usuario_id;
+    }
+
     $tipos_bind = str_repeat('s', count($parametros));
 
     // ---- Paginación ----
@@ -139,10 +157,17 @@
         return $mapa[$gce_codigo] ?? 'coaching_estado_gris';
     }
 
+    // Listas para el filtro Rol + Usuario — se traen las 3 siempre (no
+    // solo la del rol activo) para que el JS pueda cambiar de rol sin
+    // recargar la página.
+    $usuarios_agente = coachingUsuariosPorRol($enlace_db, 'agente');
+    $usuarios_supervisor = coachingUsuariosPorRol($enlace_db, 'supervisor');
+    $usuarios_lider_calidad = coachingUsuariosPorRol($enlace_db, 'lider_calidad');
+
     // Query string para reusar los filtros actuales en el link de Excel/estadísticas
     // (SIN 'pagina' a propósito: esos exportables siempre traen el conjunto
     // COMPLETO que cumple el filtro, no solo la página que se está viendo).
-    $query_filtros = http_build_query(['desde' => $fecha_desde, 'hasta' => $fecha_hasta, 'estado' => $filtro_estado, 'tipo' => $filtro_tipo, 'origen' => $filtro_origen]);
+    $query_filtros = http_build_query(['desde' => $fecha_desde, 'hasta' => $fecha_hasta, 'estado' => $filtro_estado, 'tipo' => $filtro_tipo, 'origen' => $filtro_origen, 'rol' => $filtro_rol, 'usuario_id' => $filtro_usuario_id]);
 
     /** Arma la URL de esta misma pantalla con una página específica, conservando los filtros actuales. */
     function coachingUrlReportePagina(int $pagina, string $query_filtros_base): string
@@ -183,7 +208,7 @@
         .coaching_kpi.borde_rojo    { border-left-color: #FF0000; }
     </style>
 </head>
-<body onresize="tabla_fixed();" onload="tabla_fixed();">
+<body>
     <?php
         include("../menu_principal.php");
         include("../menu_header.php");
@@ -274,12 +299,62 @@
                 </select>
             </div>
             <div>
+                <label for="rol">Rol</label>
+                <select name="rol" id="rol" class="form-control">
+                    <option value="">Todos</option>
+                    <option value="agente" <?php echo $filtro_rol === 'agente' ? 'selected' : ''; ?>>Agente</option>
+                    <option value="supervisor" <?php echo $filtro_rol === 'supervisor' ? 'selected' : ''; ?>>Supervisor</option>
+                    <option value="lider_calidad" <?php echo $filtro_rol === 'lider_calidad' ? 'selected' : ''; ?>>Líder de Calidad</option>
+                </select>
+            </div>
+            <div>
+                <label for="usuario_id">Usuario</label>
+                <select name="usuario_id" id="usuario_id" class="form-control" <?php echo $filtro_rol === '' ? 'disabled' : ''; ?>>
+                    <option value="">Todos</option>
+                </select>
+            </div>
+            <div>
                 <button type="submit" class="btn-corp px-3 py-2" style="border-radius:5px; border:0;">
                     <span class="fas fa-filter"></span> Filtrar
                 </button>
             </div>
         </form>
         </div>
+
+        <script>
+        (function () {
+            var USUARIOS_POR_ROL = {
+                agente: <?php echo json_encode($usuarios_agente, JSON_UNESCAPED_UNICODE); ?>,
+                supervisor: <?php echo json_encode($usuarios_supervisor, JSON_UNESCAPED_UNICODE); ?>,
+                lider_calidad: <?php echo json_encode($usuarios_lider_calidad, JSON_UNESCAPED_UNICODE); ?>
+            };
+            var usuarioPreseleccionado = <?php echo json_encode($filtro_usuario_id); ?>;
+            var selectRol = document.getElementById('rol');
+            var selectUsuario = document.getElementById('usuario_id');
+
+            function poblarUsuarios() {
+                var rol = selectRol.value;
+                selectUsuario.innerHTML = '<option value="">Todos</option>';
+                if (rol === '') {
+                    selectUsuario.disabled = true;
+                    return;
+                }
+                selectUsuario.disabled = false;
+                (USUARIOS_POR_ROL[rol] || []).forEach(function (u) {
+                    var opcion = document.createElement('option');
+                    opcion.value = u.usu_id;
+                    opcion.textContent = u.usu_nombres_apellidos;
+                    if (u.usu_id === usuarioPreseleccionado) { opcion.selected = true; }
+                    selectUsuario.appendChild(opcion);
+                });
+            }
+            selectRol.addEventListener('change', function () {
+                usuarioPreseleccionado = ''; // al cambiar de rol a mano, no arrastra la preselección anterior
+                poblarUsuarios();
+            });
+            poblarUsuarios();
+        })();
+        </script>
 
         <p style="font-size:11px; color:#6E6E6E;">
             <?php echo $kpi_total; ?> resultado(s) en total <?php echo $numero_paginas > 1 ? '— página ' . $pagina . ' de ' . $numero_paginas : ''; ?>
@@ -354,6 +429,6 @@
             </nav>
         <?php endif; ?>
     </div>
-    <?php include("../footer.php"); ?>
+    <?php include("../footer.php"); include("../config/configuracion_js.php"); ?>
 </body>
 </html>

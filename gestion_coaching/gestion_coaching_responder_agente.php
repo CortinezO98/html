@@ -278,7 +278,7 @@
         })();
         </script>
     </div>
-    <?php include("../footer.php"); ?>
+    <?php include("../footer.php"); include("../config/configuracion_js.php"); ?>
 </body>
 </html>
 

@@ -136,15 +136,34 @@ function obtenerSnapshotMonitoreoCalidad(mysqli $enlace_db, string $gcm_id): ?ar
         return null;
     }
 
-    // NOTA (asunción a confirmar con negocio si no coincide): gcm_responsable
-    // es el agente cuya interacción fue evaluada; gcm_analista es el analista
-    // de calidad que realizó la evaluación. Se toma así porque es el uso
-    // consistente encontrado en las consultas reales del módulo de Calidad.
+    // CORREGIDO — confirmado con negocio (la asunción original de la nota
+    // de abajo estaba al revés para esta operación): en la pantalla de
+    // Monitoreo, "Responsable" es en realidad quien actúa como SUPERVISOR
+    // del caso (y del paquete de coaching que se genere), y "Analista" es
+    // quien realmente ocupa el rol de AGENTE/coacheado. Antes el paquete
+    // automático quedaba con los dos roles invertidos: el "Responsable"
+    // terminaba como gcp_agente_id, y su propio usu_supervisor (un tercero
+    // ajeno al monitoreo) terminaba como gcp_supervisor_id.
+    //
+    // 'supervisor_directo' se usa TAL CUAL como gcp_supervisor_id en
+    // crearPaqueteAutomatico() — a diferencia de lider_calidad/campania,
+    // que sí se siguen derivando de la ficha real del agente (Analista).
+    //
+    // Estas 2 fechas vienen de OTRO módulo (Calidad-Monitoreos), fuera del
+    // control de Coaching — se validan aquí antes de devolverlas, en vez
+    // de confiar ciegamente en que siempre llegan bien formadas. Se
+    // detectó en producción un monitoreo con un valor no-fecha guardado
+    // en gcm_fecha_hora_cierre (ej. '50'), que tumbaba el INSERT de
+    // tb_gestion_coaching_calidad con un error críptico de MySQL
+    // ("Incorrect datetime value") en vez de fallar de forma clara.
+    $fecha_monitoreo_valida = coachingValidarFechaOMostrarNull($fila['gcm_fecha_monitoreo'] ?? null);
+    $fecha_cierre_valida = coachingValidarFechaOMostrarNull($fila['gcm_fecha_hora_cierre'] ?? null);
+
     return [
         'monitoreo_id'       => $fila['gcm_id'],
         'matriz'             => $fila['gcm_matriz'],
-        'agente_id'          => $fila['gcm_responsable'],
-        'analista_id'        => $fila['gcm_analista'],
+        'agente_id'          => $fila['gcm_analista'],
+        'supervisor_directo' => $fila['gcm_responsable'],
         'nota_general'       => $fila['gcm_nota_general'],
         'nota_enc'           => $fila['gcm_nota_enc'],
         'nota_ecn'           => $fila['gcm_nota_ecn'],
@@ -160,9 +179,32 @@ function obtenerSnapshotMonitoreoCalidad(mysqli $enlace_db, string $gcm_id): ?ar
         'id_sim'             => $fila['gcm_id_sim'],
         'id_ani'             => $fila['gcm_id_ani'],
         'observaciones'      => $fila['gcm_observaciones_monitoreo'],
-        'fecha_monitoreo'    => $fila['gcm_fecha_monitoreo'] ?: null,
-        'fecha_cierre'       => $fila['gcm_fecha_hora_cierre'] ?: null,
+        'fecha_monitoreo'    => $fecha_monitoreo_valida,
+        'fecha_cierre'       => $fecha_cierre_valida,
     ];
+}
+
+/**
+ * Devuelve el valor tal cual si parece una fecha/fecha-hora válida para
+ * MySQL, o null si no lo es (en vez de dejar pasar basura hacia una
+ * columna DATETIME y que MySQL reviente el INSERT con un error críptico
+ * más adelante). No intenta "adivinar" ni reformatear — si el dato de
+ * origen (otro módulo) está mal, es mejor guardar NULL y quedar
+ * documentado, que insertar un valor falso o tumbar la creación completa
+ * del paquete de coaching.
+ */
+function coachingValidarFechaOMostrarNull(?string $valor): ?string
+{
+    if ($valor === null || trim($valor) === '') {
+        return null;
+    }
+    // Acepta 'Y-m-d' o 'Y-m-d H:i:s' (los dos formatos que MySQL espera
+    // para DATE/DATETIME) — cualquier otra cosa (como un '50' suelto) se
+    // descarta.
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/', trim($valor))) {
+        return null;
+    }
+    return $valor;
 }
 
 // Nota: registrarErrorCoaching() ahora vive en coaching_datos.php (capa
