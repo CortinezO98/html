@@ -1,0 +1,148 @@
+/* SweetAlert2 - integración visual Alertas Correos / ICBF */
+.ac-swal-popup {
+    border-radius: .55rem !important;
+    font-family: inherit !important;
+}
+.ac-swal-popup .swal2-title {
+    color: #1f2937;
+    font-size: 1.35rem;
+}
+.ac-swal-popup .swal2-html-container {
+    color: #4b5563;
+    font-size: .95rem;
+    text-align: left;
+}
+.ac-swal-errors {
+    margin: .25rem 0 0;
+    padding-left: 1.35rem;
+}
+.ac-swal-errors li {
+    margin-bottom: .35rem;
+}
+.ac-swal-summary {
+    background: #f8f9fa;
+    border: 1px solid #e5e7eb;
+    border-radius: .4rem;
+    margin-top: .75rem;
+    padding: .65rem .75rem;
+}
+.ac-swal-summary strong {
+    color: #212529;
+}
+
+/* ============================================================
+   Tema visual Alertas Correos - encabezados institucionales
+   Color principal del portal ICBF: #4CAF50
+   ============================================================ */
+.ac-module .ac-panel__header,
+.ac-module .card-header,
+.ac-module .panel-heading,
+.ac-module .modal-header {
+    background: #4CAF50 !important;
+    border-color: #4CAF50 !important;
+    color: #ffffff !important;
+}
+
+.ac-module .ac-panel__header .ac-panel__title,
+.ac-module .ac-panel__header .ac-panel__meta,
+.ac-module .ac-panel__header h1,
+.ac-module .ac-panel__header h2,
+.ac-module .ac-panel__header h3,
+.ac-module .ac-panel__header h4,
+.ac-module .ac-panel__header h5,
+.ac-module .ac-panel__header h6,
+.ac-module .ac-panel__header .fas,
+.ac-module .ac-panel__header .far,
+.ac-module .card-header,
+.ac-module .card-header h1,
+.ac-module .card-header h2,
+.ac-module .card-header h3,
+.ac-module .card-header h4,
+.ac-module .card-header h5,
+.ac-module .card-header h6,
+.ac-module .card-header .fas,
+.ac-module .card-header .far,
+.ac-module .panel-heading,
+.ac-module .modal-header,
+.ac-module .modal-header .modal-title {
+    color: #ffffff !important;
+}
+
+/* Encabezados de tablas del módulo para reducir el exceso de blanco. */
+.ac-module .table thead th,
+.ac-module table.ac-table thead th {
+    background: #4CAF50 !important;
+    border-color: rgba(255,255,255,.28) !important;
+    color: #ffffff !important;
+    vertical-align: middle;
+}
+
+/* Botón de cierre en modales con cabecera verde. */
+.ac-module .modal-header .close {
+    color: #ffffff !important;
+    opacity: .9;
+    text-shadow: none;
+}
+
+/* Mantener cuerpos de paneles claros para conservar legibilidad. */
+.ac-module .ac-panel__body,
+.ac-module .card-body,
+.ac-module .modal-body {
+    background: #ffffff;
+}
+
+/* ============================================================
+   Encabezados de secciones del formulario Nueva alerta
+   Identificación, Ubicación territorial, Clasificación, Detalle, etc.
+   ============================================================ */
+.ac-module .ac-form-section__title {
+    background: #4CAF50 !important;
+    border: 1px solid #4CAF50 !important;
+    color: #ffffff !important;
+    margin: -1px -1px 1rem -1px !important;
+    padding: .72rem 1rem !important;
+    border-radius: .45rem .45rem 0 0 !important;
+    line-height: 1.25;
+}
+
+.ac-module .ac-form-section__title .fas,
+.ac-module .ac-form-section__title .far,
+.ac-module .ac-form-section__title .fa {
+    color: #ffffff !important;
+}
+
+/* Conserva el cuerpo de cada sección blanco para contraste y lectura. */
+.ac-module .ac-form-section {
+    background: #ffffff;
+    overflow: hidden;
+}
+
+/* ============================================================
+   Integración visual encabezado + card
+   Evita que el encabezado verde se vea "despegado" del contenido.
+   Se mantiene el cuerpo claro para legibilidad de formularios.
+   ============================================================ */
+.ac-module .ac-form-section {
+    background: #ffffff !important;
+    border: 1px solid #4CAF50 !important;
+    border-radius: .55rem !important;
+    overflow: hidden !important;
+    padding: 0 1rem 1rem 1rem !important;
+    box-shadow: 0 1px 3px rgba(76, 175, 80, .12);
+}
+
+.ac-module .ac-form-section__title {
+    background: #4CAF50 !important;
+    border: 0 !important;
+    color: #ffffff !important;
+    margin: 0 -1rem 1rem -1rem !important;
+    padding: .78rem 1rem !important;
+    border-radius: 0 !important;
+    line-height: 1.25;
+}
+
+.ac-module .ac-form-section__title .fas,
+.ac-module .ac-form-section__title .far,
+.ac-module .ac-form-section__title .fa {
+    color: #ffffff !important;
+}

@@ -32,6 +32,19 @@
             <?php endif; ?>
         </li>
         <?php endif; ?>
+        <?php if (isset($_SESSION['modulos_acceso_permisos']['Alertas Correos']) AND $_SESSION['modulos_acceso_permisos']['Alertas Correos']!=""): ?>
+        <li class="submenu"><a href="#"><div class="opcion_icon"><span class="fas fa-envelope-open-text"></span></div><p class="texto_menu">Alertas Correos<span class="fas fa-chevron-down submenu_icon"></span></p></a>
+            <ul>
+                <li><a href="../gestion_alerta_correos/alerta_correos.php"><div class="opcion_icon"><span class="fas fa-inbox"></span></div><p class="texto_menu">Bandeja</p></a></li>
+                <li><a href="../gestion_alerta_correos/alerta_correos_crear.php"><div class="opcion_icon"><span class="fas fa-plus-circle"></span></div><p class="texto_menu">Nueva alerta</p></a></li>
+                <li><a href="../gestion_alerta_correos/alerta_correos_gestion.php"><div class="opcion_icon"><span class="fas fa-tasks"></span></div><p class="texto_menu">Gestión</p></a></li>
+                <li><a href="../gestion_alerta_correos/alerta_correos_responsables_cargar.php"><div class="opcion_icon"><span class="fas fa-users-cog"></span></div><p class="texto_menu">Responsables</p></a></li>
+                <li><a href="../gestion_alerta_correos/alerta_correos_sim.php"><div class="opcion_icon"><span class="fas fa-database"></span></div><p class="texto_menu">Fuente SIM</p></a></li>
+                <li><a href="../gestion_alerta_correos/alerta_correos_nacional_cargar.php"><div class="opcion_icon"><span class="fas fa-building"></span></div><p class="texto_menu">Directorio Nacional</p></a></li>
+            </ul>
+        </li>
+        <?php endif; ?>
+
         <?php if (isset($_SESSION['modulos_acceso_permisos']['Calidad']) AND $_SESSION['modulos_acceso_permisos']['Calidad']!=""): ?>
         <li class="submenu"><a href="#"><div class="opcion_icon"><span class="fas fa-user-check"></span></div><p class="texto_menu">Calidad<span class="fas fa-chevron-down submenu_icon"></span></p></a>
             <?php if (isset($_SESSION['modulos_acceso_permisos']['Calidad-Monitoreos']) AND $_SESSION['modulos_acceso_permisos']['Calidad-Monitoreos']!=""): ?>
@@ -118,8 +131,4 @@
         <?php endif; ?>
     </ul>
 </div>
-
-
-
-
 

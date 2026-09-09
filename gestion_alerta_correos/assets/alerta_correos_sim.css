@@ -1,0 +1,155 @@
+.ac-sim-picker {
+    position: relative;
+}
+
+.ac-sim-picker__input-wrap {
+    position: relative;
+}
+
+.ac-sim-picker__input-wrap .fas {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6c757d;
+    pointer-events: none;
+}
+
+.ac-sim-picker__input {
+    padding-right: 36px;
+}
+
+.ac-sim-picker__results {
+    position: absolute;
+    z-index: 1050;
+    left: 0;
+    right: 0;
+    top: calc(100% + 3px);
+    max-height: 300px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #d8dde3;
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
+}
+
+.ac-sim-picker__result {
+    display: block;
+    width: 100%;
+    border: 0;
+    border-bottom: 1px solid #4CAF50;
+    background: #fff;
+    text-align: left;
+    padding: 9px 12px;
+    cursor: pointer;
+}
+
+.ac-sim-picker__result:last-child {
+    border-bottom: 0;
+}
+
+.ac-sim-picker__result:hover,
+.ac-sim-picker__result:focus,
+.ac-sim-picker__result.is-active {
+    background: #f4f8f5;
+    outline: none;
+}
+
+.ac-sim-picker__number {
+    display: block;
+    font-weight: 700;
+    color: #222;
+}
+
+.ac-sim-picker__meta {
+    display: block;
+    margin-top: 2px;
+    color: #6c757d;
+    font-size: 11px;
+}
+
+.ac-sim-picker__empty {
+    padding: 10px 12px;
+    color: #6c757d;
+    font-size: 12px;
+}
+
+.ac-sim-selected {
+    margin-top: 8px;
+    border: 1px solid #dfe7e1;
+    background: #f8fbf9;
+    border-radius: 6px;
+    padding: 9px 11px;
+}
+
+.ac-sim-selected__title {
+    font-weight: 700;
+    margin-bottom: 3px;
+}
+
+.ac-sim-selected__meta {
+    font-size: 11px;
+    color: #5f676d;
+}
+
+.ac-sim-selected__clear {
+    border: 0;
+    background: transparent;
+    color: #b02a37;
+    padding: 0;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+/* ============================================================
+   Tema visual Alertas Correos - encabezados institucionales
+   Color principal del portal ICBF: #4CAF50
+   Este bloque cubre vistas Fuente SIM que cargan este CSS.
+   ============================================================ */
+.ac-module .ac-panel__header,
+.ac-module .card-header,
+.ac-module .panel-heading,
+.ac-module .modal-header {
+    background: #4CAF50 !important;
+    border-color: #4CAF50 !important;
+    color: #ffffff !important;
+}
+
+.ac-module .ac-panel__header .ac-panel__title,
+.ac-module .ac-panel__header .ac-panel__meta,
+.ac-module .ac-panel__header h1,
+.ac-module .ac-panel__header h2,
+.ac-module .ac-panel__header h3,
+.ac-module .ac-panel__header h4,
+.ac-module .ac-panel__header h5,
+.ac-module .ac-panel__header h6,
+.ac-module .ac-panel__header .fas,
+.ac-module .ac-panel__header .far,
+.ac-module .card-header,
+.ac-module .card-header h1,
+.ac-module .card-header h2,
+.ac-module .card-header h3,
+.ac-module .card-header h4,
+.ac-module .card-header h5,
+.ac-module .card-header h6,
+.ac-module .card-header .fas,
+.ac-module .card-header .far,
+.ac-module .panel-heading,
+.ac-module .modal-header,
+.ac-module .modal-header .modal-title {
+    color: #ffffff !important;
+}
+
+.ac-module .table thead th,
+.ac-module table.ac-table thead th {
+    background: #4CAF50 !important;
+    border-color: rgba(255,255,255,.28) !important;
+    color: #ffffff !important;
+    vertical-align: middle;
+}
+
+.ac-module .modal-header .close {
+    color: #ffffff !important;
+    opacity: .9;
+    text-shadow: none;
+}
