@@ -11,7 +11,7 @@ require_once __DIR__ . '/lib/alerta_correos_sim_fuente.php';
 
 acExigirPerfil(['Administrador']);
 
-$titulo_header = 'Alertas Correos | Fuente de radicados SIM';
+$titulo_header = 'Alertas Correos | Actualizar radicados SIM de referencia';
 $error = null;
 $preview = null;
 $resultado = null;
@@ -38,7 +38,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $nombre = (string)$_FILES['archivo']['name'];
             $tmp = (string)$_FILES['archivo']['tmp_name'];
             if (strtolower(pathinfo($nombre, PATHINFO_EXTENSION)) !== 'xlsx') {
-                throw new RuntimeException('La fuente de radicados debe ser un archivo XLSX.');
+                throw new RuntimeException('El archivo de radicados SIM de referencia debe estar en formato XLSX.');
             }
             if ((int)$_FILES['archivo']['size'] > 20 * 1024 * 1024) {
                 throw new RuntimeException('El archivo supera el límite de 20 MB.');
@@ -124,16 +124,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     <nav class="ac-breadcrumb" aria-label="breadcrumb">
         <a href="../contenido.php">Inicio</a><span class="ac-separator">/</span>
         <a href="alerta_correos.php">Alertas Correos</a><span class="ac-separator">/</span>
-        <span>Fuente de radicados SIM</span>
+        <span>Radicados SIM de referencia</span>
     </nav>
 
     <header class="ac-page-header">
         <div class="ac-page-header__main">
-            <h1 class="ac-page-title"><span class="fas fa-database"></span> Base de alertas / radicados SIM</h1>
-            <p class="ac-page-subtitle">Carga la hoja <strong>Base de alertas</strong> del archivo “BBDD encuestas para notificar a territorio.xlsx” sin modificar las tablas del módulo de Encuestas.</p>
+            <h1 class="ac-page-title"><span class="fas fa-database"></span> Actualizar radicados SIM de referencia</h1>
+            <p class="ac-page-subtitle">Sincroniza el catálogo que sirve como referencia en la captura manual. <strong>No crea casos de alerta y no envía correos.</strong> La información se conserva separada del módulo de Encuestas.</p>
         </div>
         <div class="ac-page-header__actions">
-            <a href="alerta_correos_sim.php" class="btn ac-btn-green-outline"><span class="fas fa-list"></span> Administrar SIM</a>
+            <a href="alerta_correos_sim.php" class="btn ac-btn-green-outline"><span class="fas fa-list"></span> Ver radicados SIM</a>
             <a href="alerta_correos.php" class="btn ac-btn-red-outline"><span class="fas fa-arrow-left"></span> Volver</a>
         </div>
     </header>
@@ -144,7 +144,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
     <?php if ($resultado): ?>
         <div class="alert alert-success">
-            <strong><span class="fas fa-check-circle mr-1"></span> Fuente SIM sincronizada correctamente.</strong>
+            <strong><span class="fas fa-check-circle mr-1"></span> Radicados SIM de referencia actualizados correctamente.</strong>
             <div class="row mt-2">
                 <div class="col-6 col-md-3"><strong>Nuevos:</strong> <?php echo (int)$resultado['nuevos']; ?></div>
                 <div class="col-6 col-md-3"><strong>Actualizados:</strong> <?php echo (int)$resultado['actualizados']; ?></div>
@@ -304,3 +304,4 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 <script src="assets/alerta_correos.js?v=20260909"></script>
 </body>
 </html>
+

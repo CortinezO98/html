@@ -53,6 +53,129 @@ function acSimAdminUrlPagina(int $pagina, string $q, string $activo): string {
 <head>
     <?php include '../config/configuracion_estilos.php'; ?>
     <link rel="stylesheet" href="assets/alerta_correos.css?v=20260909">
+    <style>
+        /* Ajustes exclusivos de Fuente SIM. */
+        .ac-sim-page-header {
+            position: relative;
+            display: block;
+            min-height: 84px;
+            padding-right: 520px;
+        }
+        .ac-sim-page-header__main {
+            min-width: 0;
+        }
+        .ac-sim-page-header__actions {
+            position: absolute;
+            top: 0;
+            right: 0;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            margin: 0;
+            white-space: nowrap;
+        }
+        .ac-sim-page-header__actions .btn {
+            margin: 0 !important;
+            padding: .48rem .68rem;
+            font-size: .84rem;
+            font-weight: 600;
+            min-height: 36px;
+            line-height: 1.1;
+        }
+        .ac-sim-row-actions {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            white-space: nowrap;
+        }
+        .ac-sim-row-actions form {
+            margin: 0;
+        }
+        .ac-sim-row-action {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 38px;
+            height: 38px;
+            min-width: 38px;
+            min-height: 38px;
+            padding: 0 !important;
+            border-radius: 8px;
+            font-weight: 600;
+            line-height: 1;
+            overflow: hidden;
+            transition: background-color .18s ease, color .18s ease, border-color .18s ease, transform .08s ease, box-shadow .18s ease;
+        }
+        .ac-sim-row-action:hover {
+            box-shadow: 0 3px 8px rgba(0,0,0,.12);
+            transform: translateY(-1px);
+        }
+        .ac-sim-row-action:active {
+            transform: translateY(1px);
+        }
+        .ac-sim-row-action .fas {
+            font-size: 1rem;
+            margin: 0;
+        }
+        .ac-sim-row-action__label {
+            position: absolute !important;
+            width: 1px !important;
+            height: 1px !important;
+            padding: 0 !important;
+            margin: -1px !important;
+            overflow: hidden !important;
+            clip: rect(0, 0, 0, 0) !important;
+            white-space: nowrap !important;
+            border: 0 !important;
+        }
+        .ac-sim-table-actions-cell {
+            width: 150px;
+            min-width: 150px;
+            text-align: center;
+        }
+        .ac-sim-footer-space {
+            height: 72px;
+        }
+        @media (max-width: 1240px) {
+            .ac-sim-page-header {
+                min-height: 0;
+                padding-right: 0;
+            }
+            .ac-sim-page-header__actions {
+                position: static;
+                width: 100%;
+                margin-top: 14px;
+                justify-content: flex-end;
+                flex-wrap: wrap;
+            }
+        }
+        @media (max-width: 767.98px) {
+            .ac-sim-page-header__actions {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+            .ac-sim-page-header__actions .btn {
+                width: 100%;
+                white-space: normal;
+            }
+            .ac-sim-row-actions {
+                display: inline-flex;
+                flex-direction: row;
+                align-items: center;
+                justify-content: center;
+                min-width: 0;
+            }
+            .ac-sim-table-actions-cell {
+                min-width: 142px;
+            }
+            .ac-sim-footer-space {
+                height: 88px;
+            }
+        }
+    </style>
 </head>
 <body>
 <?php include '../menu_principal.php'; include '../menu_header.php'; ?>
@@ -61,17 +184,17 @@ function acSimAdminUrlPagina(int $pagina, string $q, string $activo): string {
     <nav class="ac-breadcrumb" aria-label="breadcrumb">
         <a href="../contenido.php">Inicio</a><span class="ac-separator">/</span>
         <a href="alerta_correos.php">Alertas Correos</a><span class="ac-separator">/</span>
-        <span>Fuente SIM</span>
+        <span>Radicados SIM de referencia</span>
     </nav>
 
-    <header class="ac-page-header">
-        <div class="ac-page-header__main">
-            <h1 class="ac-page-title"><span class="fas fa-database"></span> Administración de Fuente SIM</h1>
-            <p class="ac-page-subtitle">Consulte, registre, edite o cargue masivamente los radicados SIM utilizados por Nueva alerta.</p>
+    <header class="ac-page-header ac-sim-page-header">
+        <div class="ac-page-header__main ac-sim-page-header__main">
+            <h1 class="ac-page-title"><span class="fas fa-database"></span> Radicados SIM de referencia</h1>
+            <p class="ac-page-subtitle">Consulte y actualice los radicados SIM que sirven como referencia para diligenciar alertas manuales. <strong>Esta opción no crea casos de alerta y no envía correos.</strong></p>
         </div>
-        <div class="ac-page-header__actions">
-            <a href="alerta_correos_sim_form.php" class="btn ac-btn-green-outline"><span class="fas fa-plus"></span> Nuevo SIM</a>
-            <a href="alerta_correos_sim_cargar.php" class="btn ac-btn-blue-outline"><span class="fas fa-file-excel"></span> Carga masiva</a>
+        <div class="ac-page-header__actions ac-sim-page-header__actions" aria-label="Acciones de Fuente SIM">
+            <a href="alerta_correos_sim_form.php" class="btn ac-btn-green-outline"><span class="fas fa-plus"></span> Nuevo radicado SIM</a>
+            <a href="alerta_correos_sim_cargar.php" class="btn ac-btn-blue-outline"><span class="fas fa-file-excel"></span> Actualizar radicados desde Excel</a>
             <a href="plantillas/Plantilla_Ejemplo_Fuente_SIM.xlsx" class="btn ac-btn-blue-outline" download><span class="fas fa-download"></span> Plantilla</a>
         </div>
     </header>
@@ -124,7 +247,7 @@ function acSimAdminUrlPagina(int $pagina, string $q, string $activo): string {
     <section class="ac-panel">
         <div class="ac-panel__header">
             <h2 class="ac-panel__title"><span class="fas fa-list"></span> Radicados registrados</h2>
-            <span class="ac-panel__meta">Fuente propia de Alertas Correos</span>
+            <span class="ac-panel__meta">Catálogo de apoyo para la captura manual</span>
         </div>
         <div class="ac-panel__body p-0">
             <div class="ac-table-wrap">
@@ -150,15 +273,24 @@ function acSimAdminUrlPagina(int $pagina, string $q, string $activo): string {
                             <td><small><?php echo acEscape((string)$row['ars_fuente']); ?></small></td>
                             <td><small><?php echo acEscape((string)$row['ars_fecha_actualizacion']); ?></small></td>
                             <td><?php echo (int)$row['ars_activo']===1?'<span class="badge badge-success">Activo</span>':'<span class="badge badge-secondary">Inactivo</span>'; ?></td>
-                            <td class="text-nowrap">
-                                <a class="btn btn-sm ac-btn-blue-outline" href="alerta_correos_sim_ver.php?id=<?php echo (int)$row['ars_id']; ?>" title="Ver"><span class="fas fa-eye"></span></a>
-                                <a class="btn btn-sm ac-btn-green-outline" href="alerta_correos_sim_form.php?id=<?php echo (int)$row['ars_id']; ?>" title="Editar"><span class="fas fa-edit"></span></a>
-                                <form method="post" class="d-inline" onsubmit="return confirm('<?php echo (int)$row['ars_activo']===1?'¿Inactivar este SIM? Dejará de aparecer en Nueva alerta.':'¿Reactivar este SIM?'; ?>');">
-                                    <input type="hidden" name="_csrf" value="<?php echo acEscape(acCsrfToken()); ?>">
-                                    <input type="hidden" name="id" value="<?php echo (int)$row['ars_id']; ?>">
-                                    <input type="hidden" name="accion" value="<?php echo (int)$row['ars_activo']===1?'inactivar':'reactivar'; ?>">
-                                    <button class="btn btn-sm <?php echo (int)$row['ars_activo']===1?'ac-btn-red-outline':'ac-btn-green-outline'; ?>" type="submit" title="<?php echo (int)$row['ars_activo']===1?'Inactivar':'Reactivar'; ?>"><span class="fas <?php echo (int)$row['ars_activo']===1?'fa-ban':'fa-undo'; ?>"></span></button>
-                                </form>
+                            <td class="ac-sim-table-actions-cell">
+                                <div class="ac-sim-row-actions" aria-label="Acciones del radicado <?php echo acEscape((string)$row['ars_sim']); ?>">
+                                    <a class="btn btn-sm ac-btn-blue-outline ac-sim-row-action" href="alerta_correos_sim_ver.php?id=<?php echo (int)$row['ars_id']; ?>" title="Ver radicado">
+                                        <span class="fas fa-eye"></span><span class="ac-sim-row-action__label">Ver</span>
+                                    </a>
+                                    <a class="btn btn-sm ac-btn-green-outline ac-sim-row-action" href="alerta_correos_sim_form.php?id=<?php echo (int)$row['ars_id']; ?>" title="Editar radicado">
+                                        <span class="fas fa-edit"></span><span class="ac-sim-row-action__label">Editar</span>
+                                    </a>
+                                    <form method="post" onsubmit="return confirm('<?php echo (int)$row['ars_activo']===1?'¿Inactivar este SIM? Dejará de aparecer en Nueva alerta.':'¿Reactivar este SIM?'; ?>');">
+                                        <input type="hidden" name="_csrf" value="<?php echo acEscape(acCsrfToken()); ?>">
+                                        <input type="hidden" name="id" value="<?php echo (int)$row['ars_id']; ?>">
+                                        <input type="hidden" name="accion" value="<?php echo (int)$row['ars_activo']===1?'inactivar':'reactivar'; ?>">
+                                        <button class="btn btn-sm <?php echo (int)$row['ars_activo']===1?'ac-btn-red-outline':'ac-btn-green-outline'; ?> ac-sim-row-action" type="submit" title="<?php echo (int)$row['ars_activo']===1?'Inactivar radicado':'Reactivar radicado'; ?>">
+                                            <span class="fas <?php echo (int)$row['ars_activo']===1?'fa-ban':'fa-undo'; ?>"></span>
+                                            <span class="ac-sim-row-action__label"><?php echo (int)$row['ars_activo']===1?'Inactivar':'Reactivar'; ?></span>
+                                        </button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                     <?php endforeach; endif; ?>
@@ -178,8 +310,10 @@ function acSimAdminUrlPagina(int $pagina, string $q, string $activo): string {
         </ul>
     </nav>
     <?php endif; ?>
+    <div class="ac-sim-footer-space" aria-hidden="true"></div>
 </div>
 
 <?php include '../footer.php'; include '../config/configuracion_js.php'; ?>
 </body>
 </html>
+

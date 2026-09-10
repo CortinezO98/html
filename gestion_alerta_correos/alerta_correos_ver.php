@@ -8,6 +8,7 @@ require_once __DIR__ . '/lib/alerta_correos_seguridad.php';
 require_once __DIR__ . '/lib/alerta_correos_datos.php';
 require_once __DIR__ . '/lib/alerta_correos_notificaciones.php';
 require_once __DIR__ . '/lib/alerta_correos_territorio.php';
+require_once __DIR__ . '/lib/alerta_correos_informativas.php';
 
 $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
 if (!$id) {
@@ -22,9 +23,30 @@ if (!$caso) {
 }
 
 $historial = acHistorialCaso($enlace_db, (int)$id);
-$responsables = acTerritorioDestinatariosParaVista($enlace_db, $caso);
+$esInformativa = acAlertaEsInformativa($caso);
+$responsables = $esInformativa
+    ? ['regional' => [], 'zonal' => [], '_origen' => 'NO_APLICA', '_fecha' => null]
+    : acTerritorioDestinatariosParaVista($enlace_db, $caso);
 $flash = acFlashTomar();
 $titulo_header = 'Alertas Correos | ' . $caso['acc_radicado'];
+$origenLabel = match ((string)($caso['acc_origen'] ?? '')) {
+    'MANUAL' => 'Registro manual',
+    'CARGA_EXCEL' => 'Carga Masiva',
+    default => (string)($caso['acc_origen'] ?? ''),
+};
+$cargaOrigen = null;
+if ((int)($caso['acc_carga_id'] ?? 0) > 0) {
+    try {
+        $stmtCarga = $enlace_db->prepare('SELECT acg_id, acg_archivo_nombre, acg_fecha FROM tb_alerta_correo_carga WHERE acg_id=? LIMIT 1');
+        $cargaIdOrigen = (int)$caso['acc_carga_id'];
+        $stmtCarga->bind_param('i', $cargaIdOrigen);
+        $stmtCarga->execute();
+        $cargaOrigen = $stmtCarga->get_result()->fetch_assoc() ?: null;
+        $stmtCarga->close();
+    } catch (Throwable $e) {
+        error_log('Alertas Correos / ver origen carga: ' . $e->getMessage());
+    }
+}
 
 $puedeResolver = acTienePerfil(['Gestor', 'Supervisor', 'Administrador'])
     && in_array($caso['acc_estado'], ['PENDIENTE_REVISION', 'PENDIENTE_REVISION_SUBSANACION'], true);
@@ -36,7 +58,7 @@ $puedeReabrir = $caso['acc_estado'] === 'RECHAZADO'
 $tieneRegional = count($responsables['regional']) > 0;
 $tieneZonal = count($responsables['zonal']) > 0;
 $esSnapshot = ($responsables['_origen'] ?? '') === 'SNAPSHOT';
-$puedeVerCorreo = acTienePerfil(['Gestor', 'Supervisor', 'Administrador']);
+$puedeVerCorreo = !$esInformativa && acTienePerfil(['Gestor', 'Supervisor', 'Administrador']);
 
 // Estado de la notificación real en el motor central (si el caso ya fue aprobado).
 $notificacionCentral = null;
@@ -64,6 +86,133 @@ if ($ncIdCaso > 0) {
     <?php include '../config/configuracion_estilos.php'; ?>
     <link rel="stylesheet" href="assets/alerta_correos.css?v=20260909">
     <link rel="stylesheet" href="assets/alerta_correos_alertas.css?v=20260909-1">
+    <style>
+        /* Ajustes exclusivos de esta vista: no alteran el resto del módulo. */
+        .ac-case-detail-page {
+            padding-bottom: 92px;
+        }
+
+        .ac-case-trace-panel {
+            margin-bottom: 26px;
+        }
+
+        .ac-recipient-status {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            flex: 0 0 auto;
+            min-height: 30px;
+            padding: 5px 11px;
+            border: 1px solid #4caf50;
+            border-radius: 999px;
+            background: #4caf50;
+            color: #ffffff !important;
+            font-size: .82rem;
+            font-weight: 700;
+            line-height: 1;
+            white-space: nowrap;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, .10);
+            user-select: none;
+        }
+
+        .ac-recipient-status .fas {
+            color: #ffffff !important;
+            font-size: .78rem;
+        }
+
+        .ac-recipient-status--history {
+            background: #4caf50;
+            border-color: #4caf50;
+            color: #ffffff !important;
+        }
+
+        .ac-recipient-status--na {
+            background: #6c757d;
+            border-color: #6c757d;
+            color: #ffffff !important;
+        }
+
+        /* Botón principal de aprobación: mismo verde institucional de los encabezados. */
+        .ac-btn-approve {
+            background: #4caf50 !important;
+            border-color: #4caf50 !important;
+            color: #ffffff !important;
+            font-weight: 700;
+            transition: transform .16s ease, box-shadow .16s ease, background-color .16s ease, border-color .16s ease;
+        }
+
+        .ac-btn-approve:hover,
+        .ac-btn-approve:focus {
+            background: #43a047 !important;
+            border-color: #43a047 !important;
+            color: #ffffff !important;
+            transform: translateY(-1px);
+            box-shadow: 0 5px 12px rgba(76, 175, 80, .28);
+        }
+
+        .ac-btn-approve:active {
+            background: #388e3c !important;
+            border-color: #388e3c !important;
+            transform: translateY(0) scale(.985);
+            box-shadow: 0 2px 5px rgba(76, 175, 80, .24);
+        }
+
+        .ac-btn-approve:disabled {
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Botón Volver: borde/texto rojo y relleno rojo al interactuar. */
+        .ac-btn-back {
+            background: #ffffff !important;
+            border: 1px solid #dc3545 !important;
+            color: #dc3545 !important;
+            font-weight: 700;
+            transition: transform .16s ease, box-shadow .16s ease, background-color .16s ease, border-color .16s ease, color .16s ease;
+        }
+
+        .ac-btn-back .fas {
+            color: inherit !important;
+        }
+
+        .ac-btn-back:hover,
+        .ac-btn-back:focus {
+            background: #dc3545 !important;
+            border-color: #dc3545 !important;
+            color: #ffffff !important;
+            transform: translateY(-1px);
+            box-shadow: 0 5px 12px rgba(220, 53, 69, .22);
+        }
+
+        .ac-btn-back:active {
+            background: #bd2130 !important;
+            border-color: #bd2130 !important;
+            color: #ffffff !important;
+            transform: translateY(0) scale(.985);
+            box-shadow: 0 2px 5px rgba(220, 53, 69, .20);
+        }
+
+        @media (max-width: 767.98px) {
+            .ac-case-detail-page {
+                padding-bottom: 112px;
+            }
+
+            .ac-case-trace-panel {
+                margin-bottom: 22px;
+            }
+
+            .ac-panel__header {
+                gap: 8px;
+            }
+
+            .ac-recipient-status {
+                min-height: 28px;
+                padding: 5px 9px;
+                font-size: .76rem;
+            }
+        }
+    </style>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body>
@@ -72,7 +221,7 @@ include '../menu_principal.php';
 include '../menu_header.php';
 ?>
 
-<div class="contenido ac-module">
+<div class="contenido ac-module ac-case-detail-page">
     <?php if ($flash): ?>
         <div class="alert alert-<?php echo acEscape($flash['tipo']); ?> d-none" role="alert" data-ac-alert-fallback>
             <span class="fas fa-info-circle mr-1"></span><?php echo acEscape($flash['mensaje']); ?>
@@ -98,8 +247,16 @@ include '../menu_header.php';
                 <?php if (!empty($caso['acc_sim'])): ?><span class="ac-page-subtitle mb-1">SIM: <strong><?php echo acEscape($caso['acc_sim']); ?></strong></span><?php endif; ?>
             </div>
         </div>
-        <div class="ac-page-header__actions"><a href="alerta_correos.php" class="btn btn-light"><span class="fas fa-arrow-left"></span> Volver</a></div>
+        <div class="ac-page-header__actions"><a href="alerta_correos.php" class="btn ac-btn-back"><span class="fas fa-arrow-left"></span> Volver</a></div>
     </header>
+
+    <?php if ($esInformativa): ?>
+        <div class="ac-alert-box ac-alert-box--info mb-3">
+            <strong><span class="fas fa-info-circle mr-1"></span>Alerta informativa · sin correo.</strong>
+            Este caso proviene de <strong>Carga Masiva</strong> y su categoría es <strong>Tiempos de espera muy largos</strong>. Puede continuar por revisión, subsanación, rechazo o aprobación, pero <strong>el sistema no generará ni encolará correo electrónico</strong>.
+            Rango de espera: <strong><?php echo acEscape(acAlertaTiempoRangoLabel((string)($caso['acc_tiempo_espera_rango'] ?? ''))); ?></strong>.
+        </div>
+    <?php endif; ?>
 
     <div class="row">
         <main class="col-12 col-xl-8 mb-3 mb-xl-0">
@@ -118,16 +275,41 @@ include '../menu_header.php';
                         <div class="col-12 col-md-6 ac-detail-item"><span class="ac-detail-label">Categoría</span><span class="ac-detail-value"><?php echo acEscape($caso['acc_categoria']); ?></span></div>
                         <div class="col-12 col-md-6 ac-detail-item"><span class="ac-detail-label">Subcategoría</span><span class="ac-detail-value"><?php echo acEscape($caso['acc_subcategoria']); ?></span></div>
                         <div class="col-12 col-md-6 ac-detail-item"><span class="ac-detail-label">Afecta línea técnica</span><span class="ac-detail-value"><?php echo acEscape((string)$caso['acc_afecta_linea_tecnica']); ?></span></div>
-                        <div class="col-12 col-md-6 ac-detail-item"><span class="ac-detail-label">Origen</span><span class="ac-detail-value"><?php echo acEscape((string)$caso['acc_origen']); ?></span></div>
+                        <div class="col-12 col-md-6 ac-detail-item"><span class="ac-detail-label">Origen</span><span class="ac-detail-value"><?php echo acEscape($origenLabel); ?></span></div>
+                        <div class="col-12 col-md-6 ac-detail-item"><span class="ac-detail-label">Tipo de gestión</span><span class="ac-detail-value"><?php echo $esInformativa ? '<span class="badge badge-info">Informativa · sin correo</span>' : '<span class="badge badge-primary">Notificable</span>'; ?></span></div>
+                        <?php if ($esInformativa): ?>
+                            <div class="col-12 col-md-6 ac-detail-item"><span class="ac-detail-label">Rango de tiempo de espera</span><span class="ac-detail-value"><?php echo acEscape(acAlertaTiempoRangoLabel((string)($caso['acc_tiempo_espera_rango'] ?? ''))); ?></span></div>
+                            <?php if (!empty($caso['acc_tiempo_espera_minutos'])): ?>
+                                <div class="col-12 col-md-6 ac-detail-item"><span class="ac-detail-label">Tiempo identificado</span><span class="ac-detail-value"><?php echo (int)$caso['acc_tiempo_espera_minutos']; ?> minutos</span></div>
+                            <?php endif; ?>
+                        <?php endif; ?>
                     </div>
 
                     <div class="mt-2"><label class="ac-label">Descripción de la alerta</label><div class="ac-long-text"><?php echo acEscape((string)$caso['acc_descripcion']); ?></div></div>
                     <div class="mt-3"><label class="ac-label">Justificación / concepto técnico</label><div class="ac-long-text"><?php echo acEscape((string)$caso['acc_justificacion']); ?></div></div>
                     <?php if (!empty($caso['acc_observacion'])): ?><div class="mt-3"><label class="ac-label">Observación adicional</label><div class="ac-long-text"><?php echo acEscape((string)$caso['acc_observacion']); ?></div></div><?php endif; ?>
+
+                    <?php if ((string)($caso['acc_origen'] ?? '') === 'CARGA_EXCEL'): ?>
+                        <hr class="my-4">
+                        <h3 class="h6 font-weight-bold mb-3"><span class="fas fa-file-excel mr-1"></span> Datos de origen de la carga</h3>
+                        <div class="row ac-detail-grid">
+                            <?php if ($cargaOrigen): ?>
+                                <div class="col-12 col-md-6 ac-detail-item"><span class="ac-detail-label">Archivo</span><span class="ac-detail-value"><?php echo acEscape((string)$cargaOrigen['acg_archivo_nombre']); ?></span></div>
+                                <div class="col-6 col-md-3 ac-detail-item"><span class="ac-detail-label">Carga</span><span class="ac-detail-value">#<?php echo (int)$cargaOrigen['acg_id']; ?></span></div>
+                            <?php endif; ?>
+                            <div class="col-6 col-md-3 ac-detail-item"><span class="ac-detail-label">Fila Excel</span><span class="ac-detail-value"><?php echo (int)($caso['acc_fila_origen'] ?? 0); ?></span></div>
+                            <div class="col-12 col-md-6 ac-detail-item"><span class="ac-detail-label">Agente que registra</span><span class="ac-detail-value"><?php echo acEscape((string)($caso['acc_agente_registra'] ?? '')); ?></span></div>
+                            <div class="col-6 col-md-3 ac-detail-item"><span class="ac-detail-label">Fecha marcación</span><span class="ac-detail-value"><?php echo acEscape((string)($caso['acc_fecha_marcacion'] ?? '')); ?></span></div>
+                            <div class="col-6 col-md-3 ac-detail-item"><span class="ac-detail-label">Remisión a DSYA</span><span class="ac-detail-value"><?php echo acEscape((string)($caso['acc_fecha_remision_dsya'] ?? '')); ?></span></div>
+                        </div>
+                        <?php if (!empty($caso['acc_descripcion_inicial'])): ?>
+                            <div class="mt-3"><label class="ac-label">Descripción de la alerta inicial</label><div class="ac-long-text"><?php echo acEscape((string)$caso['acc_descripcion_inicial']); ?></div></div>
+                        <?php endif; ?>
+                    <?php endif; ?>
                 </div>
             </section>
 
-            <section class="ac-panel">
+            <section class="ac-panel ac-case-trace-panel">
                 <div class="ac-panel__header"><h2 class="ac-panel__title"><span class="fas fa-history"></span> Trazabilidad del caso</h2><span class="ac-panel__meta"><?php echo count($historial); ?> evento(s)</span></div>
                 <div class="ac-panel__body">
                     <?php if (!$historial): ?>
@@ -152,13 +334,21 @@ include '../menu_header.php';
             <section class="ac-panel mb-3">
                 <div class="ac-panel__header">
                     <h2 class="ac-panel__title"><span class="fas fa-address-book"></span> Destinatarios</h2>
-                    <?php if ($esSnapshot): ?>
-                        <span class="ac-badge ac-badge--success">Histórico de aprobación</span>
+                    <?php if ($esInformativa): ?>
+                        <span class="ac-recipient-status ac-recipient-status--na"><span class="fas fa-ban" aria-hidden="true"></span>No aplica</span>
+                    <?php elseif ($esSnapshot): ?>
+                        <span class="ac-recipient-status ac-recipient-status--history"><span class="fas fa-history" aria-hidden="true"></span>Histórico de aprobación</span>
                     <?php else: ?>
-                        <span class="ac-badge ac-badge--info">Vigentes ahora</span>
+                        <span class="ac-recipient-status"><span class="fas fa-check-circle" aria-hidden="true"></span>Vigentes ahora</span>
                     <?php endif; ?>
                 </div>
                 <div class="ac-panel__body">
+                    <?php if ($esInformativa): ?>
+                        <div class="ac-alert-box ac-alert-box--info mb-0">
+                            <span class="fas fa-ban mr-1"></span>
+                            <strong>No requiere destinatarios.</strong> Esta alerta es informativa y, por regla de negocio, no genera correo al ser aprobada.
+                        </div>
+                    <?php else: ?>
                     <?php if ($esSnapshot): ?>
                         <div class="ac-alert-box ac-alert-box--info mb-3">
                             <span class="fas fa-lock mr-1"></span>
@@ -186,6 +376,7 @@ include '../menu_header.php';
                             <div class="ac-person"><div class="ac-person__name"><?php echo acEscape($responsable['acr_nombre']); ?></div><div class="ac-person__mail"><span class="fas fa-envelope"></span><?php echo acEscape($responsable['acr_correo']); ?></div></div>
                         <?php endforeach; ?>
                     </div>
+                    <?php endif; ?>
                 </div>
             </section>
 
@@ -221,13 +412,23 @@ include '../menu_header.php';
                         </a>
                     <?php endif; ?>
                     <?php if ($puedeResolver): ?>
-                        <?php if (!$tieneRegional || !$tieneZonal): ?><div class="ac-alert-box ac-alert-box--warning mb-3"><strong>Antes de aprobar:</strong> configure los destinatarios faltantes.</div><?php endif; ?>
-                        <div class="ac-action-group">
-                            <form method="post" action="alerta_correos_aprobar.php" data-ac-lock-submit="1" data-ac-swal-confirm="1" data-ac-swal-title="¿Aprobar y notificar?" data-ac-swal-text="Se resolverán los responsables vigentes y la notificación quedará encolada para envío." data-ac-swal-confirm-text="Sí, aprobar" data-ac-swal-icon="warning">
-                                <input type="hidden" name="_csrf" value="<?php echo acEscape(acCsrfToken()); ?>"><input type="hidden" name="id" value="<?php echo (int)$id; ?>">
-                                <button class="btn btn-success btn-block" type="submit" <?php echo (!$tieneRegional || !$tieneZonal) ? 'disabled' : ''; ?>><span class="fas fa-check"></span> Aprobar y notificar</button>
-                            </form>
-                        </div>
+                        <?php if ($esInformativa): ?>
+                            <div class="ac-alert-box ac-alert-box--info mb-3"><strong>Aprobación informativa:</strong> este caso se marcará como aprobado y se conservará en trazabilidad, pero no se generará correo.</div>
+                            <div class="ac-action-group">
+                                <form method="post" action="alerta_correos_aprobar.php" data-ac-lock-submit="1" data-ac-swal-confirm="1" data-ac-swal-title="¿Aprobar alerta informativa?" data-ac-swal-text="El caso quedará aprobado y NO se generará ni encolará correo electrónico." data-ac-swal-confirm-text="Sí, aprobar" data-ac-swal-icon="info">
+                                    <input type="hidden" name="_csrf" value="<?php echo acEscape(acCsrfToken()); ?>"><input type="hidden" name="id" value="<?php echo (int)$id; ?>">
+                                    <button class="btn btn-success btn-block" type="submit"><span class="fas fa-check"></span> Aprobar como informativa</button>
+                                </form>
+                            </div>
+                        <?php else: ?>
+                            <?php if (!$tieneRegional || !$tieneZonal): ?><div class="ac-alert-box ac-alert-box--warning mb-3"><strong>Antes de aprobar:</strong> configure los destinatarios faltantes.</div><?php endif; ?>
+                            <div class="ac-action-group">
+                                <form method="post" action="alerta_correos_aprobar.php" data-ac-lock-submit="1" data-ac-swal-confirm="1" data-ac-swal-title="¿Aprobar y notificar?" data-ac-swal-text="Se resolverán los responsables vigentes y la notificación quedará encolada para envío." data-ac-swal-confirm-text="Sí, aprobar" data-ac-swal-icon="warning">
+                                    <input type="hidden" name="_csrf" value="<?php echo acEscape(acCsrfToken()); ?>"><input type="hidden" name="id" value="<?php echo (int)$id; ?>">
+                                    <button class="btn btn-success btn-block ac-btn-approve" type="submit" <?php echo (!$tieneRegional || !$tieneZonal) ? 'disabled' : ''; ?>><span class="fas fa-check"></span> Aprobar y notificar</button>
+                                </form>
+                            </div>
+                        <?php endif; ?>
                         <div class="ac-action-group">
                             <form method="post" action="alerta_correos_solicitar_subsanacion.php" data-ac-lock-submit="1" data-ac-swal-confirm="1" data-ac-swal-title="¿Solicitar subsanación?" data-ac-swal-text="El caso regresará para corrección y no se enviará notificación territorial." data-ac-swal-confirm-text="Sí, solicitar" data-ac-swal-icon="question">
                                 <input type="hidden" name="_csrf" value="<?php echo acEscape(acCsrfToken()); ?>"><input type="hidden" name="id" value="<?php echo (int)$id; ?>">
@@ -280,3 +481,4 @@ window.AC_ALERTAS_CONFIG = <?php echo json_encode([
 <script src="assets/alerta_correos_alertas.js?v=20260909-2"></script>
 </body>
 </html>
+

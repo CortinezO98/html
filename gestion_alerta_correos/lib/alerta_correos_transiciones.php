@@ -6,6 +6,7 @@ require_once __DIR__ . '/alerta_correos_datos.php';
 require_once __DIR__ . '/alerta_correos_reglas.php';
 require_once __DIR__ . '/alerta_correos_auditoria.php';
 require_once __DIR__ . '/alerta_correos_notificaciones.php';
+require_once __DIR__ . '/alerta_correos_informativas.php';
 
 function acEjecutarTransicion(mysqli $db, int $casoId, string $accion, string $comentario = ''): void
 {
@@ -35,7 +36,7 @@ function acEjecutarTransicion(mysqli $db, int $casoId, string $accion, string $c
         $stmt->close();
 
         acRegistrarHistorial($db,$casoId,(string)$caso['acc_estado'],$nuevo,$accion,$comentario);
-        if ($accion==='APROBAR') {
+        if ($accion==='APROBAR' && !acAlertaEsInformativa($caso)) {
             acEncolarAprobacion($db,$caso);
         }
         $db->commit();
@@ -44,3 +45,4 @@ function acEjecutarTransicion(mysqli $db, int $casoId, string $accion, string $c
         throw $e;
     }
 }
+

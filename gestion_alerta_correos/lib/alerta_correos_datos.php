@@ -40,7 +40,7 @@ function acListarCasos(mysqli $db, array $filtros = [], int $limite = 100): arra
         $q = '%' . $filtros['q'] . '%'; array_push($params, $q, $q, $q);
     }
     $limite = max(1, min($limite, 500));
-    $sql = 'SELECT acc_id,acc_radicado,acc_sim,acc_tipo_alerta,acc_estado,acc_fecha_alerta,acc_regional,acc_centro_zonal,acc_categoria,acc_fecha_creacion FROM tb_alerta_correo_caso WHERE ' . implode(' AND ', $where) . ' ORDER BY acc_id DESC LIMIT ' . $limite;
+    $sql = 'SELECT acc_id,acc_radicado,acc_sim,acc_origen,acc_tipo_alerta,acc_estado,acc_fecha_alerta,acc_regional,acc_centro_zonal,acc_categoria,acc_fecha_creacion,acc_tipo_gestion,acc_envia_correo,acc_tiempo_espera_rango,acc_tiempo_espera_minutos FROM tb_alerta_correo_caso WHERE ' . implode(' AND ', $where) . ' ORDER BY acc_id DESC LIMIT ' . $limite;
     $stmt = $db->prepare($sql);
     if ($params) { $stmt->bind_param($tipos, ...$params); }
     $stmt->execute();
@@ -152,3 +152,4 @@ function acGuardarResponsable(mysqli $db, array $d): int
     $stmt->bind_param('ssssssssssss',$documento,$nombre,$correo,$nivel,$regional,$cz,$codigo,$tipo,$perfil,$ext,$origen,$usuario);
     $stmt->execute(); $id=(int)$db->insert_id; $stmt->close(); return $id;
 }
+

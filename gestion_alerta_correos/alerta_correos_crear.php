@@ -197,7 +197,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if ($simEsNuevo && $simSeleccionado !== '') {
         $simExistente = acSimAdminObtenerPorSim($enlace_db, $simSeleccionado);
         if ($simExistente && (int)($simExistente['ars_activo'] ?? 0) !== 1) {
-            $errores[] = 'El número SIM ' . $simSeleccionado . ' ya existe en Fuente SIM pero está inactivo. Reactívelo antes de utilizarlo.';
+            $errores[] = 'El número SIM ' . $simSeleccionado . ' ya existe en Radicados SIM de referencia pero está inactivo. Reactívelo antes de utilizarlo.';
         }
     }
 
@@ -280,7 +280,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $enlace_db->commit();
 
             if ($simCreadoAutomaticamente) {
-                acFlash('success', 'La alerta fue registrada y el SIM ' . $simSeleccionado . ' se agregó automáticamente a Fuente SIM. El caso quedó pendiente de revisión.');
+                acFlash('success', 'La alerta fue registrada y el SIM ' . $simSeleccionado . ' se agregó automáticamente a Radicados SIM de referencia. El caso quedó pendiente de revisión.');
             } else {
                 acFlash('success', 'La alerta fue registrada y quedó pendiente de revisión.');
             }
@@ -309,7 +309,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     }
 }
 
-$titulo_header = 'Alertas Correos | Nueva alerta';
+$titulo_header = 'Alertas Correos | Nueva alerta manual';
 
 // Valores de presentación: POST siempre gana; la fuente SIM solo completa vacíos.
 $valorFechaAlerta = array_key_exists('fecha_alerta', $_POST)
@@ -347,14 +347,14 @@ include '../menu_header.php';
         <span class="ac-separator">/</span>
         <a href="alerta_correos.php">Alertas Correos</a>
         <span class="ac-separator">/</span>
-        <span>Nueva alerta</span>
+        <span>Nueva alerta manual</span>
     </nav>
 
     <header class="ac-page-header">
         <div class="ac-page-header__main">
             <h1 class="ac-page-title">
                 <span class="fas fa-plus-circle" aria-hidden="true"></span>
-                Registrar nueva alerta
+                Registrar alerta manualmente
             </h1>
             <p class="ac-page-subtitle">Complete la información disponible. Los campos marcados con <strong>*</strong> son obligatorios y el caso quedará pendiente de revisión.</p>
         </div>
@@ -625,3 +625,4 @@ window.AC_ALERTAS_CONFIG = <?php echo json_encode([
 <script src="assets/alerta_correos_alertas.js?v=20260909-2"></script>
 </body>
 </html>
+

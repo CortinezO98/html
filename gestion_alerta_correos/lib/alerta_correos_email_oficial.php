@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/alerta_correos_informativas.php';
+
 /**
  * Plantilla oficial y encolado de correo para Alertas Correos.
  *
@@ -13,7 +15,7 @@ declare(strict_types=1);
  * - Snapshot de destinatarios antes de construir el correo.
  */
 
-const AC_EMAIL_TEMPLATE_VERSION = 'AC-MAIL-1.0';
+const AC_EMAIL_TEMPLATE_VERSION = 'AC-MAIL-1.1';
 
 function acEmailH(?string $valor): string
 {
@@ -359,22 +361,25 @@ function acEmailConstruirPlantilla(array $caso, array $destinatarios, string $fe
     $sim = acEmailTexto($caso['acc_sim'] ?? '');
     $regional = acEmailTexto($caso['acc_regional'] ?? '');
     $cz = acEmailTexto($caso['acc_centro_zonal'] ?? '');
+    $categoria = acEmailTexto($caso['acc_categoria'] ?? '');
+    $contexto = acEmailTexto($caso['acc_descripcion'] ?? '');
+    $comentarios = acEmailTexto($caso['acc_justificacion'] ?? '');
+
+    // Campaña definida por la plantilla oficial entregada por el cliente.
+    $campania = 'Encuesta de Satisfacción sobre la atención en el Punto de Atención presencial del ICBF';
+
     $identificador = $sim !== '' ? 'SIM ' . $sim : $radicado;
     $subject = '[ICBF] Alerta aprobada | ' . $identificador . ($cz !== '' ? ' | ' . $cz : '');
     $subject = acEmailTruncarUtf8($subject, 100);
 
+    // IMPORTANTE: se conserva el diseño visual actual del correo y únicamente
+    // se actualizan los campos de información conforme a la plantilla oficial.
     $filas = '';
-    $filas .= acEmailFila('Radicado de alerta', $radicado);
-    if ($sim !== '') $filas .= acEmailFila('Radicado SIM', $sim);
-    $filas .= acEmailFila('Tipo de alerta', acEmailTipoAlertaLabel($caso['acc_tipo_alerta'] ?? ''));
-    $filas .= acEmailFila('Regional', $regional);
-    $filas .= acEmailFila('Centro Zonal / Punto', $cz);
-    $filas .= acEmailFila('Fecha de alerta', acEmailFechaLabel($caso['acc_fecha_alerta'] ?? ''));
-    $filas .= acEmailFila('Fecha de atención', acEmailFechaLabel($caso['acc_fecha_atencion'] ?? ''));
-    if (acEmailTexto($caso['acc_categoria'] ?? '') !== '') $filas .= acEmailFila('Categoría', (string)$caso['acc_categoria']);
-    if (acEmailTexto($caso['acc_subcategoria'] ?? '') !== '') $filas .= acEmailFila('Subcategoría', (string)$caso['acc_subcategoria']);
-    if (acEmailTexto($caso['acc_afecta_linea_tecnica'] ?? '') !== '') $filas .= acEmailFila('¿Afecta línea técnica?', acEmailAfectaLabel($caso['acc_afecta_linea_tecnica'] ?? ''));
-    $filas .= acEmailFila('Fecha de aprobación', acEmailFechaLabel($fechaAprobacion));
+    $filas .= acEmailFila('Campaña', $campania);
+    $filas .= acEmailFila('Radicado SIM', $sim !== '' ? $sim : 'No registrado');
+    $filas .= acEmailFila('Regional', $regional !== '' ? $regional : 'No registrada');
+    $filas .= acEmailFila('Centro Zonal', $cz !== '' ? $cz : 'No registrado');
+    $filas .= acEmailFila('Seleccione la categoría de la alerta', $categoria !== '' ? $categoria : 'No registrada');
 
     $body = '<!doctype html><html><body style="margin:0;padding:0;background:#eef2ef;font-family:Lato,Arial,Helvetica,sans-serif;color:#263238;">'
         . '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#eef2ef;padding:24px 10px;"><tr><td align="center">'
@@ -390,9 +395,8 @@ function acEmailConstruirPlantilla(array $caso, array $destinatarios, string $fe
         . '<tr><td style="padding:8px 28px 20px 28px;">'
         . '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;font-size:12px;border:1px solid #dfe6e2;">' . $filas . '</table>'
         . '</td></tr>'
-        . acEmailBloqueTexto('Descripción de la alerta', $caso['acc_descripcion'] ?? '')
-        . acEmailBloqueTexto('Justificación / concepto técnico', $caso['acc_justificacion'] ?? '')
-        . acEmailBloqueTexto('Observación adicional', $caso['acc_observacion'] ?? '')
+        . acEmailBloqueTexto('Contexto alerta', $contexto)
+        . acEmailBloqueTexto('Comentarios', $comentarios)
         . '<tr><td style="padding:0 28px 22px 28px;">'
         . '<div style="font-size:13px;line-height:1.6;color:#37474f;background:#edf7f0;border:1px solid #cfe4d5;border-radius:4px;padding:12px 14px;">'
         . '<strong style="color:#4CAF50;">Acción requerida:</strong> agradecemos revisar la situación reportada y adelantar las acciones que correspondan de acuerdo con los procedimientos internos aplicables.'
@@ -447,6 +451,9 @@ function acEmailRemitenteId(mysqli $db): int
 
 function acEmailEncolarCentral(mysqli $db, array $caso, array $plantilla, string $usuario): int
 {
+    if (acAlertaEsInformativa($caso)) {
+        throw new RuntimeException('Esta alerta es informativa y no admite encolado de correo electrónico.');
+    }
     $moduloId = acEmailModuloId($db);
     $remitenteId = acEmailRemitenteId($db);
     $prioridad = acEmailPrioridadCentral($caso['acc_tipo_alerta'] ?? 'MEDIA');
@@ -571,3 +578,4 @@ function acEmailRegistrarHistorialAprobacion(mysqli $db, int $casoId, string $es
         'ach_fecha' => date('Y-m-d H:i:s'),
     ]);
 }
+

@@ -10,7 +10,7 @@ require_once __DIR__ . '/lib/alerta_correos_importacion_versionada.php';
 
 acExigirPerfil(['Administrador']);
 
-$titulo_header = 'Alertas Correos | Carga de responsables';
+$titulo_header = 'Alertas Correos | Responsables territoriales';
 $error = null;
 $preview = null;
 $resultado = null;
@@ -147,6 +147,41 @@ function acCargaEtiquetaFuente(string $fuente): string
 <head>
     <?php include '../config/configuracion_estilos.php'; ?>
     <link rel="stylesheet" href="assets/alerta_correos.css?v=20260909">
+    <style>
+        /* Ajuste exclusivo de esta vista: retorno en la franja superior, junto al breadcrumb. */
+        .ac-responsables-cargar-topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-top: 1rem;
+            margin-bottom: .65rem;
+        }
+        .ac-responsables-cargar-topbar .ac-breadcrumb {
+            margin-bottom: 0;
+            min-width: 0;
+        }
+        .ac-responsables-cargar-topbar__actions {
+            flex: 0 0 auto;
+            margin-left: auto;
+        }
+        .ac-responsables-cargar-topbar__actions .btn {
+            white-space: nowrap;
+        }
+        @media (max-width: 767.98px) {
+            .ac-responsables-cargar-topbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .ac-responsables-cargar-topbar__actions {
+                width: 100%;
+                margin-left: 0;
+            }
+            .ac-responsables-cargar-topbar__actions .btn {
+                width: 100%;
+            }
+        }
+    </style>
 </head>
 <body>
 <?php
@@ -155,24 +190,24 @@ include '../menu_header.php';
 ?>
 
 <div class="contenido ac-module ac-module--footer-safe">
-    <nav class="ac-breadcrumb" aria-label="breadcrumb">
-        <a href="../contenido.php">Inicio</a>
-        <span class="ac-separator">/</span>
-        <a href="alerta_correos.php">Alertas Correos</a>
-        <span class="ac-separator">/</span>
-        <a href="alerta_correos_responsables.php">Responsables</a>
-        <span class="ac-separator">/</span>
-        <span>Carga masiva</span>
-    </nav>
-
-    <header class="ac-page-header">
-        <div class="ac-page-header__main">
-            <h1 class="ac-page-title"><span class="fas fa-file-upload"></span> Carga y sincronización de responsables</h1>
-            <p class="ac-page-subtitle">La carga es versionada: los responsables anteriores no se eliminan y los faltantes en el archivo no se inactivan automáticamente.</p>
-        </div>
-        <div class="ac-page-header__actions">
+    <div class="ac-responsables-cargar-topbar">
+        <nav class="ac-breadcrumb" aria-label="breadcrumb">
+            <a href="../contenido.php">Inicio</a>
+            <span class="ac-separator">/</span>
+            <a href="alerta_correos.php">Alertas Correos</a>
+            <span class="ac-separator">/</span>
+            <a href="alerta_correos_responsables.php">Responsables territoriales</a>
+            <span class="ac-separator">/</span>
+            <span>Actualizar responsables</span>
+        </nav>
+        <div class="ac-responsables-cargar-topbar__actions">
             <a href="alerta_correos_responsables.php" class="btn ac-btn-red-outline"><span class="fas fa-arrow-left"></span> Volver al directorio</a>
         </div>
+    </div>
+
+    <header class="ac-page-header">
+        <h1 class="ac-page-title"><span class="fas fa-file-upload"></span> Actualizar responsables territoriales</h1>
+        <p class="ac-page-subtitle">Actualiza quién debe recibir una alerta aprobada en cada Regional y Centro Zonal. <strong>Esta opción no crea casos de alerta ni envía correos.</strong> La carga es versionada y conserva el historial.</p>
     </header>
 
     <?php if ($error): ?>
@@ -340,3 +375,4 @@ include '../config/configuracion_js.php';
 <script src="assets/alerta_correos.js?v=20260909"></script>
 </body>
 </html>
+

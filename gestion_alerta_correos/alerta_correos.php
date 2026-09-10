@@ -6,6 +6,7 @@ require_once '../config/validaciones_seguridad.php';
 require_once '../config/conexion_db.php';
 require_once __DIR__ . '/lib/alerta_correos_datos.php';
 require_once __DIR__ . '/lib/alerta_correos_helpers.php';
+require_once __DIR__ . '/lib/alerta_correos_informativas.php';
 
 $filtros = [
     'estado' => trim((string)($_GET['estado'] ?? '')),
@@ -27,6 +28,75 @@ $hayFiltros = $filtros['estado'] !== '' || $filtros['regional'] !== '' || $filtr
 <head>
     <?php include '../config/configuracion_estilos.php'; ?>
     <link rel="stylesheet" href="assets/alerta_correos.css?v=20260908">
+    <style>
+        /* Ajustes exclusivos de la bandeja: no alteran el resto del módulo */
+        .ac-bandeja-page {
+            padding-bottom: 88px;
+        }
+
+        .ac-table th.ac-action-col,
+        .ac-table td.ac-action-col {
+            width: 112px;
+            min-width: 112px;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .ac-view-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            min-width: 82px;
+            min-height: 38px;
+            padding: 7px 13px;
+            border: 1.5px solid #1687e8;
+            border-radius: 9px;
+            background: #fff;
+            color: #0876d1;
+            font-weight: 700;
+            line-height: 1;
+            white-space: nowrap;
+            text-decoration: none !important;
+            transition: background-color .18s ease, color .18s ease, border-color .18s ease, box-shadow .18s ease;
+        }
+
+        .ac-view-btn .fas {
+            margin: 0;
+            font-size: 15px;
+        }
+
+        .ac-view-btn:hover,
+        .ac-view-btn:focus {
+            background: #0876d1;
+            border-color: #0876d1;
+            color: #fff;
+            box-shadow: 0 3px 10px rgba(8, 118, 209, .18);
+        }
+
+        .ac-view-btn:focus {
+            outline: 0;
+        }
+
+        @media (max-width: 767.98px) {
+            .ac-bandeja-page {
+                padding-bottom: 105px;
+            }
+
+            .ac-table th.ac-action-col,
+            .ac-table td.ac-action-col {
+                width: 96px;
+                min-width: 96px;
+            }
+
+            .ac-view-btn {
+                min-width: 74px;
+                min-height: 36px;
+                padding: 6px 10px;
+                font-size: 14px;
+            }
+        }
+    </style>
 </head>
 <body>
 <?php
@@ -34,7 +104,7 @@ include '../menu_principal.php';
 include '../menu_header.php';
 ?>
 
-<div class="contenido ac-module">
+<div class="contenido ac-module ac-bandeja-page">
     <?php if ($flash): ?>
         <div class="alert alert-<?php echo acEscape($flash['tipo']); ?> alert-dismissible fade show" role="alert">
             <span class="fas fa-info-circle mr-1"></span>
@@ -61,11 +131,22 @@ include '../menu_header.php';
             <?php if (acTienePerfil(['Operador', 'Gestor', 'Supervisor', 'Administrador'])): ?>
                 <a href="alerta_correos_crear.php" class="btn ac-btn-green-outline">
                     <span class="fas fa-plus" aria-hidden="true"></span>
-                    Nueva alerta
+                    Nueva alerta manual
+                </a>
+            <?php endif; ?>
+            <?php if (acTienePerfil(['Administrador'])): ?>
+                <a href="alerta_correos_cargar_excel.php" class="btn ac-btn-blue-outline">
+                    <span class="fas fa-file-excel" aria-hidden="true"></span>
+                    Crear Alerta Masiva
                 </a>
             <?php endif; ?>
         </div>
     </header>
+
+    <div class="ac-alert-box ac-alert-box--info mb-3">
+        <strong>¿Cómo se crean los casos?</strong>
+        <span class="d-block mt-1"><strong>Nueva alerta manual</strong> crea un caso individual. <strong>Crear Alerta Masiva</strong> convierte cada fila válida del archivo en un caso independiente pendiente de revisión. La carga masiva no envía correos al crear los casos. Los casos notificables podrán enviarse al aprobarse; los casos de <strong>Tiempos de espera muy largos</strong> son informativos y nunca generan correo.</span>
+    </div>
 
     <div class="row mb-3">
         <div class="col-6 col-xl-3 mb-3 mb-xl-0">
@@ -178,14 +259,15 @@ include '../menu_header.php';
                         <th>Regional</th>
                         <th>Centro Zonal</th>
                         <th>Categoría</th>
+                        <th>Gestión</th>
                         <th>Estado</th>
-                        <th class="text-center">Acción</th>
+                        <th class="text-center ac-action-col">Acción</th>
                     </tr>
                 </thead>
                 <tbody>
                 <?php if (!$casos): ?>
                     <tr>
-                        <td colspan="8" class="p-0">
+                        <td colspan="9" class="p-0">
                             <div class="ac-empty">
                                 <div class="ac-empty__icon"><span class="fas fa-inbox"></span></div>
                                 <p class="ac-empty__title"><?php echo $hayFiltros ? 'No encontramos resultados' : 'Aún no hay alertas registradas'; ?></p>
@@ -213,13 +295,22 @@ include '../menu_header.php';
                         <td><?php echo acEscape($caso['acc_centro_zonal']); ?></td>
                         <td><?php echo acEscape($caso['acc_categoria']); ?></td>
                         <td>
+                            <?php if (acAlertaEsInformativa($caso)): ?>
+                                <span class="badge badge-info">Informativa · sin correo</span>
+                                <span class="ac-cell-sub"><?php echo acEscape(acAlertaTiempoRangoLabel((string)($caso['acc_tiempo_espera_rango'] ?? ''))); ?></span>
+                            <?php else: ?>
+                                <span class="badge badge-primary">Notificable</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
                             <span class="ac-badge ac-badge--<?php echo acEscape(acEstadoClase($caso['acc_estado'])); ?>">
                                 <?php echo acEscape(acEstadoLabel($caso['acc_estado'])); ?>
                             </span>
                         </td>
-                        <td class="text-center">
-                            <a class="btn btn-outline-primary btn-sm" href="alerta_correos_ver.php?id=<?php echo (int)$caso['acc_id']; ?>">
-                                <span class="fas fa-eye"></span> Ver
+                        <td class="text-center ac-action-col">
+                            <a class="ac-view-btn" href="alerta_correos_ver.php?id=<?php echo (int)$caso['acc_id']; ?>" aria-label="Ver alerta <?php echo acEscape($caso['acc_radicado']); ?>">
+                                <span class="fas fa-eye" aria-hidden="true"></span>
+                                <span>Ver</span>
                             </a>
                         </td>
                     </tr>
@@ -237,3 +328,4 @@ include '../config/configuracion_js.php';
 <script src="assets/alerta_correos.js?v=20260908"></script>
 </body>
 </html>
+

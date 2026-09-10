@@ -7,6 +7,7 @@ require_once '../config/conexion_db.php';
 require_once __DIR__ . '/lib/alerta_correos_seguridad.php';
 require_once __DIR__ . '/lib/alerta_correos_datos.php';
 require_once __DIR__ . '/lib/alerta_correos_email_oficial.php';
+require_once __DIR__ . '/lib/alerta_correos_informativas.php';
 
 acExigirPerfil(['Gestor', 'Supervisor', 'Administrador']);
 
@@ -18,10 +19,14 @@ if (!$caso) { http_response_code(404); exit('Caso no encontrado.'); }
 $error = '';
 $plantilla = null;
 $destinatarios = ['regional' => [], 'zonal' => []];
+$esInformativa = acAlertaEsInformativa($caso);
 $esCorreoYaGenerado = false;
 $estadoCentral = null;
 
 try {
+    if ($esInformativa) {
+        $error = 'Este caso es una alerta informativa de Tiempos de espera muy largos. Por regla de negocio no genera correo electrónico ni requiere vista previa.';
+    } else {
     $ncId = (int)($caso['acc_notificacion_central_id'] ?? 0);
 
     // Si ya fue aprobada y existe la fila de cola, mostrar EXACTAMENTE el correo
@@ -63,11 +68,12 @@ try {
         if ($fechaPlantilla === '') $fechaPlantilla = date('Y-m-d H:i:s');
         $plantilla = acEmailConstruirPlantilla($caso, $destinatarios, $fechaPlantilla);
     }
+    }
 } catch (Throwable $e) {
     $error = $e->getMessage();
 }
 
-$titulo_header = 'Alertas Correos | Vista previa de correo';
+$titulo_header = $esInformativa ? 'Alertas Correos | Alerta informativa' : 'Alertas Correos | Vista previa de correo';
 ?>
 <!DOCTYPE html>
 <html lang="ES">
@@ -82,23 +88,25 @@ $titulo_header = 'Alertas Correos | Vista previa de correo';
         <a href="../contenido.php">Inicio</a><span class="ac-separator">/</span>
         <a href="alerta_correos.php">Alertas Correos</a><span class="ac-separator">/</span>
         <a href="alerta_correos_ver.php?id=<?php echo (int)$id; ?>"><?php echo acEscape((string)$caso['acc_radicado']); ?></a><span class="ac-separator">/</span>
-        <span>Correo oficial</span>
+        <span><?php echo $esInformativa ? 'Alerta informativa' : 'Correo oficial'; ?></span>
     </nav>
 
     <header class="ac-page-header">
         <div class="ac-page-header__main">
-            <h1 class="ac-page-title"><span class="fas fa-envelope-open-text"></span> <?php echo $esCorreoYaGenerado ? 'Correo oficial generado' : 'Vista previa del correo oficial'; ?></h1>
+            <h1 class="ac-page-title"><span class="fas fa-envelope-open-text"></span> <?php echo $esInformativa ? 'Alerta informativa · sin correo' : ($esCorreoYaGenerado ? 'Correo oficial generado' : 'Vista previa del correo oficial'); ?></h1>
             <p class="ac-page-subtitle">
-                <?php echo $esCorreoYaGenerado
-                    ? 'Se muestra exactamente el asunto, destinatarios y cuerpo HTML que quedaron registrados en la cola central.'
-                    : 'Esta pantalla es solo una simulación. No envía ni encola ningún correo.'; ?>
+                <?php echo $esInformativa
+                    ? 'Este caso no genera correo electrónico. La clasificación informativa se conserva únicamente para gestión y trazabilidad.'
+                    : ($esCorreoYaGenerado
+                        ? 'Se muestra exactamente el asunto, destinatarios y cuerpo HTML que quedaron registrados en la cola central.'
+                        : 'Esta pantalla es solo una simulación. No envía ni encola ningún correo.'); ?>
             </p>
         </div>
         <div class="ac-page-header__actions"><a href="alerta_correos_ver.php?id=<?php echo (int)$id; ?>" class="btn btn-light"><span class="fas fa-arrow-left"></span> Volver al caso</a></div>
     </header>
 
     <?php if ($error !== ''): ?>
-        <div class="alert alert-danger"><span class="fas fa-exclamation-triangle mr-1"></span><?php echo acEscape($error); ?></div>
+        <div class="alert <?php echo $esInformativa ? 'alert-info' : 'alert-danger'; ?>"><span class="fas <?php echo $esInformativa ? 'fa-info-circle' : 'fa-exclamation-triangle'; ?> mr-1"></span><?php echo acEscape($error); ?></div>
     <?php else: ?>
         <section class="ac-panel mb-3">
             <div class="ac-panel__header">
@@ -146,3 +154,4 @@ $titulo_header = 'Alertas Correos | Vista previa de correo';
 <?php include '../footer.php'; include '../config/configuracion_js.php'; ?>
 </body>
 </html>
+

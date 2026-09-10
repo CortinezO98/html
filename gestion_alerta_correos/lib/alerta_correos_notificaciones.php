@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/alerta_correos_helpers.php';
+require_once __DIR__ . '/alerta_correos_informativas.php';
 
 function acResponsablesCaso(mysqli $db, array $caso): array
 {
@@ -51,6 +52,9 @@ function acCorreoAprobacionHtml(array $caso): string
 
 function acEncolarAprobacion(mysqli $db, array $caso): int
 {
+    if (acAlertaEsInformativa($caso)) {
+        throw new RuntimeException('Esta alerta es informativa y no admite encolado de correo electrónico.');
+    }
     $res = acResponsablesCaso($db, $caso);
     if (!$res['regional']) throw new RuntimeException('No existe responsable regional activo con correo válido.');
     if (trim((string)$caso['acc_centro_zonal']) !== '' && !$res['zonal']) throw new RuntimeException('No existe responsable zonal activo para el Centro Zonal del caso.');
@@ -80,3 +84,4 @@ function acEncolarAprobacion(mysqli $db, array $caso): int
     $n->bind_param('iissssssssss',$caso['acc_id'],$ncId,$evento,$clave,$address,$cc,$bcc,$snapshot,$asunto,$nEstado,$usuario,$ahora);
     $n->execute();$n->close(); return $ncId;
 }
+
