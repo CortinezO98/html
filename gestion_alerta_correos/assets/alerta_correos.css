@@ -997,3 +997,59 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* ==========================================================
+   FIX DEFINITIVO - ENCABEZADOS VERDES
+   Alta especificidad + !important para prevalecer sobre
+   Bootstrap / estilos posteriores del portal.
+   ========================================================== */
+
+html body .ac-module .ac-panel > .ac-panel__header,
+html body .ac-module .ac-panel .ac-panel__header {
+    background-color: #4CAF50 !important;
+    background: #4CAF50 !important;
+    border-color: #4CAF50 !important;
+    color: #FFFFFF !important;
+}
+
+html body .ac-module .ac-panel > .ac-panel__header .ac-panel__title,
+html body .ac-module .ac-panel .ac-panel__header .ac-panel__title,
+html body .ac-module .ac-panel > .ac-panel__header .ac-panel__meta,
+html body .ac-module .ac-panel .ac-panel__header .ac-panel__meta,
+html body .ac-module .ac-panel > .ac-panel__header span,
+html body .ac-module .ac-panel > .ac-panel__header small,
+html body .ac-module .ac-panel > .ac-panel__header strong,
+html body .ac-module .ac-panel > .ac-panel__header i,
+html body .ac-module .ac-panel > .ac-panel__header .fas,
+html body .ac-module .ac-panel > .ac-panel__header .far {
+    color: #FFFFFF !important;
+}
+
+/* Cards de acción / carga */
+html body .ac-module .ac-action-card > .ac-action-card__header,
+html body .ac-module .ac-action-card .ac-action-card__header {
+    background-color: #4CAF50 !important;
+    background: #4CAF50 !important;
+    border-color: #4CAF50 !important;
+    color: #FFFFFF !important;
+}
+
+html body .ac-module .ac-action-card__header *,
+html body .ac-module .ac-action-card__header i {
+    color: #FFFFFF !important;
+}
+
+/* Guías y bloques auxiliares que funcionan como encabezados */
+html body .ac-module .ac-template-example__title {
+    background-color: #4CAF50 !important;
+    background: #4CAF50 !important;
+    border-color: #4CAF50 !important;
+    color: #FFFFFF !important;
+}
+
+/* Integración visual con el borde del card */
+html body .ac-module .ac-panel,
+html body .ac-module .ac-action-card {
+    border-color: #4CAF50 !important;
+}
+
