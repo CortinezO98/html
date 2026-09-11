@@ -9,7 +9,7 @@ require_once __DIR__ . '/lib/alerta_correos_territorio.php';
 require_once __DIR__ . '/lib/alerta_correos_importacion_versionada.php';
 require_once __DIR__ . '/lib/alerta_correos_sim_fuente.php';
 
-acExigirPerfil(['Administrador']);
+acExigirPerfil(['Usuario', 'Supervisor', 'Administrador']);
 
 $titulo_header = 'Alertas Correos | Actualizar radicados SIM de referencia';
 $error = null;

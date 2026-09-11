@@ -10,6 +10,8 @@ require_once __DIR__ . '/lib/alerta_correos_notificaciones.php';
 require_once __DIR__ . '/lib/alerta_correos_territorio.php';
 require_once __DIR__ . '/lib/alerta_correos_informativas.php';
 
+acExigirPerfil(['Usuario', 'Supervisor', 'Cliente', 'Administrador']);
+
 $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
 if (!$id) {
     http_response_code(400);
@@ -48,17 +50,18 @@ if ((int)($caso['acc_carga_id'] ?? 0) > 0) {
     }
 }
 
-$puedeResolver = acTienePerfil(['Gestor', 'Supervisor', 'Administrador'])
+$esCreadorCaso = (string)($caso['acc_usuario_creador'] ?? '') === acUsuarioActual();
+$puedeResolver = acTienePerfil(['Cliente', 'Administrador'])
     && in_array($caso['acc_estado'], ['PENDIENTE_REVISION', 'PENDIENTE_REVISION_SUBSANACION'], true);
 $puedeSubsanar = $caso['acc_estado'] === 'PENDIENTE_SUBSANACION'
-    && acTienePerfil(['Operador', 'Gestor', 'Supervisor', 'Administrador']);
+    && (acTienePerfil(['Administrador']) || (acTienePerfil(['Usuario']) && $esCreadorCaso));
 $puedeReabrir = $caso['acc_estado'] === 'RECHAZADO'
-    && acTienePerfil(['Gestor', 'Supervisor', 'Administrador']);
+    && acTienePerfil(['Cliente', 'Administrador']);
 
 $tieneRegional = count($responsables['regional']) > 0;
 $tieneZonal = count($responsables['zonal']) > 0;
 $esSnapshot = ($responsables['_origen'] ?? '') === 'SNAPSHOT';
-$puedeVerCorreo = !$esInformativa && acTienePerfil(['Gestor', 'Supervisor', 'Administrador']);
+$puedeVerCorreo = !$esInformativa && acTienePerfil(['Cliente', 'Administrador']);
 
 // Estado de la notificación real en el motor central (si el caso ya fue aprobado).
 $notificacionCentral = null;
@@ -430,7 +433,7 @@ include '../menu_header.php';
                             </div>
                         <?php endif; ?>
                         <div class="ac-action-group">
-                            <form method="post" action="alerta_correos_solicitar_subsanacion.php" data-ac-lock-submit="1" data-ac-swal-confirm="1" data-ac-swal-title="¿Solicitar subsanación?" data-ac-swal-text="El caso regresará para corrección y no se enviará notificación territorial." data-ac-swal-confirm-text="Sí, solicitar" data-ac-swal-icon="question">
+                            <form method="post" action="alerta_correos_solicitar_subsanacion.php" data-ac-lock-submit="1" data-ac-swal-confirm="1" data-ac-swal-title="¿Solicitar subsanación?" data-ac-swal-text="El caso regresará al agente que lo registró para corrección. No se enviará notificación territorial." data-ac-swal-confirm-text="Sí, solicitar" data-ac-swal-icon="question">
                                 <input type="hidden" name="_csrf" value="<?php echo acEscape(acCsrfToken()); ?>"><input type="hidden" name="id" value="<?php echo (int)$id; ?>">
                                 <textarea name="comentario" class="form-control mb-2" rows="3" required maxlength="20000" placeholder="Indique qué debe corregirse y por qué."></textarea>
                                 <button class="btn btn-warning btn-block" type="submit"><span class="fas fa-tools"></span> Solicitar subsanación</button>
@@ -442,6 +445,11 @@ include '../menu_header.php';
                                 <textarea name="comentario" class="form-control mb-2" rows="3" required maxlength="20000" placeholder="Registre el motivo obligatorio del rechazo."></textarea>
                                 <button class="btn btn-danger btn-block" type="submit"><span class="fas fa-times"></span> Rechazar</button>
                             </form>
+                        </div>
+                    <?php elseif ($caso['acc_estado'] === 'PENDIENTE_SUBSANACION' && !$puedeSubsanar): ?>
+                        <div class="ac-alert-box ac-alert-box--info mb-0">
+                            <span class="fas fa-user-check mr-1"></span>
+                            La subsanación está asignada al <strong>agente que registró esta alerta</strong>. Solo ese usuario, o un Administrador, puede corregirla y enviarla nuevamente a revisión.
                         </div>
                     <?php elseif ($puedeSubsanar): ?>
                         <form method="post" action="alerta_correos_subsanar.php" data-ac-lock-submit="1" data-ac-swal-confirm="1" data-ac-swal-title="¿Enviar a nueva revisión?" data-ac-swal-text="La subsanación quedará registrada y el caso volverá a la bandeja de revisión." data-ac-swal-confirm-text="Sí, enviar" data-ac-swal-icon="question">

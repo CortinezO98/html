@@ -7,7 +7,7 @@ require_once '../config/conexion_db.php';
 require_once __DIR__ . '/lib/alerta_correos_seguridad.php';
 require_once __DIR__ . '/lib/alerta_correos_carga_excel.php';
 
-acExigirPerfil(['Administrador']);
+acExigirPerfil(['Usuario', 'Supervisor', 'Administrador']);
 
 $titulo_header = 'Alertas Correos | Crear Alerta Masiva';
 $error = null;

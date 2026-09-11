@@ -10,7 +10,7 @@ require_once __DIR__ . '/lib/alerta_correos_importacion_versionada.php';
 require_once __DIR__ . '/lib/alerta_correos_sim_fuente.php';
 require_once __DIR__ . '/lib/alerta_correos_sim_admin.php';
 
-acExigirPerfil(['Administrador']);
+acExigirPerfil(['Usuario', 'Supervisor', 'Administrador']);
 $titulo_header = 'Alertas Correos | Fuente SIM';
 $error = null;
 $ok = trim((string)($_GET['ok'] ?? ''));

@@ -11,7 +11,7 @@ require_once __DIR__ . '/lib/alerta_correos_datos.php';
 require_once __DIR__ . '/lib/alerta_correos_email_oficial.php';
 require_once __DIR__ . '/lib/alerta_correos_informativas.php';
 
-acExigirPerfil(['Gestor', 'Supervisor', 'Administrador']);
+acExigirPerfil(['Cliente', 'Administrador']);
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     http_response_code(405);

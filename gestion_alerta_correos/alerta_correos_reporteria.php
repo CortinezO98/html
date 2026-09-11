@@ -5,6 +5,9 @@ $modulo_plataforma = 'Alertas Correos';
 require_once '../config/validaciones_seguridad.php';
 require_once '../config/conexion_db.php';
 require_once __DIR__ . '/lib/alerta_correos_helpers.php';
+require_once __DIR__ . '/lib/alerta_correos_seguridad.php';
+
+acExigirPerfil(['Supervisor', 'Cliente', 'Administrador']);
 
 $titulo_header = 'Alertas Correos | Reportería';
 

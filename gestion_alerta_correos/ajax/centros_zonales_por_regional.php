@@ -12,7 +12,7 @@ header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('X-Content-Type-Options: nosniff');
 
 try {
-    acExigirPerfil(['Operador', 'Gestor', 'Supervisor', 'Administrador']);
+    acExigirPerfil(['Usuario', 'Supervisor', 'Administrador']);
 
     $regionalId = filter_input(INPUT_GET, 'regional_id', FILTER_VALIDATE_INT);
     if (!$regionalId || $regionalId <= 0) {
