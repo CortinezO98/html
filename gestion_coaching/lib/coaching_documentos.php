@@ -233,7 +233,7 @@ function coachingListaIndicadores(array $paquete, array $indicadores_adicionales
     $nombres = [];
     if (!empty($paquete['indicador_nombre'] ?? null)) { $nombres[] = $paquete['indicador_nombre']; }
     foreach ($indicadores_adicionales as $i) { $nombres[] = $i['gci_nombre']; }
-    if (count($nombres) === 0) { return 'El registrado en la aplicación en el paquete coaching'; }
+    if (count($nombres) === 0) { return 'Sin indicador registrado'; }
     return htmlspecialchars(implode(', ', array_unique($nombres)));
 }
 
@@ -261,9 +261,9 @@ function construirHtmlRetroalimentacion(string $gcp_id, array $paquete, ?array $
     <table border="1" cellpadding="7" cellspacing="0" style="width:100%; border-collapse:collapse; margin-bottom:12px; font-size:10px;">
         <tr><td style="background:#156082; color:#FFFFFF; font-weight:bold;">OPORTUNIDAD DE MEJORA (Documenta jefe Inmediato)</td></tr>
         <tr><td><strong>Indicador:</strong> ' . coachingListaIndicadores($paquete, $indicadores_adicionales) . '</td></tr>
-        <tr><td><strong>Causa raíz:</strong> <span style="color:#6E6E6E;">Se debe emplear estrategias como 5 por qué, espina de pescado o aquellas que lleven a la identificación de la causa raíz</span><br>
+        <tr><td><strong>Causa raíz:</strong><br>
             ' . nl2br(htmlspecialchars($retro['gcr_causa_raiz'] ?? '')) . '</td></tr>
-        <tr><td><strong>Estrategia correctiva y/o de mejora:</strong> <span style="color:#6E6E6E;">indique métodos de consulta de información, refuerzo, aprendizaje, puede incluir ejercicios o talleres que se dejan al agente o aquellas herramientas para garantizar que el agente tenga una mejora en su proceso</span><br>
+        <tr><td><strong>Estrategia correctiva y/o de mejora:</strong><br>
             ' . nl2br(htmlspecialchars($retro['gcr_estrategia_correctiva'] ?? '')) . '</td></tr>
     </table>
 
@@ -288,12 +288,15 @@ function construirHtmlRetroalimentacion(string $gcp_id, array $paquete, ?array $
         $html .= '</table>';
     }
 
-    $html .= '
-    <table border="1" cellpadding="7" cellspacing="0" style="width:100%; border-collapse:collapse; margin-bottom:12px; font-size:10px;">
-        <tr><td style="background:#156082; color:#FFFFFF; font-weight:bold;">ENCUESTA DEL ESPACIO (Documenta colaborador)</td></tr>
-        <tr><td>Marque con una X: Ten presente que 1 es en desacuerdo 5 muy de acuerdo:<br>
-            <span style="color:#6E6E6E; font-style:italic;">El agente responde esta encuesta al momento de firmar el documento — sus respuestas quedan registradas y visibles en el detalle del paquete en la plataforma.</span></td></tr>
-    </table>';
+    // La ENCUESTA DEL ESPACIO se retiró del PDF impreso (a pedido) — la
+    // respuesta del agente sigue capturándose y guardándose igual en
+    // tb_gestion_coaching_encuesta/tb_gestion_coaching_encuesta_respuesta
+    // al momento de la firma (ver gestion_coaching_firmar.php,
+    // guardarEncuestaPercepcion()), y sigue disponible tanto en el
+    // detalle del paquete en la plataforma como en el Excel de reportería
+    // (gestion_coaching_reporte_excel.php) para consolidación y análisis
+    // de Coordinación Nacional / minería de datos — solo se dejó de
+    // imprimir en el documento firmado.
 
     $html .= coachingBloqueFirmaLegal($gcp_id, $firma);
     return $html;

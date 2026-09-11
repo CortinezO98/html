@@ -61,7 +61,15 @@
                  FROM `tb_gestion_coaching_paquete_indicador` AS PI
                  INNER JOIN `tb_gestion_coaching_indicador` AS I ON PI.`gcpi_indicador_id` = I.`gci_id`
                  WHERE PI.`gcpi_paquete` = P.`gcp_id`) AS indicadores_multiples,
-                ESC.`gcpe_destinatario_nombre`, ESC.`gcpe_asunto`
+                ESC.`gcpe_destinatario_nombre`, ESC.`gcpe_asunto`,
+                (SELECT ROUND(AVG(GR.`gcenr_respuesta_valor`), 2)
+                 FROM `tb_gestion_coaching_encuesta` AS GE
+                 INNER JOIN `tb_gestion_coaching_encuesta_respuesta` AS GR ON GR.`gcenr_encuesta` = GE.`gcen_id`
+                 WHERE GE.`gcen_paquete` = P.`gcp_id`) AS encuesta_promedio,
+                (SELECT COUNT(*)
+                 FROM `tb_gestion_coaching_encuesta` AS GE
+                 INNER JOIN `tb_gestion_coaching_encuesta_respuesta` AS GR ON GR.`gcenr_encuesta` = GE.`gcen_id`
+                 WHERE GE.`gcen_paquete` = P.`gcp_id`) AS encuesta_num_respuestas
          FROM `tb_gestion_coaching_paquete` AS P
          LEFT JOIN `tb_gestion_coaching_estado` AS E ON P.`gcp_estado_id` = E.`gce_id`
          LEFT JOIN `tb_gestion_coaching_tipo` AS T ON P.`gcp_tipo_id` = T.`gct_id`
@@ -89,30 +97,30 @@
     $sheet = $spreadsheet->getActiveSheet();
     $spreadsheet->getActiveSheet()->setTitle('Coaching');
 
-    $encabezados = ['Código', 'Origen', 'Tipo', 'Agente', 'Supervisor', 'Prioridad', 'Estado', 'Fecha creación', 'Fecha límite', 'Fecha cierre', 'Indicadores', 'Escalamiento - Destinatario', 'Escalamiento - Asunto', 'Asignado', 'Enviado a agente', 'Respondido', 'Firmado', 'Cerrado'];
-    $columnas = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R'];
+    $encabezados = ['Código', 'Origen', 'Tipo', 'Agente', 'Supervisor', 'Prioridad', 'Estado', 'Fecha creación', 'Fecha límite', 'Fecha cierre', 'Indicadores', 'Escalamiento - Destinatario', 'Escalamiento - Asunto', 'Asignado', 'Enviado a agente', 'Respondido', 'Firmado', 'Cerrado', 'Encuesta - Promedio (1-5)', 'Encuesta - # Preguntas respondidas'];
+    $columnas = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T'];
 
     foreach ($columnas as $col) {
         $sheet->getColumnDimension($col)->setWidth(20);
     }
 
     $sheet->setCellValue('A1', 'Reporte de Coaching — IQ-ICBF');
-    $sheet->mergeCells('A1:R1');
+    $sheet->mergeCells('A1:T1');
     $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
 
     $sheet->setCellValue('A2', 'Rango: ' . $fecha_desde . ' a ' . $fecha_hasta . ' — Generado: ' . date('d/m/Y H:i') . ' por ' . $_SESSION['usu_id']);
-    $sheet->mergeCells('A2:R2');
+    $sheet->mergeCells('A2:T2');
     $sheet->getStyle('A2')->getFont()->setItalic(true)->setSize(9);
 
     $fila_actual = 4;
     foreach ($columnas as $i => $col) {
         $sheet->setCellValue($col . $fila_actual, $encabezados[$i]);
     }
-    $sheet->getStyle('A' . $fila_actual . ':R' . $fila_actual)->getFont()->setBold(true);
-    $sheet->getStyle('A' . $fila_actual . ':R' . $fila_actual)->getFill()
+    $sheet->getStyle('A' . $fila_actual . ':T' . $fila_actual)->getFont()->setBold(true);
+    $sheet->getStyle('A' . $fila_actual . ':T' . $fila_actual)->getFill()
         ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
         ->getStartColor()->setRGB('4CAF50');
-    $sheet->getStyle('A' . $fila_actual . ':R' . $fila_actual)->getFont()->getColor()->setRGB('FFFFFF');
+    $sheet->getStyle('A' . $fila_actual . ':T' . $fila_actual)->getFont()->getColor()->setRGB('FFFFFF');
 
     $fila_actual++;
     foreach ($registros as $r) {
@@ -139,6 +147,8 @@
         $sheet->setCellValue('P' . $fila_actual, $hito_respondido ? date('d/m/Y H:i', strtotime($hito_respondido)) : '');
         $sheet->setCellValue('Q' . $fila_actual, $hito_firmado ? date('d/m/Y H:i', strtotime($hito_firmado)) : '');
         $sheet->setCellValue('R' . $fila_actual, $hito_cerrado ? date('d/m/Y H:i', strtotime($hito_cerrado)) : '');
+        $sheet->setCellValue('S' . $fila_actual, $r['encuesta_promedio'] ?? '');
+        $sheet->setCellValue('T' . $fila_actual, (int) ($r['encuesta_num_respuestas'] ?? 0));
         $fila_actual++;
     }
 

@@ -785,7 +785,7 @@ function obtenerEncuestaPercepcion(mysqli $enlace_db, string $gcp_id): ?array
 function guardarHallazgosDesdeMonitoreo(mysqli $enlace_db, string $gcp_id, string $monitoreo_id): void
 {
     $consulta = $enlace_db->prepare(
-        "SELECT C.`gcmc_pregunta`, C.`gcmc_respuesta`, C.`gcmc_afectaciones`, C.`gcmc_comentarios`
+        "SELECT C.`gcmc_pregunta`, C.`gcmc_respuesta`, C.`gcmc_afectaciones`, C.`gcmc_comentarios`, I.`gcmi_descripcion`
          FROM `tb_gestion_calidad_monitoreo_calificaciones` AS C
          INNER JOIN `tb_gestion_calidad_matriz_item` AS I ON C.`gcmc_pregunta` = I.`gcmi_id`
          WHERE C.`gcmc_monitoreo` = ? AND C.`gcmc_respuesta` = 'No' AND I.`gcmi_tipo_error` = 'ENC'
@@ -817,6 +817,41 @@ function guardarHallazgosDesdeMonitoreo(mysqli $enlace_db, string $gcp_id, strin
             $orden
         );
         $insertar->execute(); // no crítico bloquear la creación del paquete por esto
+    }
+
+    // Deriva el/los indicador(es) de Coaching a partir de las mismas
+    // preguntas de hallazgo — confirmado con negocio: el catálogo de
+    // indicadores (tb_gestion_coaching_indicador.gci_nombre) reutiliza el
+    // mismo texto que las preguntas de la matriz de Calidad
+    // (gcmi_descripcion), así que un paquete automático (Origen:
+    // Monitoreo) SÍ puede tener indicador real con solo emparejar por
+    // nombre — antes esto quedaba siempre vacío porque
+    // guardarIndicadoresPaquete() solo se llamaba desde la creación
+    // manual (gestion_coaching_crear.php), nunca desde el flujo
+    // automático. Coincidencia por nombre exacto (normalizado en
+    // mayúsculas/espacios) — si no hay coincidencia para ninguna
+    // pregunta, el paquete simplemente queda sin indicador, igual que
+    // antes (no se inventa nada).
+    $descripciones = array_unique(array_filter(array_map(
+        static fn(array $f): string => trim((string) ($f['gcmi_descripcion'] ?? '')),
+        $filas
+    )));
+    if (count($descripciones) === 0) {
+        return;
+    }
+
+    $marcadores = implode(',', array_fill(0, count($descripciones), '?'));
+    $consulta_indicadores = $enlace_db->prepare(
+        "SELECT `gci_id` FROM `tb_gestion_coaching_indicador`
+         WHERE `gci_activo` = 1 AND UPPER(TRIM(`gci_nombre`)) IN ({$marcadores})"
+    );
+    $descripciones_normalizadas = array_map(static fn(string $d): string => mb_strtoupper($d), $descripciones);
+    $consulta_indicadores->bind_param(str_repeat('s', count($descripciones_normalizadas)), ...$descripciones_normalizadas);
+    $consulta_indicadores->execute();
+    $indicadores_encontrados = array_column($consulta_indicadores->get_result()->fetch_all(MYSQLI_ASSOC), 'gci_id');
+
+    if (count($indicadores_encontrados) > 0) {
+        guardarIndicadoresPaquete($enlace_db, $gcp_id, $indicadores_encontrados);
     }
 }
 
