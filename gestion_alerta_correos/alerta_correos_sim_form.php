@@ -10,7 +10,7 @@ require_once __DIR__ . '/lib/alerta_correos_importacion_versionada.php';
 require_once __DIR__ . '/lib/alerta_correos_sim_fuente.php';
 require_once __DIR__ . '/lib/alerta_correos_sim_admin.php';
 
-acExigirPerfil(['Administrador']);
+acExigirPerfil(['Usuario', 'Supervisor', 'Administrador']);
 $id = max(0, (int)($_GET['id'] ?? $_POST['id'] ?? 0));
 $editando = $id > 0;
 $actual = $editando ? acSimAdminObtenerPorId($enlace_db, $id) : null;

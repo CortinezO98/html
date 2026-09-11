@@ -12,7 +12,7 @@ require_once __DIR__ . '/../lib/alerta_correos_territorio.php';
 require_once __DIR__ . '/../lib/alerta_correos_sim.php';
 
 try {
-    acExigirPerfil(['Operador', 'Gestor', 'Supervisor', 'Administrador']);
+    acExigirPerfil(['Usuario', 'Supervisor', 'Administrador']);
 
     $q = trim((string)($_GET['q'] ?? ''));
     if ($q === '') {

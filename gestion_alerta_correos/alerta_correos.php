@@ -6,7 +6,10 @@ require_once '../config/validaciones_seguridad.php';
 require_once '../config/conexion_db.php';
 require_once __DIR__ . '/lib/alerta_correos_datos.php';
 require_once __DIR__ . '/lib/alerta_correos_helpers.php';
+require_once __DIR__ . '/lib/alerta_correos_seguridad.php';
 require_once __DIR__ . '/lib/alerta_correos_informativas.php';
+
+acExigirPerfil(['Usuario', 'Supervisor', 'Cliente', 'Administrador']);
 
 $filtros = [
     'estado' => trim((string)($_GET['estado'] ?? '')),
@@ -128,13 +131,13 @@ include '../menu_header.php';
             <p class="ac-page-subtitle">Consulte, filtre y haga seguimiento al ciclo de revisión, subsanación, aprobación y notificación territorial.</p>
         </div>
         <div class="ac-page-header__actions">
-            <?php if (acTienePerfil(['Operador', 'Gestor', 'Supervisor', 'Administrador'])): ?>
+            <?php if (acTienePerfil(['Usuario', 'Supervisor', 'Administrador'])): ?>
                 <a href="alerta_correos_crear.php" class="btn ac-btn-green-outline">
                     <span class="fas fa-plus" aria-hidden="true"></span>
                     Nueva alerta manual
                 </a>
             <?php endif; ?>
-            <?php if (acTienePerfil(['Administrador'])): ?>
+            <?php if (acTienePerfil(['Usuario', 'Supervisor', 'Administrador'])): ?>
                 <a href="alerta_correos_cargar_excel.php" class="btn ac-btn-blue-outline">
                     <span class="fas fa-file-excel" aria-hidden="true"></span>
                     Crear Alerta Masiva

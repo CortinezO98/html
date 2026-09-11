@@ -11,7 +11,7 @@ require_once __DIR__ . '/lib/alerta_correos_territorio.php';
 require_once __DIR__ . '/lib/alerta_correos_sim.php';
 require_once __DIR__ . '/lib/alerta_correos_sim_admin.php';
 
-acExigirPerfil(['Operador', 'Gestor', 'Supervisor', 'Administrador']);
+acExigirPerfil(['Usuario', 'Supervisor', 'Administrador']);
 
 $errores = [];
 $acDetalleTecnicoLocal = '';
@@ -389,7 +389,7 @@ include '../menu_header.php';
     <form id="ac-form-nueva-alerta" method="post" novalidate data-ac-lock-submit="1"
           data-ac-swal-confirm="1"
           data-ac-swal-title="¿Registrar esta alerta?"
-          data-ac-swal-text="El caso quedará pendiente de revisión. No se enviará correo hasta que un Gestor/Supervisor lo apruebe."
+          data-ac-swal-text="El caso quedará pendiente de revisión. No se enviará correo hasta que el perfil Cliente o un Administrador lo apruebe."
           data-ac-swal-confirm-text="Sí, registrar"
           data-ac-swal-icon="question">
         <input type="hidden" name="_csrf" value="<?php echo acEscape(acCsrfToken()); ?>">

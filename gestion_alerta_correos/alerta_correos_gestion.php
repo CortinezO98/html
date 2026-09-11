@@ -8,7 +8,7 @@ require_once __DIR__ . '/lib/alerta_correos_seguridad.php';
 require_once __DIR__ . '/lib/alerta_correos_datos.php';
 require_once __DIR__ . '/lib/alerta_correos_informativas.php';
 
-acExigirPerfil(['Gestor', 'Supervisor', 'Administrador']);
+acExigirPerfil(['Supervisor', 'Cliente', 'Administrador']);
 
 $q = trim((string)($_GET['q'] ?? ''));
 $filtrosPendientes = ['estado' => 'PENDIENTE_REVISION', 'q' => $q];

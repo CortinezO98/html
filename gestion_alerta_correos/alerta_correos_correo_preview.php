@@ -9,7 +9,7 @@ require_once __DIR__ . '/lib/alerta_correos_datos.php';
 require_once __DIR__ . '/lib/alerta_correos_email_oficial.php';
 require_once __DIR__ . '/lib/alerta_correos_informativas.php';
 
-acExigirPerfil(['Gestor', 'Supervisor', 'Administrador']);
+acExigirPerfil(['Cliente', 'Administrador']);
 
 $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
 if (!$id) { http_response_code(400); exit('Caso inválido.'); }

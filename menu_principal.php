@@ -32,17 +32,26 @@
             <?php endif; ?>
         </li>
         <?php endif; ?>
-        <?php if (isset($_SESSION['modulos_acceso_permisos']['Alertas Correos']) AND $_SESSION['modulos_acceso_permisos']['Alertas Correos']!=""): ?>
+        <?php if (isset($_SESSION['modulos_acceso_permisos']['Alertas Correos']) AND in_array($_SESSION['modulos_acceso_permisos']['Alertas Correos'], ['Usuario','Supervisor','Cliente','Administrador'], true)): ?>
+        <?php $acPerfilMenu = (string) $_SESSION['modulos_acceso_permisos']['Alertas Correos']; ?>
         <li class="submenu"><a href="#"><div class="opcion_icon"><span class="fas fa-envelope-open-text"></span></div><p class="texto_menu">Alertas Correos<span class="fas fa-chevron-down submenu_icon"></span></p></a>
             <ul>
                 <li><a href="../gestion_alerta_correos/alerta_correos.php"><div class="opcion_icon"><span class="fas fa-inbox"></span></div><p class="texto_menu">Bandeja de alertas</p></a></li>
+                <?php if (in_array($acPerfilMenu, ['Supervisor','Cliente','Administrador'], true)): ?>
                 <li><a href="../gestion_alerta_correos/alerta_correos_reporteria.php"><div class="opcion_icon"><span class="fas fa-chart-bar"></span></div><p class="texto_menu">Reportería</p></a></li>
+                <?php endif; ?>
+                <?php if (in_array($acPerfilMenu, ['Usuario','Supervisor','Administrador'], true)): ?>
                 <li><a href="../gestion_alerta_correos/alerta_correos_crear.php"><div class="opcion_icon"><span class="fas fa-plus-circle"></span></div><p class="texto_menu">Nueva alerta manual</p></a></li>
-                <li><a href="../gestion_alerta_correos/alerta_correos_gestion.php"><div class="opcion_icon"><span class="fas fa-tasks"></span></div><p class="texto_menu">Revisión y aprobación</p></a></li>
                 <li><a href="../gestion_alerta_correos/alerta_correos_cargar_excel.php"><div class="opcion_icon"><span class="fas fa-file-excel"></span></div><p class="texto_menu">Crear Alerta Masiva</p></a></li>
-                <li><a href="../gestion_alerta_correos/alerta_correos_responsables.php"><div class="opcion_icon"><span class="fas fa-users-cog"></span></div><p class="texto_menu">Responsables territoriales</p></a></li>
                 <li><a href="../gestion_alerta_correos/alerta_correos_sim.php"><div class="opcion_icon"><span class="fas fa-database"></span></div><p class="texto_menu">Radicados SIM de referencia</p></a></li>
+                <?php endif; ?>
+                <?php if (in_array($acPerfilMenu, ['Supervisor','Cliente','Administrador'], true)): ?>
+                <li><a href="../gestion_alerta_correos/alerta_correos_gestion.php"><div class="opcion_icon"><span class="fas fa-tasks"></span></div><p class="texto_menu">Revisión y aprobación</p></a></li>
+                <?php endif; ?>
+                <?php if ($acPerfilMenu === 'Administrador'): ?>
+                <li><a href="../gestion_alerta_correos/alerta_correos_responsables.php"><div class="opcion_icon"><span class="fas fa-users-cog"></span></div><p class="texto_menu">Responsables territoriales</p></a></li>
                 <li><a href="../gestion_alerta_correos/alerta_correos_nacional_cargar.php"><div class="opcion_icon"><span class="fas fa-building"></span></div><p class="texto_menu">Directorio nacional</p></a></li>
+                <?php endif; ?>
             </ul>
         </li>
         <?php endif; ?>

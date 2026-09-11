@@ -50,6 +50,74 @@ function acCorreoAprobacionHtml(array $caso): string
         . '</table><p>Este mensaje fue generado automáticamente por el módulo Alertas Correos.</p></div>';
 }
 
+
+/**
+ * Encola una notificación de subsanación para el agente que registró el caso.
+ * La subsanación es interna: no se notifica a responsables regionales/zonal.
+ * Devuelve 0 si el creador no existe, está inactivo o no tiene correo válido.
+ */
+function acEncolarSubsanacionAgente(mysqli $db, array $caso, string $comentario): int
+{
+    $creadorId = trim((string)($caso['acc_usuario_creador'] ?? ''));
+    if ($creadorId === '') return 0;
+
+    $u = $db->prepare("SELECT usu_id,usu_nombres_apellidos,usu_correo_corporativo,usu_estado FROM tb_administrador_usuario WHERE usu_id=? LIMIT 1");
+    $u->bind_param('s', $creadorId);
+    $u->execute();
+    $agente = $u->get_result()->fetch_assoc() ?: null;
+    $u->close();
+
+    if (!$agente || strcasecmp(trim((string)($agente['usu_estado'] ?? '')), 'Activo') !== 0) return 0;
+    $correo = trim((string)($agente['usu_correo_corporativo'] ?? ''));
+    if (!filter_var($correo, FILTER_VALIDATE_EMAIL)) return 0;
+
+    $nombre = trim((string)($agente['usu_nombres_apellidos'] ?? '')) ?: $creadorId;
+    $address = $correo . '|' . str_replace([';','|'], ' ', $nombre);
+    $version = (int)($caso['acc_version'] ?? 0) + 1;
+    $clave = 'SUBSANACION-' . (int)$caso['acc_id'] . '-V' . $version;
+
+    $check = $db->prepare('SELECT acn_id,acn_nc_id FROM tb_alerta_correo_notificacion WHERE acn_clave_idempotencia=? LIMIT 1');
+    $check->bind_param('s', $clave);
+    $check->execute();
+    $exist = $check->get_result()->fetch_assoc();
+    $check->close();
+    if ($exist) return (int)($exist['acn_nc_id'] ?? 0);
+
+    $m = $db->prepare("SELECT mod_id FROM tb_configuracion_modulo WHERE mod_modulo_nombre='Alertas Correos' LIMIT 1");
+    $m->execute();
+    $mod = $m->get_result()->fetch_assoc();
+    $m->close();
+    if (!$mod) return 0;
+
+    $e = static fn($v) => htmlspecialchars((string)$v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $radicado = (string)($caso['acc_radicado'] ?? '');
+    $asunto = substr('Alerta ICBF - Subsanación requerida - ' . $radicado, 0, 100);
+    $body = '<div style="font-family:Arial,sans-serif;font-size:14px;color:#333">'
+        . '<h3>Subsanación requerida - Alertas Correos</h3>'
+        . '<p>Hola <strong>'.$e($nombre).'</strong>,</p>'
+        . '<p>El cliente solicitó una subsanación sobre la alerta <strong>'.$e($radicado).'</strong> que usted registró.</p>'
+        . '<p><strong>Observación de subsanación:</strong><br>'.nl2br($e($comentario)).'</p>'
+        . '<p>Ingrese al módulo <strong>Alertas Correos</strong>, revise el caso y envíelo nuevamente a revisión cuando haya realizado la corrección.</p>'
+        . '<p>Este mensaje fue generado automáticamente por el módulo Alertas Correos.</p></div>';
+
+    $modId=(int)$mod['mod_id']; $prioridad='Alta'; $setFrom=1; $cc=''; $bcc=''; $reply='';
+    $imgRuta=''; $imgNombre=''; $imgTipo=''; $intentos='0'; $eliminar='0'; $estado='Pendiente'; $fechaEnvio=''; $usuario=acUsuarioActual();
+    $ins=$db->prepare('INSERT INTO tb_notificaciones_central (nc_id_modulo,nc_prioridad,nc_id_set_from,nc_address,nc_cc,nc_bcc,nc_reply_to,nc_subject,nc_body,nc_embeddedimage_ruta,nc_embeddedimage_nombre,nc_embeddedimage_tipo,nc_intentos,nc_eliminar,nc_estado_envio,nc_fecha_envio,nc_usuario_registro) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+    $ins->bind_param('isissssssssssssss',$modId,$prioridad,$setFrom,$address,$cc,$bcc,$reply,$asunto,$body,$imgRuta,$imgNombre,$imgTipo,$intentos,$eliminar,$estado,$fechaEnvio,$usuario);
+    $ins->execute();
+    $ncId=(int)$db->insert_id;
+    $ins->close();
+
+    $snapshot=json_encode([['usu_id'=>$creadorId,'nombre'=>$nombre,'correo'=>$correo]],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+    $evento='SOLICITAR_SUBSANACION'; $nEstado='ENCOLADA'; $ahora=date('Y-m-d H:i:s');
+    $n=$db->prepare('INSERT INTO tb_alerta_correo_notificacion (acn_caso_id,acn_nc_id,acn_evento,acn_clave_idempotencia,acn_to,acn_cc,acn_bcc,acn_destinatarios_snapshot,acn_asunto,acn_estado,acn_usuario,acn_fecha_encolada) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
+    $casoId=(int)$caso['acc_id'];
+    $n->bind_param('iissssssssss',$casoId,$ncId,$evento,$clave,$address,$cc,$bcc,$snapshot,$asunto,$nEstado,$usuario,$ahora);
+    $n->execute();
+    $n->close();
+    return $ncId;
+}
+
 function acEncolarAprobacion(mysqli $db, array $caso): int
 {
     if (acAlertaEsInformativa($caso)) {
