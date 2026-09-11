@@ -36,6 +36,7 @@
         <li class="submenu"><a href="#"><div class="opcion_icon"><span class="fas fa-envelope-open-text"></span></div><p class="texto_menu">Alertas Correos<span class="fas fa-chevron-down submenu_icon"></span></p></a>
             <ul>
                 <li><a href="../gestion_alerta_correos/alerta_correos.php"><div class="opcion_icon"><span class="fas fa-inbox"></span></div><p class="texto_menu">Bandeja de alertas</p></a></li>
+                <li><a href="../gestion_alerta_correos/alerta_correos_reporteria.php"><div class="opcion_icon"><span class="fas fa-chart-bar"></span></div><p class="texto_menu">Reportería</p></a></li>
                 <li><a href="../gestion_alerta_correos/alerta_correos_crear.php"><div class="opcion_icon"><span class="fas fa-plus-circle"></span></div><p class="texto_menu">Nueva alerta manual</p></a></li>
                 <li><a href="../gestion_alerta_correos/alerta_correos_gestion.php"><div class="opcion_icon"><span class="fas fa-tasks"></span></div><p class="texto_menu">Revisión y aprobación</p></a></li>
                 <li><a href="../gestion_alerta_correos/alerta_correos_cargar_excel.php"><div class="opcion_icon"><span class="fas fa-file-excel"></span></div><p class="texto_menu">Crear Alerta Masiva</p></a></li>
