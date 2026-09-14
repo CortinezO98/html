@@ -7,7 +7,7 @@ require_once '../config/conexion_db.php';
 require_once __DIR__ . '/lib/alerta_correos_seguridad.php';
 require_once __DIR__ . '/lib/alerta_correos_carga_excel.php';
 
-acExigirPerfil(['Usuario', 'Supervisor', 'Administrador']);
+acExigirPerfil(['Administrador']);
 
 $titulo_header = 'Alertas Correos | Crear Alerta Masiva';
 $error = null;
@@ -149,99 +149,6 @@ function acCargaAlertasBadge(string $estado): string
 <head>
     <?php include '../config/configuracion_estilos.php'; ?>
     <link rel="stylesheet" href="assets/alerta_correos.css?v=20260910">
-    <style>
-        /* Ajustes exclusivos de Crear Alerta Masiva. */
-        .ac-module .ac-mass-page-header {
-            flex-wrap: nowrap;
-            gap: 20px;
-        }
-        .ac-module .ac-mass-page-header .ac-page-header__main {
-            flex: 1 1 auto;
-            min-width: 0;
-        }
-        .ac-module .ac-mass-page-header .ac-page-header__actions {
-            flex: 0 0 auto;
-            margin-left: auto;
-            margin-top: 0;
-        }
-        .ac-module .ac-mass-page-header .ac-page-header__actions .btn {
-            white-space: nowrap;
-        }
-        .ac-module .ac-mass-template-card {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 18px;
-            margin-bottom: 16px;
-            padding: 14px 16px;
-            border: 1px solid #cfe5d1;
-            border-radius: 8px;
-            background: #f7fbf7;
-        }
-        .ac-module .ac-mass-template-card__main {
-            display: flex;
-            align-items: flex-start;
-            min-width: 0;
-            gap: 12px;
-        }
-        .ac-module .ac-mass-template-card__icon {
-            flex: 0 0 40px;
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-            background: #e5f5e7;
-            color: #32863a;
-            font-size: 18px;
-        }
-        .ac-module .ac-mass-template-card__title {
-            margin: 0 0 3px;
-            font-size: 13px;
-            font-weight: 700;
-            color: #1d2a35;
-        }
-        .ac-module .ac-mass-template-card__text {
-            margin: 0;
-            color: #66717d;
-            font-size: 11px;
-            line-height: 1.5;
-        }
-        @media (max-width: 767.98px) {
-            .ac-module .ac-mass-page-header {
-                flex-direction: column;
-                flex-wrap: nowrap;
-                gap: 10px;
-            }
-            .ac-module .ac-mass-page-header .ac-page-header__main,
-            .ac-module .ac-mass-page-header .ac-page-header__actions {
-                width: 100%;
-                margin: 0;
-            }
-            .ac-module .ac-mass-page-header .ac-page-header__actions .btn {
-                width: 100%;
-            }
-            .ac-module .ac-mass-template-card {
-                flex-direction: column;
-                align-items: stretch;
-                padding: 13px;
-            }
-            .ac-module .ac-mass-template-card .btn {
-                width: 100%;
-            }
-        }
-        @media (max-width: 575.98px) {
-            .ac-module .ac-mass-page-header .ac-page-title {
-                font-size: 18px;
-                line-height: 1.2;
-            }
-            .ac-module .ac-mass-page-header .ac-page-subtitle {
-                font-size: 11px;
-                line-height: 1.48;
-            }
-        }
-    </style>
 </head>
 <body>
 <?php include '../menu_principal.php'; include '../menu_header.php'; ?>
@@ -253,7 +160,7 @@ function acCargaAlertasBadge(string $estado): string
         <span>Crear Alerta Masiva</span>
     </nav>
 
-    <header class="ac-page-header ac-mass-page-header">
+    <header class="ac-page-header">
         <div class="ac-page-header__main">
             <h1 class="ac-page-title"><span class="fas fa-file-excel"></span> Crear Alerta Masiva</h1>
             <p class="ac-page-subtitle">Cada fila válida se convierte en un caso independiente en estado <strong>Pendiente de revisión</strong>. Esta carga <strong>no crea regionales ni puntos de atención</strong>. Los casos notificables podrán generar correo únicamente después de ser aprobados; las alertas de <strong>Tiempos de espera muy largos</strong> se crean como <strong>informativas y sin correo</strong>.</p>
@@ -433,17 +340,21 @@ function acCargaAlertasBadge(string $estado): string
 
                         <div class="ac-mass-template-card">
                             <div class="ac-mass-template-card__main">
-                                <div class="ac-mass-template-card__icon"><span class="fas fa-file-download"></span></div>
+                                <div class="ac-mass-template-card__icon">
+                                    <span class="fas fa-file-download"></span>
+                                </div>
                                 <div>
-                                    <h3 class="ac-mass-template-card__title">Excel de ejemplo para la carga masiva</h3>
-                                    <p class="ac-mass-template-card__text">Descargue esta plantilla y úsela como guía. Conserva los encabezados que reconoce el módulo e incluye un ejemplo notificable y uno informativo de <strong>Tiempos de espera muy largos</strong>.</p>
+                                    <p class="ac-mass-template-card__title">Plantilla oficial para carga masiva</p>
+                                    <p class="ac-mass-template-card__text">
+                                        Descargue el archivo de ejemplo, conserve los encabezados y reemplace las filas de muestra por la información real.
+                                    </p>
                                 </div>
                             </div>
-                            <div>
-                                <a href="assets/plantillas/plantilla_alerta_masiva.xlsx" class="btn ac-btn-green-outline" download>
-                                    <span class="fas fa-download"></span> Descargar Excel de ejemplo
-                                </a>
-                            </div>
+                            <a href="plantillas/Plantilla_Carga_Masiva_Alertas_Correos.xlsx"
+                               class="btn ac-btn-green-outline"
+                               download>
+                                <span class="fas fa-download"></span> Descargar plantilla Excel
+                            </a>
                         </div>
 
                         <form method="post" enctype="multipart/form-data">
@@ -485,3 +396,4 @@ function acCargaAlertasBadge(string $estado): string
 <script src="assets/alerta_correos.js?v=20260910"></script>
 </body>
 </html>
+
