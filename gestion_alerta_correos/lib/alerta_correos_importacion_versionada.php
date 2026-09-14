@@ -707,11 +707,11 @@ function acImportacionInsertarResponsable(mysqli $db, array $r, int $puntoId, st
         (acr_punto_atencion_id, acr_nivel, acr_regional, acr_centro_zonal, acr_codigo_centro,
          acr_nombre, acr_correo, acr_documento, acr_tipo_responsable, acr_perfil, acr_extension_ip,
          acr_activo, acr_vigente_desde, acr_vigente_hasta, acr_fuente, acr_hash_version,
-         acr_actualizado_por, acr_fecha_actualizacion)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NULL,?,?,?,NOW())'
+         acr_usuario_registro, acr_actualizado_por, acr_fecha_actualizacion)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NULL,?,?,?,?,NOW())'
     );
     $stmt->bind_param(
-        'issssssssssisss',
+        'issssssssssissss',
         $puntoId,
         $nivel,
         $regional,
@@ -726,6 +726,7 @@ function acImportacionInsertarResponsable(mysqli $db, array $r, int $puntoId, st
         $activo,
         $fuente,
         $hash,
+        $usuario,
         $usuario
     );
     $stmt->execute();
@@ -804,3 +805,7 @@ function acAplicarSincronizacionResponsables(mysqli $db, array $preview, string 
     // Importante: los registros que faltan en el archivo NO se inactivan automáticamente.
     return $resultado;
 }
+
+
+
+================================================
