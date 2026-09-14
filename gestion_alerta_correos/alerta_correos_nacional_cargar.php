@@ -7,7 +7,7 @@ require_once __DIR__.'/lib/alerta_correos_seguridad.php';
 require_once __DIR__.'/lib/alerta_correos_territorio.php';
 require_once __DIR__.'/lib/alerta_correos_importacion_versionada.php';
 require_once __DIR__.'/lib/alerta_correos_nacional.php';
-acExigirPerfil(['Administrador']);
+acExigirPerfil(['Usuario', 'Administrador']);
 $titulo_header='Alertas Correos | Directorio nacional';
 $error=null;$preview=null;$resultado=null;$token='';
 if(!isset($_SESSION['ac_nacional_sync'])||!is_array($_SESSION['ac_nacional_sync']))$_SESSION['ac_nacional_sync']=[];
@@ -56,7 +56,7 @@ if(($_SERVER['REQUEST_METHOD']??'')==='POST'){
 <?php include '../menu_principal.php';include '../menu_header.php'; ?>
 <div class="contenido ac-module ac-module--footer-safe">
 <nav class="ac-breadcrumb"><a href="../contenido.php">Inicio</a><span class="ac-separator">/</span><a href="alerta_correos.php">Alertas Correos</a><span class="ac-separator">/</span><span>Directorio nacional</span></nav>
-<header class="ac-page-header"><div class="ac-page-header__main"><h1 class="ac-page-title"><span class="fas fa-building"></span> Directorio nacional de enlaces</h1><p class="ac-page-subtitle">Actualiza los enlaces de Sede Nacional utilizados como directorio complementario. <strong>Esta opción no crea casos de alerta ni envía correos.</strong> Se conserva separada del enrutamiento Regional/CZ.</p></div><div class="ac-page-header__actions"><a href="alerta_correos.php" class="btn ac-btn-red-outline"><span class="fas fa-arrow-left"></span> Volver</a></div></header>
+<header class="ac-page-header"><div class="ac-page-header__main"><h1 class="ac-page-title"><span class="fas fa-building"></span> Enlaces SIM · Sede Nacional</h1><p class="ac-page-subtitle">Sincroniza la hoja <strong>SEDE NACIONAL</strong>. Este directorio se conserva separado del enrutamiento Regional/CZ.</p></div><div class="ac-page-header__actions"><a href="alerta_correos.php" class="btn ac-btn-red-outline"><span class="fas fa-arrow-left"></span> Volver</a></div></header>
 <?php if($error): ?><div class="alert alert-danger"><?php echo acEscape($error); ?></div><?php endif; ?>
 <?php if($resultado): ?><div class="alert alert-success"><strong>Directorio nacional sincronizado.</strong> Nuevos: <?php echo (int)$resultado['nuevos']; ?> · Actualizados: <?php echo (int)$resultado['actualizados']; ?> · Sin cambios: <?php echo (int)$resultado['sin_cambios']; ?>.</div><?php endif; ?>
 <?php if($preview): $r=$preview['resumen']; ?>
@@ -81,3 +81,6 @@ if(($_SERVER['REQUEST_METHOD']??'')==='POST'){
 <?php endif; ?>
 </div><?php include '../footer.php';include '../config/configuracion_js.php'; ?><script src="assets/alerta_correos.js?v=20260909"></script></body></html>
 
+
+
+================================================

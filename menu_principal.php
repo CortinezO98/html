@@ -48,7 +48,7 @@
                 <?php if (in_array($acPerfilMenu, ['Supervisor','Cliente','Administrador'], true)): ?>
                 <li><a href="../gestion_alerta_correos/alerta_correos_gestion.php"><div class="opcion_icon"><span class="fas fa-tasks"></span></div><p class="texto_menu">Revisión y aprobación</p></a></li>
                 <?php endif; ?>
-                <?php if ($acPerfilMenu === 'Administrador'): ?>
+                <?php if (in_array($acPerfilMenu, ['Usuario','Administrador'], true)): ?>
                 <li><a href="../gestion_alerta_correos/alerta_correos_responsables.php"><div class="opcion_icon"><span class="fas fa-users-cog"></span></div><p class="texto_menu">Responsables territoriales</p></a></li>
                 <li><a href="../gestion_alerta_correos/alerta_correos_nacional_cargar.php"><div class="opcion_icon"><span class="fas fa-building"></span></div><p class="texto_menu">Directorio nacional</p></a></li>
                 <?php endif; ?>

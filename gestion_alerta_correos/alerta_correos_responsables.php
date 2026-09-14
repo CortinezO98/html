@@ -7,7 +7,7 @@ require_once '../config/conexion_db.php';
 require_once __DIR__ . '/lib/alerta_correos_seguridad.php';
 require_once __DIR__ . '/lib/alerta_correos_datos.php';
 
-acExigirPerfil(['Administrador']);
+acExigirPerfil(['Usuario', 'Administrador']);
 
 $q = trim((string)($_GET['q'] ?? ''));
 $rows = acListarResponsables($enlace_db, $q);

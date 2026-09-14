@@ -8,7 +8,7 @@ require_once __DIR__ . '/lib/alerta_correos_seguridad.php';
 require_once __DIR__ . '/lib/alerta_correos_territorio.php';
 require_once __DIR__ . '/lib/alerta_correos_importacion_versionada.php';
 
-acExigirPerfil(['Administrador']);
+acExigirPerfil(['Usuario', 'Administrador']);
 
 $titulo_header = 'Alertas Correos | Responsables territoriales';
 $error = null;
