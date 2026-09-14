@@ -78,3 +78,6 @@ css/
 js/
 fonts/
 anychart/
+# Permitir plantillas oficiales del módulo Alertas Correos
+!gestion_alerta_correos/plantillas/
+!gestion_alerta_correos/plantillas/*.xlsx
