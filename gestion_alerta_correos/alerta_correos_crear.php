@@ -333,7 +333,6 @@ $valorAfecta = array_key_exists('afecta_linea_tecnica', $_POST)
     <link rel="stylesheet" href="assets/alerta_correos.css?v=20260909">
     <link rel="stylesheet" href="assets/alerta_correos_sim.css?v=20260909-3">
     <link rel="stylesheet" href="assets/alerta_correos_alertas.css?v=20260909-1">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body>
 <?php
@@ -622,7 +621,7 @@ window.AC_ALERTAS_CONFIG = <?php echo json_encode([
 <script src="assets/alerta_correos.js?v=20260909"></script>
 <script src="assets/alerta_correos_territorio.js?v=20260909-2"></script>
 <script src="assets/alerta_correos_sim.js?v=20260909-3"></script>
-<script src="assets/alerta_correos_alertas.js?v=20260909-2"></script>
+<script src="assets/alerta_correos_alertas.js?v=20260914_1535"></script>
 </body>
 </html>
 

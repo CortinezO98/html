@@ -159,11 +159,19 @@
     }
 
     function confirmarFormulario(form, submitter) {
-        if (!swalDisponible()) return Promise.resolve(true);
-
         var titulo = form.getAttribute('data-ac-swal-title') || '¿Confirma la acción?';
         var texto = form.getAttribute('data-ac-swal-text') || '';
         var confirmar = form.getAttribute('data-ac-swal-confirm-text') || 'Confirmar';
+
+        // SweetAlert2 puede estar bloqueado por CSP.
+        // En ese caso utilizamos confirm() nativo para no detener el formulario.
+        if (!swalDisponible()) {
+            var mensaje = titulo;
+            if (texto) {
+                mensaje += '\n\n' + texto;
+            }
+            return Promise.resolve(window.confirm(mensaje));
+        }
         var icono = form.getAttribute('data-ac-swal-icon') || 'question';
         var html = texto ? '<div>' + escaparTexto(texto) + '</div>' : '';
 
@@ -231,14 +239,53 @@
 
                 evento.preventDefault();
                 var submitter = evento.submitter || form.querySelector('[type="submit"]');
+
+                // alerta_correos.js puede haber bloqueado el botón antes de que
+                // esta confirmación intercepte el submit. Lo restauramos antes
+                // de pedir confirmación o reenviar el formulario.
+                var lockButton = form.querySelector('button[type="submit"], input[type="submit"]');
+                if (lockButton) {
+                    lockButton.disabled = false;
+                    if (lockButton.tagName === 'BUTTON') {
+                        var originalHtml = lockButton.getAttribute('data-original-html');
+                        if (originalHtml !== null) {
+                            lockButton.innerHTML = originalHtml;
+                            lockButton.removeAttribute('data-original-html');
+                        }
+                    }
+                }
+
                 confirmarFormulario(form, submitter).then(function (confirmado) {
                     if (!confirmado) return;
-                    form.dataset.acSwalConfirmed = '1';
-                    if (typeof form.requestSubmit === 'function') {
-                        form.requestSubmit(submitter || undefined);
-                    } else {
-                        form.submit();
+
+                    // El formulario ya fue validado y confirmado.
+                    // Enviamos directamente para evitar un segundo evento submit,
+                    // ya que alerta_correos.js bloquea el botón en cada submit.
+                    var button = submitter || form.querySelector('button[type="submit"], input[type="submit"]');
+
+                    if (button) {
+                        button.disabled = true;
+
+                        if (button.tagName === 'BUTTON') {
+                            if (!button.getAttribute('data-original-html')) {
+                                button.setAttribute('data-original-html', button.innerHTML);
+                            }
+
+                            button.innerHTML = '<span class="fas fa-spinner fa-spin"></span> Procesando...';
+                        }
+
+                        // Conservar name/value del botón si algún formulario lo utiliza.
+                        if (button.name) {
+                            var hiddenSubmitter = document.createElement('input');
+                            hiddenSubmitter.type = 'hidden';
+                            hiddenSubmitter.name = button.name;
+                            hiddenSubmitter.value = button.value || '';
+                            form.appendChild(hiddenSubmitter);
+                        }
                     }
+
+                    // Evita volver a disparar los listeners de submit.
+                    HTMLFormElement.prototype.submit.call(form);
                 });
             });
         });
