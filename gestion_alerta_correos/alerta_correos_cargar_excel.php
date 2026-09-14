@@ -440,7 +440,7 @@ function acCargaAlertasBadge(string $estado): string
                                 </div>
                             </div>
                             <div>
-                                <a href="assets/plantillas/plantilla_alerta_masiva.xlsx" class="btn ac-btn-green-outline" download>
+                                <a href="plantillas/plantilla_alerta_masiva.xlsx" class="btn ac-btn-green-outline" download>
                                     <span class="fas fa-download"></span> Descargar Excel de ejemplo
                                 </a>
                             </div>
