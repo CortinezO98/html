@@ -546,9 +546,14 @@ function acEmailRegistrarAuditoriaLocal(mysqli $db, int $casoId, int $ncId, arra
 {
     // La migración 008 garantiza estas columnas; el insert flexible conserva compatibilidad
     // con posibles columnas requeridas de versiones anteriores.
+    $claveIdempotencia = 'APROBACION:' . $casoId . ':' . $ncId;
+
     acEmailInsertFlexible($db, 'tb_alerta_correo_notificacion', [
         'acn_caso_id' => $casoId,
+        'acn_nc_id' => $ncId,
         'acn_notificacion_central_id' => $ncId,
+        'acn_evento' => 'APROBACION',
+        'acn_clave_idempotencia' => $claveIdempotencia,
         'acn_template_version' => (string)$plantilla['version'],
         'acn_to' => (string)$plantilla['to'],
         'acn_cc' => (string)$plantilla['cc'],
