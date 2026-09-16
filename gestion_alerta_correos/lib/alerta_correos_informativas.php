@@ -7,7 +7,7 @@ require_once __DIR__ . '/alerta_correos_territorio.php';
  * Reglas para alertas informativas.
  *
  * La regla solicitada aplica únicamente a casos creados por carga masiva:
- * - Categoría: "Tiempos de espera muy largos".
+ * - Categorías: "Tiempos de espera muy largos" o "Tiempos de espera muy altos".
  * - Se conserva el ciclo de revisión/aprobación.
  * - Al aprobar NO se genera ni se encola correo electrónico.
  * - Se clasifica el tiempo reportado con los mismos rangos usados en la matriz 2026.
@@ -15,7 +15,16 @@ require_once __DIR__ . '/alerta_correos_territorio.php';
 
 function acAlertaEsCategoriaTiempoEspera(?string $categoria): bool
 {
-    return acTerritorioNormalizarClave((string)$categoria) === 'TIEMPOS DE ESPERA MUY LARGOS';
+    $categoriaNormalizada = acTerritorioNormalizarClave((string)$categoria);
+
+    return in_array(
+        $categoriaNormalizada,
+        [
+            'TIEMPOS DE ESPERA MUY LARGOS',
+            'TIEMPOS DE ESPERA MUY ALTOS',
+        ],
+        true
+    );
 }
 
 function acAlertaEsInformativa(array $caso): bool
