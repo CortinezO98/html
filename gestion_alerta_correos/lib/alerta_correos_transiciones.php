@@ -26,14 +26,6 @@ function acEjecutarTransicion(mysqli $db, int $casoId, string $accion, string $c
         $caso=acObtenerCaso($db,$casoId,true);
         if (!$caso) throw new RuntimeException('Caso no encontrado.');
 
-        // Una subsanación vuelve al agente que creó/tramitó originalmente la alerta.
-        // El Administrador conserva capacidad de contingencia para evitar bloqueos operativos.
-        if ($accion==='SUBSANAR' && !acTienePerfil(['Administrador'])) {
-            if ((string)($caso['acc_usuario_creador'] ?? '') !== acUsuarioActual()) {
-                throw new RuntimeException('La subsanación está asignada al agente que registró esta alerta.');
-            }
-        }
-
         $nuevo=acTransicionPermitida((string)$caso['acc_estado'],$accion);
         if ($nuevo===null) throw new RuntimeException('La transición solicitada no es válida para el estado actual.');
 

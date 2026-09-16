@@ -54,7 +54,7 @@ $esCreadorCaso = (string)($caso['acc_usuario_creador'] ?? '') === acUsuarioActua
 $puedeResolver = acTienePerfil(['Cliente', 'Administrador'])
     && in_array($caso['acc_estado'], ['PENDIENTE_REVISION', 'PENDIENTE_REVISION_SUBSANACION'], true);
 $puedeSubsanar = $caso['acc_estado'] === 'PENDIENTE_SUBSANACION'
-    && (acTienePerfil(['Administrador']) || (acTienePerfil(['Usuario']) && $esCreadorCaso));
+    && acTienePerfil(['Usuario', 'Administrador']);
 $puedeReabrir = $caso['acc_estado'] === 'RECHAZADO'
     && acTienePerfil(['Cliente', 'Administrador']);
 
@@ -439,24 +439,34 @@ include '../menu_header.php';
                             </form>
                         </div>
                         <div class="ac-action-group">
-                            <form method="post" action="alerta_correos_rechazar.php" data-ac-lock-submit="1" data-ac-swal-confirm="1" data-ac-swal-title="¿Rechazar este caso?" data-ac-swal-text="El caso quedará rechazado y no se enviará correo a los responsables territoriales." data-ac-swal-confirm-text="Sí, rechazar" data-ac-swal-icon="warning">
+                            <form method="post" action="alerta_correos_rechazar.php" data-ac-lock-submit="1" data-ac-swal-confirm="1" data-ac-swal-title="¿Marcar esta alerta como No Enviar?" data-ac-swal-text="La alerta quedará marcada para no enviar correo a los responsables territoriales." data-ac-swal-confirm-text="Sí, no enviar" data-ac-swal-icon="warning">
                                 <input type="hidden" name="_csrf" value="<?php echo acEscape(acCsrfToken()); ?>"><input type="hidden" name="id" value="<?php echo (int)$id; ?>">
-                                <textarea name="comentario" class="form-control mb-2" rows="3" required maxlength="20000" placeholder="Registre el motivo obligatorio del rechazo."></textarea>
-                                <button class="btn btn-danger btn-block" type="submit"><span class="fas fa-times"></span> Rechazar</button>
+                                <textarea name="comentario" class="form-control mb-2" rows="3" required maxlength="20000" placeholder="Registre el motivo por el cual no se debe enviar esta alerta."></textarea>
+                                <button class="btn btn-danger btn-block" type="submit"><span class="fas fa-ban"></span> No Enviar</button>
                             </form>
                         </div>
                     <?php elseif ($caso['acc_estado'] === 'PENDIENTE_SUBSANACION' && !$puedeSubsanar): ?>
                         <div class="ac-alert-box ac-alert-box--info mb-0">
-                            <span class="fas fa-user-check mr-1"></span>
-                            La subsanación está asignada al <strong>agente que registró esta alerta</strong>. Solo ese usuario, o un Administrador, puede corregirla y enviarla nuevamente a revisión.
+                            <span class="fas fa-users mr-1"></span>
+                            Este caso se encuentra pendiente de subsanación.
+                            La corrección puede ser realizada por cualquier integrante con perfil
+                            <strong>Usuario</strong> o, como contingencia, por un
+                            <strong>Administrador</strong>.
                         </div>
                     <?php elseif ($puedeSubsanar): ?>
-                        <form method="post" action="alerta_correos_subsanar.php" data-ac-lock-submit="1" data-ac-swal-confirm="1" data-ac-swal-title="¿Enviar a nueva revisión?" data-ac-swal-text="La subsanación quedará registrada y el caso volverá a la bandeja de revisión." data-ac-swal-confirm-text="Sí, enviar" data-ac-swal-icon="question">
-                            <input type="hidden" name="_csrf" value="<?php echo acEscape(acCsrfToken()); ?>"><input type="hidden" name="id" value="<?php echo (int)$id; ?>">
-                            <label class="ac-label">Detalle de la subsanación <span class="ac-required">*</span></label>
-                            <textarea name="comentario" class="form-control mb-2" rows="4" required maxlength="20000"></textarea>
-                            <button class="btn btn-primary btn-block" type="submit"><span class="fas fa-paper-plane"></span> Enviar a nueva revisión</button>
-                        </form>
+                        <div class="ac-alert-box ac-alert-box--warning mb-3">
+                            <span class="fas fa-tools mr-1"></span>
+                            <strong>Subsanación pendiente.</strong>
+                            Puede modificar los campos relacionados con la alerta antes de enviarla nuevamente a revisión.
+                        </div>
+
+                        <a
+                            href="alerta_correos_subsanacion_editar.php?id=<?php echo (int)$id; ?>"
+                            class="btn btn-primary btn-block"
+                        >
+                            <span class="fas fa-edit"></span>
+                            Corregir alerta
+                        </a>
                     <?php elseif ($puedeReabrir): ?>
                         <form method="post" action="alerta_correos_reabrir.php" data-ac-lock-submit="1" data-ac-swal-confirm="1" data-ac-swal-title="¿Reabrir este caso?" data-ac-swal-text="El caso volverá al ciclo de revisión." data-ac-swal-confirm-text="Sí, reabrir" data-ac-swal-icon="question">
                             <input type="hidden" name="_csrf" value="<?php echo acEscape(acCsrfToken()); ?>"><input type="hidden" name="id" value="<?php echo (int)$id; ?>">
