@@ -332,10 +332,53 @@ function acEmailBloqueTexto(string $titulo, ?string $texto): string
         . '</div></td></tr>';
 }
 
+
+/**
+ * Obtiene el correo global que debe recibir copia en toda aprobación.
+ */
+function acEmailObtenerCcAprobacion(mysqli $db): string
+{
+    $stmt = $db->prepare(
+        "SELECT accf_valor
+         FROM tb_alerta_correo_configuracion
+         WHERE accf_clave='CC_APROBACION'
+         LIMIT 1"
+    );
+
+    if (!$stmt) {
+        throw new RuntimeException(
+            'No fue posible consultar la configuración de copia de aprobación.'
+        );
+    }
+
+    $stmt->execute();
+    $fila = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    $correo = strtolower(trim((string)($fila['accf_valor'] ?? '')));
+
+    if ($correo === '') {
+        return '';
+    }
+
+    if (!acEmailCorreoValido($correo)) {
+        throw new RuntimeException(
+            'El correo configurado como copia de aprobación no es válido.'
+        );
+    }
+
+    return $correo;
+}
+
 /**
  * @return array{version:string,subject:string,body:string,to:string,cc:string,to_personas:array,cc_personas:array}
  */
-function acEmailConstruirPlantilla(array $caso, array $destinatarios, string $fechaAprobacion): array
+function acEmailConstruirPlantilla(
+    mysqli $db,
+    array $caso,
+    array $destinatarios,
+    string $fechaAprobacion
+): array
 {
     if (!$destinatarios['regional']) {
         throw new RuntimeException('No existe un responsable regional vigente con correo válido.');
@@ -349,8 +392,40 @@ function acEmailConstruirPlantilla(array $caso, array $destinatarios, string $fe
     $emailsTo = [];
     foreach ($toPersonas as $p) $emailsTo[strtolower((string)$p['correo'])] = true;
     $ccPersonas = [];
+    $emailsCc = [];
+
     foreach ($destinatarios['regional'] as $p) {
-        if (!isset($emailsTo[strtolower((string)$p['correo'])])) $ccPersonas[] = $p;
+        $correo = strtolower(trim((string)($p['correo'] ?? '')));
+
+        if ($correo === '' || isset($emailsTo[$correo]) || isset($emailsCc[$correo])) {
+            continue;
+        }
+
+        $emailsCc[$correo] = true;
+        $ccPersonas[] = $p;
+    }
+
+    // Copia global configurable para cada aprobación.
+    $correoCcAprobacion = acEmailObtenerCcAprobacion($db);
+
+    if (
+        $correoCcAprobacion !== ''
+        && !isset($emailsTo[$correoCcAprobacion])
+        && !isset($emailsCc[$correoCcAprobacion])
+    ) {
+        $emailsCc[$correoCcAprobacion] = true;
+
+        $ccPersonas[] = [
+            'responsable_id' => null,
+            'punto_atencion_id' => null,
+            'nivel' => 'COPIA_APROBACION',
+            'regional' => '',
+            'centro_zonal' => '',
+            'nombre' => $correoCcAprobacion,
+            'correo' => $correoCcAprobacion,
+            'documento' => '',
+            'tipo_responsable' => 'CC_APROBACION',
+        ];
     }
 
     $to = acEmailFormatoCentral($toPersonas);
@@ -584,3 +659,142 @@ function acEmailRegistrarHistorialAprobacion(mysqli $db, int $casoId, string $es
     ]);
 }
 
+function acEmailEncolarGraph(
+    mysqli $db,
+    array $caso,
+    array $plantilla,
+    string $usuario,
+    string $fecha
+): int {
+    if (acAlertaEsInformativa($caso)) {
+        throw new RuntimeException(
+            'Esta alerta es informativa y no admite correo electrónico.'
+        );
+    }
+
+    $casoId = (int)$caso['acc_id'];
+    $versionCaso = ((int)($caso['acc_version'] ?? 0)) + 1;
+
+    $clave = 'APROBACION:' . $casoId . ':V' . $versionCaso;
+
+    // Idempotencia: si esta aprobación ya fue encolada, reutilizarla.
+    $stmt = $db->prepare(
+        'SELECT acn_id
+         FROM tb_alerta_correo_notificacion
+         WHERE acn_clave_idempotencia=?
+         LIMIT 1'
+    );
+
+    $stmt->bind_param('s', $clave);
+    $stmt->execute();
+
+    $existente = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if ($existente) {
+        return (int)$existente['acn_id'];
+    }
+
+    $evento = 'APROBACION';
+    $estado = 'PENDIENTE';
+
+    $to = (string)$plantilla['to'];
+    $cc = (string)$plantilla['cc'];
+    $bcc = '';
+
+    $snapshot = json_encode(
+        [
+            'to' => $plantilla['to_personas'] ?? [],
+            'cc' => $plantilla['cc_personas'] ?? [],
+        ],
+        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+    );
+
+    $asunto = (string)$plantilla['subject'];
+    $cuerpo = (string)$plantilla['body'];
+    $templateVersion = (string)$plantilla['version'];
+
+    $stmt = $db->prepare(
+        "INSERT INTO tb_alerta_correo_notificacion
+        (
+            acn_caso_id,
+            acn_nc_id,
+            acn_evento,
+            acn_clave_idempotencia,
+            acn_to,
+            acn_cc,
+            acn_bcc,
+            acn_destinatarios_snapshot,
+            acn_asunto,
+            acn_estado,
+            acn_intentos,
+            acn_ultimo_error,
+            acn_usuario,
+            acn_fecha_registro,
+            acn_fecha_encolada,
+            acn_notificacion_central_id,
+            acn_template_version,
+            acn_cuerpo,
+            acn_fecha
+        )
+        VALUES
+        (
+            ?,
+            NULL,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            ?,
+            0,
+            NULL,
+            ?,
+            NOW(),
+            NOW(),
+            NULL,
+            ?,
+            ?,
+            ?
+        )"
+    );
+
+    if (!$stmt) {
+        throw new RuntimeException(
+            'No fue posible preparar la cola Graph: ' . $db->error
+        );
+    }
+
+    $stmt->bind_param(
+        'issssssssssss',
+        $casoId,
+        $evento,
+        $clave,
+        $to,
+        $cc,
+        $bcc,
+        $snapshot,
+        $asunto,
+        $estado,
+        $usuario,
+        $templateVersion,
+        $cuerpo,
+        $fecha
+    );
+
+    $stmt->execute();
+
+    $id = (int)$db->insert_id;
+
+    $stmt->close();
+
+    if ($id <= 0) {
+        throw new RuntimeException(
+            'La cola Graph no devolvió identificador.'
+        );
+    }
+
+    return $id;
+}

@@ -121,24 +121,46 @@ try {
     // Usar SIEMPRE el snapshot inmutable como fuente de la plantilla. Si no hay trigger,
     // se crea manualmente con los responsables validados justo antes de aprobar.
     $snapshot = acEmailAsegurarSnapshot($enlace_db, (int)$id, $vigentes);
-    $plantilla = acEmailConstruirPlantilla($caso, $snapshot, $fechaAprobacion);
+    $plantilla = acEmailConstruirPlantilla(
+        $enlace_db,
+        $caso,
+        $snapshot,
+        $fechaAprobacion
+    );
 
-    // Encola en el motor central ya existente del portal.
-    $ncId = acEmailEncolarCentral($enlace_db, $caso, $plantilla, $usuario);
+    // Cola exclusiva de Alertas Correos para envío mediante Microsoft Graph.
+    // Este módulo deja de utilizar tb_notificaciones_central.
+    $acnId = acEmailEncolarGraph(
+        $enlace_db,
+        $caso,
+        $plantilla,
+        $usuario,
+        $fechaAprobacion
+    );
 
-    // Enlaza el caso con la cola real para consultar el estado de entrega posteriormente.
     $version = (string)$plantilla['version'];
+
     $stmt = $enlace_db->prepare(
         'UPDATE tb_alerta_correo_caso
-         SET acc_notificacion_central_id=?, acc_email_template_version=?
+         SET acc_notificacion_central_id=NULL,
+             acc_email_template_version=?
          WHERE acc_id=?'
     );
-    $stmt->bind_param('isi', $ncId, $version, $id);
+    $stmt->bind_param('si', $version, $id);
     $stmt->execute();
     $stmt->close();
 
-    acEmailRegistrarAuditoriaLocal($enlace_db, (int)$id, $ncId, $plantilla, $usuario, $fechaAprobacion);
-    acEmailRegistrarHistorialAprobacion($enlace_db, (int)$id, $estadoAnterior, $ncId, $plantilla, $usuario);
+    acEmailInsertFlexible($enlace_db, 'tb_alerta_correo_historial', [
+        'ach_caso_id' => (int)$id,
+        'ach_accion' => 'APROBAR_Y_NOTIFICAR',
+        'ach_estado_anterior' => $estadoAnterior,
+        'ach_estado_nuevo' => 'APROBADO',
+        'ach_comentario' =>
+            'Caso aprobado y correo encolado para Microsoft Graph. Cola #' . $acnId,
+        'ach_usuario' => $usuario,
+        'ach_ip' => (string)($_SERVER['REMOTE_ADDR'] ?? ''),
+        'ach_fecha' => date('Y-m-d H:i:s'),
+    ]);
 
     $enlace_db->commit();
 
@@ -146,7 +168,7 @@ try {
     // en un falso error para el usuario. La trazabilidad propia del módulo ya quedó dentro de la transacción.
     if (function_exists('registro_log')) {
         try {
-            registro_log($enlace_db, $modulo_plataforma, 'aprobar_notificar', 'Caso ' . ($caso['acc_radicado'] ?? $id) . ' / NC #' . $ncId);
+            registro_log($enlace_db, $modulo_plataforma, 'aprobar_notificar', 'Caso ' . ($caso['acc_radicado'] ?? $id) . ' / GRAPH QUEUE #' . $acnId);
         } catch (Throwable $logError) {
             error_log('Alertas Correos / log aprobación: ' . $logError->getMessage());
         }

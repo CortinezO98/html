@@ -66,7 +66,12 @@ try {
 
         $fechaPlantilla = (string)($caso['acc_fecha_aprobacion'] ?? '');
         if ($fechaPlantilla === '') $fechaPlantilla = date('Y-m-d H:i:s');
-        $plantilla = acEmailConstruirPlantilla($caso, $destinatarios, $fechaPlantilla);
+        $plantilla = acEmailConstruirPlantilla(
+            $enlace_db,
+            $caso,
+            $destinatarios,
+            $fechaPlantilla
+        );
     }
     }
 } catch (Throwable $e) {

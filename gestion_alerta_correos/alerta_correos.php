@@ -143,6 +143,17 @@ include '../menu_header.php';
                     Crear Alerta Masiva
                 </a>
             <?php endif; ?>
+
+            <?php if (acTienePerfil(['Administrador'])): ?>
+                <a
+                    href="alerta_correos_configuracion.php"
+                    class="btn btn-outline-secondary"
+                    title="Configuración del módulo"
+                >
+                    <span class="fas fa-cog" aria-hidden="true"></span>
+                    Configuración
+                </a>
+            <?php endif; ?>
         </div>
     </header>
 
