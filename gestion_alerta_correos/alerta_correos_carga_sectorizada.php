@@ -227,11 +227,35 @@ $instruccionesCarga = match ($acCargaTipo) {
         @media(max-width:991.98px){.ac-sector-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
         @media(max-width:767.98px){.ac-sector-page{padding-top:4.5rem}.ac-sector-top{flex-direction:column;align-items:stretch}.ac-sector-summary{grid-template-columns:1fr}}
     </style>
+
+<style>
+    .ac-carga-sectorizada-page{
+        padding-bottom: 130px !important;
+    }
+
+    .ac-carga-sectorizada-page .ac-panel:last-child{
+        margin-bottom: 40px !important;
+    }
+
+    .ac-carga-sectorizada-page .ac-upload-box,
+    .ac-carga-sectorizada-page .ac-dropzone,
+    .ac-carga-sectorizada-page .ac-upload-empty,
+    .ac-carga-sectorizada-page .ac-upload-actions{
+        margin-bottom: 20px !important;
+    }
+
+    @media (max-width: 768px){
+        .ac-carga-sectorizada-page{
+            padding-bottom: 150px !important;
+        }
+    }
+</style>
+
 </head>
 <body>
 <?php include '../menu_principal.php'; include '../menu_header.php'; ?>
 
-<div class="contenido ac-module ac-module--footer-safe ac-sector-page">
+<div class="contenido ac-module ac-module--footer-safe ac-sector-page ac-carga-sectorizada-page">
     <div class="ac-sector-top">
         <nav class="ac-breadcrumb" aria-label="breadcrumb">
             <a href="../contenido.php">Inicio</a>
