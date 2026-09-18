@@ -353,20 +353,39 @@ function acCargaSectorizadaAplicarTerritorios(mysqli $db, array $preview): array
     $resultado = ['nuevos' => 0, 'actualizados' => 0, 'sin_cambios' => 0, 'inactivados' => 0];
 
     $registros = $preview['registros'];
-    usort($registros, static fn(array $a, array $b): int => ($a['nivel'] === 'REGIONAL' ? 0 : 1) <=> ($b['nivel'] === 'REGIONAL' ? 0 : 1));
+    usort(
+        $registros,
+        static fn(array $a, array $b): int =>
+            ($a['nivel'] === 'REGIONAL' ? 0 : 1) <=> ($b['nivel'] === 'REGIONAL' ? 0 : 1)
+    );
 
     foreach ($registros as $r) {
-        $codigo = $r['codigo_centro'];
-        $stmt = $db->prepare("SELECT * FROM tb_alerta_correo_punto_atencion WHERE TRIM(COALESCE(acp_codigo,''))=? LIMIT 1");
+        $codigo = trim((string)$r['codigo_centro']);
+        $stmt = $db->prepare(
+            "SELECT * FROM tb_alerta_correo_punto_atencion
+             WHERE TRIM(COALESCE(acp_codigo,''))=?"
+        );
         $stmt->bind_param('s', $codigo);
         $stmt->execute();
-        $actual = $stmt->get_result()->fetch_assoc() ?: null;
+        $existentesCodigo = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
+
+        if (count($existentesCodigo) > 1) {
+            throw new RuntimeException(
+                'El código ' . $codigo . ' ya está asociado a más de un territorio. Corrija el catálogo antes de continuar.'
+            );
+        }
+
+        $actual = $existentesCodigo[0] ?? null;
 
         if (!$r['activo']) {
             if ($actual && (int)$actual['acp_activo'] === 1) {
                 $id = (int)$actual['acp_id'];
-                $stmt = $db->prepare('UPDATE tb_alerta_correo_punto_atencion SET acp_activo=0 WHERE acp_id=?');
+                $stmt = $db->prepare(
+                    'UPDATE tb_alerta_correo_punto_atencion
+                     SET acp_activo=0, acp_fecha_actualizacion=NOW()
+                     WHERE acp_id=?'
+                );
                 $stmt->bind_param('i', $id);
                 $stmt->execute();
                 $resultado['inactivados'] += $stmt->affected_rows;
@@ -376,27 +395,146 @@ function acCargaSectorizadaAplicarTerritorios(mysqli $db, array $preview): array
         }
 
         $fuente = 'MAESTRO_TERRITORIAL';
-        if ($r['nivel'] === 'REGIONAL') {
-            $id = acTerritorioAsegurarRegional($db, $r['regional'], $fuente);
-            $stmt = $db->prepare('UPDATE tb_alerta_correo_punto_atencion SET acp_codigo=?, acp_activo=1, acp_fuente=? WHERE acp_id=?');
-            $stmt->bind_param('ssi', $codigo, $fuente, $id);
+        $tipoNuevo = $r['nivel'] === 'REGIONAL' ? 'REGIONAL' : 'CENTRO_ZONAL';
+        $regional = trim((string)$r['regional']);
+        $centro = trim((string)$r['centro_zonal']);
+        $regionalClave = acTerritorioNormalizarClave($regional);
+        $nombreNuevo = $tipoNuevo === 'REGIONAL' ? $regional : $centro;
+        $nombreClave = acTerritorioNormalizarClave($nombreNuevo);
+
+        $padreId = null;
+        if ($tipoNuevo === 'CENTRO_ZONAL') {
+            $stmt = $db->prepare(
+                "SELECT acp_id
+                 FROM tb_alerta_correo_punto_atencion
+                 WHERE acp_tipo='REGIONAL'
+                   AND acp_activo=1
+                   AND acp_regional_clave=?
+                 ORDER BY acp_id DESC
+                 LIMIT 1"
+            );
+            $stmt->bind_param('s', $regionalClave);
             $stmt->execute();
+            $padre = $stmt->get_result()->fetch_assoc();
             $stmt->close();
-        } else {
-            $id = acTerritorioAsegurarPunto($db, $r['regional'], $r['centro_zonal'], $codigo, $fuente);
+
+            if (!$padre) {
+                throw new RuntimeException(
+                    'No existe la Regional ' . $regional . ' para asociar el centro ' . $centro . '.'
+                );
+            }
+            $padreId = (int)$padre['acp_id'];
         }
 
-        if (!$actual) {
-            $resultado['nuevos']++;
-        } else {
-            $tipoNuevo = $r['nivel'] === 'REGIONAL' ? 'REGIONAL' : 'CENTRO_ZONAL';
-            $nombreNuevo = $r['nivel'] === 'REGIONAL' ? $r['regional'] : $r['centro_zonal'];
+        if ($actual) {
+            $id = (int)$actual['acp_id'];
+
+            $stmt = $db->prepare(
+                "SELECT acp_id
+                 FROM tb_alerta_correo_punto_atencion
+                 WHERE acp_tipo=?
+                   AND acp_regional_clave=?
+                   AND acp_nombre_clave=?
+                   AND acp_id<>?
+                 LIMIT 1"
+            );
+            $stmt->bind_param('sssi', $tipoNuevo, $regionalClave, $nombreClave, $id);
+            $stmt->execute();
+            $conflicto = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+
+            if ($conflicto) {
+                throw new RuntimeException(
+                    'El territorio ' . $regional . ($centro !== '' ? ' / ' . $centro : '') .
+                    ' ya existe con otro código. Corrija el maestro antes de continuar.'
+                );
+            }
+
+            $stmt = $db->prepare(
+                'UPDATE tb_alerta_correo_punto_atencion
+                 SET acp_padre_id=?,
+                     acp_codigo=?,
+                     acp_tipo=?,
+                     acp_regional=?,
+                     acp_regional_clave=?,
+                     acp_nombre=?,
+                     acp_nombre_clave=?,
+                     acp_activo=1,
+                     acp_fuente=?,
+                     acp_fecha_actualizacion=NOW()
+                 WHERE acp_id=?'
+            );
+            $stmt->bind_param(
+                'isssssssi',
+                $padreId,
+                $codigo,
+                $tipoNuevo,
+                $regional,
+                $regionalClave,
+                $nombreNuevo,
+                $nombreClave,
+                $fuente,
+                $id
+            );
+            $stmt->execute();
+            $stmt->close();
+
             $igual = strtoupper((string)$actual['acp_tipo']) === $tipoNuevo
-                && acTerritorioNormalizarClave((string)$actual['acp_regional']) === acTerritorioNormalizarClave($r['regional'])
-                && acTerritorioNormalizarClave((string)$actual['acp_nombre']) === acTerritorioNormalizarClave($nombreNuevo)
+                && acTerritorioNormalizarClave((string)$actual['acp_regional']) === $regionalClave
+                && acTerritorioNormalizarClave((string)$actual['acp_nombre']) === $nombreClave
                 && (int)$actual['acp_activo'] === 1;
+
             $igual ? $resultado['sin_cambios']++ : $resultado['actualizados']++;
+            continue;
         }
+
+        $stmt = $db->prepare(
+            "SELECT acp_id
+             FROM tb_alerta_correo_punto_atencion
+             WHERE acp_tipo=?
+               AND acp_regional_clave=?
+               AND acp_nombre_clave=?
+             LIMIT 1"
+        );
+        $stmt->bind_param('sss', $tipoNuevo, $regionalClave, $nombreClave);
+        $stmt->execute();
+        $mismoTerritorio = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if ($mismoTerritorio) {
+            $id = (int)$mismoTerritorio['acp_id'];
+            $stmt = $db->prepare(
+                'UPDATE tb_alerta_correo_punto_atencion
+                 SET acp_padre_id=?, acp_codigo=?, acp_activo=1, acp_fuente=?, acp_fecha_actualizacion=NOW()
+                 WHERE acp_id=?'
+            );
+            $stmt->bind_param('issi', $padreId, $codigo, $fuente, $id);
+            $stmt->execute();
+            $stmt->close();
+            $resultado['actualizados']++;
+            continue;
+        }
+
+        $stmt = $db->prepare(
+            'INSERT INTO tb_alerta_correo_punto_atencion
+             (acp_padre_id, acp_codigo, acp_tipo, acp_regional, acp_regional_clave,
+              acp_nombre, acp_nombre_clave, acp_activo, acp_fuente)
+             VALUES (?,?,?,?,?,?,?,1,?)'
+        );
+        $stmt->bind_param(
+            'isssssss',
+            $padreId,
+            $codigo,
+            $tipoNuevo,
+            $regional,
+            $regionalClave,
+            $nombreNuevo,
+            $nombreClave,
+            $fuente
+        );
+        $stmt->execute();
+        $stmt->close();
+        $resultado['nuevos']++;
     }
 
     return $resultado;
