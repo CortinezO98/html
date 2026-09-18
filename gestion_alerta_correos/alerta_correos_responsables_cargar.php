@@ -117,6 +117,7 @@ while ($row = $rs->fetch_assoc()) {
                 <div class="ac-carga-card__actions">
                     <a href="alerta_correos_territorios_cargar.php" class="btn ac-btn-green-outline"><span class="fas fa-upload"></span> Ir a cargar</a>
                     <a href="alerta_correos_plantilla_sectorizada.php?tipo=territorios" class="btn btn-outline-secondary"><span class="fas fa-download"></span> Plantilla</a>
+                    <a href="alerta_correos_reporte_sectorizado.php?tipo=territorios" class="btn btn-outline-dark"><span class="fas fa-file-export"></span> Reporte actual</a>
                     <button type="button" class="btn btn-outline-info" data-ac-instructions-button="inst-territorios" aria-expanded="false">
                         <span class="fas fa-info-circle"></span> Instrucciones
                     </button>
@@ -145,6 +146,7 @@ while ($row = $rs->fetch_assoc()) {
                 <div class="ac-carga-card__actions">
                     <a href="alerta_correos_coordinadores_cargar.php" class="btn ac-btn-green-outline"><span class="fas fa-user-tie"></span> Ir a cargar</a>
                     <a href="alerta_correos_plantilla_sectorizada.php?tipo=coordinadores" class="btn btn-outline-secondary"><span class="fas fa-download"></span> Plantilla</a>
+                    <a href="alerta_correos_reporte_sectorizado.php?tipo=coordinadores" class="btn btn-outline-dark"><span class="fas fa-file-export"></span> Reporte actual</a>
                     <button type="button" class="btn btn-outline-info" data-ac-instructions-button="inst-coordinadores" aria-expanded="false">
                         <span class="fas fa-info-circle"></span> Instrucciones
                     </button>
@@ -173,6 +175,7 @@ while ($row = $rs->fetch_assoc()) {
                 <div class="ac-carga-card__actions">
                     <a href="alerta_correos_enlaces_cargar.php" class="btn ac-btn-green-outline"><span class="fas fa-user-check"></span> Ir a cargar</a>
                     <a href="alerta_correos_plantilla_sectorizada.php?tipo=responsables" class="btn btn-outline-secondary"><span class="fas fa-download"></span> Plantilla</a>
+                    <a href="alerta_correos_reporte_sectorizado.php?tipo=responsables" class="btn btn-outline-dark"><span class="fas fa-file-export"></span> Reporte actual</a>
                     <button type="button" class="btn btn-outline-info" data-ac-instructions-button="inst-responsables" aria-expanded="false">
                         <span class="fas fa-info-circle"></span> Instrucciones
                     </button>
