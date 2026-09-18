@@ -281,7 +281,7 @@ function acCargaAlertasBadge(string $estado): string
             <div class="row">
                 <div class="col-12 col-lg-4 mb-3 mb-lg-0">
                     <strong>1. Usa la maestra territorial</strong>
-                    <p class="mb-0 text-muted">La Regional y el Punto de atención del Excel deben existir previamente en la base territorial.</p>
+                    <p class="mb-0 text-muted">La Regional, el Punto de atención y el <strong>CODIGO_CENTRO</strong> del Excel deben existir y corresponder entre sí en la maestra territorial.</p>
                 </div>
                 <div class="col-12 col-lg-4 mb-3 mb-lg-0">
                     <strong>2. Valida antes de guardar</strong>
@@ -372,12 +372,13 @@ function acCargaAlertasBadge(string $estado): string
 
                 <div class="ac-table-wrap mb-3">
                     <table class="table table-hover ac-table mb-0">
-                        <thead><tr><th>Fila</th><th>SIM</th><th>Regional del Excel</th><th>Punto del Excel</th><th>Territorio reconocido</th><th>Prioridad</th><th>Gestión</th><th>Rango de espera</th><th>Resultado</th><th>Detalle</th></tr></thead>
+                        <thead><tr><th>Fila</th><th>SIM</th><th>Código centro</th><th>Regional del Excel</th><th>Punto del Excel</th><th>Territorio reconocido</th><th>Prioridad</th><th>Gestión</th><th>Rango de espera</th><th>Resultado</th><th>Detalle</th></tr></thead>
                         <tbody>
                         <?php foreach ($preview['filas'] as $fila): ?>
                             <tr>
                                 <td><?php echo (int)$fila['fila_excel']; ?></td>
                                 <td><strong><?php echo acEscape((string)$fila['sim']); ?></strong></td>
+                                <td><strong><?php echo acEscape((string)($fila['codigo_centro'] ?? '')); ?></strong></td>
                                 <td><?php echo acEscape((string)$fila['regional_archivo']); ?></td>
                                 <td><?php echo acEscape((string)$fila['punto_archivo']); ?></td>
                                 <td>
@@ -436,7 +437,7 @@ function acCargaAlertasBadge(string $estado): string
                                 <div class="ac-mass-template-card__icon"><span class="fas fa-file-download"></span></div>
                                 <div>
                                     <h3 class="ac-mass-template-card__title">Excel de ejemplo para la carga masiva</h3>
-                                    <p class="ac-mass-template-card__text">Descargue esta plantilla y úsela como guía. Conserva los encabezados que reconoce el módulo e incluye un ejemplo notificable y uno informativo de <strong>Tiempos de espera muy largos</strong>.</p>
+                                    <p class="ac-mass-template-card__text">Descargue esta plantilla y úsela como guía. Conserva los encabezados que reconoce el módulo, incluido <strong>CODIGO_CENTRO</strong>, e incluye un ejemplo notificable y uno informativo de <strong>Tiempos de espera muy largos</strong>.</p>
                                 </div>
                             </div>
                             <div>
@@ -464,7 +465,7 @@ function acCargaAlertasBadge(string $estado): string
                             <div class="ac-upload-zone">
                                 <div class="ac-upload-zone__icon"><span class="fas fa-file-excel"></span></div>
                                 <div class="ac-upload-zone__title">Archivo oficial de alertas</div>
-                                <div class="ac-upload-zone__text">Debe contener como mínimo: SIM asociado, Regional afectada, Punto de atención afectado y Descripción de la alerta.</div>
+                                <div class="ac-upload-zone__text">Debe contener como mínimo: SIM asociado, Regional afectada, Punto de atención afectado, <strong>CODIGO_CENTRO</strong> y Descripción de la alerta.</div>
                                 <label for="archivo" class="btn ac-btn-green-outline mb-0">Seleccionar archivo</label>
                                 <input id="archivo" class="d-none" type="file" name="archivo" accept=".xlsx" required data-ac-file-input>
                                 <div class="ac-upload-file-name" data-ac-file-name>Ningún archivo seleccionado</div>
