@@ -122,6 +122,48 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
 $plantillaTipo = strtolower($acCargaTipo);
 
+
+function acCargaSectorizadaTerritorioVista(?array $nuevo, ?array $actual): array
+{
+    $nuevo = is_array($nuevo) ? $nuevo : [];
+    $actual = is_array($actual) ? $actual : [];
+
+    $centroNuevo = trim((string)($nuevo['centro_zonal'] ?? ''));
+    $regionalNuevo = trim((string)($nuevo['regional'] ?? ''));
+
+    if ($centroNuevo !== '') {
+        return ['tipo' => 'CENTRO ZONAL', 'nombre' => $centroNuevo];
+    }
+
+    if ($regionalNuevo !== '') {
+        $nivelNuevo = strtoupper(trim((string)($nuevo['nivel'] ?? '')));
+        $tipo = in_array($nivelNuevo, ['ZONAL', 'CENTRO_ZONAL'], true)
+            ? 'CENTRO ZONAL'
+            : 'REGIONAL';
+
+        return ['tipo' => $tipo, 'nombre' => $regionalNuevo];
+    }
+
+    $tipoActual = strtoupper(trim((string)($actual['acp_tipo'] ?? '')));
+    $centroActual = trim((string)($actual['acr_centro_zonal'] ?? ''));
+    $regionalActual = trim((string)($actual['acr_regional'] ?? $actual['acp_regional'] ?? ''));
+    $nombrePuntoActual = trim((string)($actual['acp_nombre'] ?? ''));
+
+    if ($tipoActual === 'CENTRO_ZONAL' || $centroActual !== '') {
+        $nombre = $centroActual !== '' ? $centroActual : $nombrePuntoActual;
+        return ['tipo' => 'CENTRO ZONAL', 'nombre' => $nombre];
+    }
+
+    if ($regionalActual !== '' || $nombrePuntoActual !== '') {
+        return [
+            'tipo' => 'REGIONAL',
+            'nombre' => $regionalActual !== '' ? $regionalActual : $nombrePuntoActual,
+        ];
+    }
+
+    return ['tipo' => '', 'nombre' => '—'];
+}
+
 $instruccionesCarga = match ($acCargaTipo) {
     'TERRITORIOS' => [
         'titulo' => 'Instrucciones para Regionales y Centros Zonales',
@@ -179,6 +221,9 @@ $instruccionesCarga = match ($acCargaTipo) {
         .ac-sector-instructions ol{padding-left:1.2rem;margin-bottom:.7rem}
         .ac-sector-instructions li{margin-bottom:.38rem}
         .ac-sector-instructions__note{padding:.65rem .75rem;background:#fff;border-left:3px solid #4caf50;border-radius:5px}
+        .ac-territory-preview{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap}
+        .ac-territory-preview__type{display:inline-flex;align-items:center;padding:.18rem .48rem;border-radius:999px;background:#e8f5e9;color:#2e7d32;font-size:.68rem;font-weight:800;letter-spacing:.02em;white-space:nowrap}
+        .ac-territory-preview__name{font-weight:600;color:#37474f}
         @media(max-width:991.98px){.ac-sector-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
         @media(max-width:767.98px){.ac-sector-page{padding-top:4.5rem}.ac-sector-top{flex-direction:column;align-items:stretch}.ac-sector-summary{grid-template-columns:1fr}}
     </style>
@@ -302,13 +347,20 @@ $instruccionesCarga = match ($acCargaTipo) {
                                         <?php foreach (array_slice($preview['diferencias'], 0, 200) as $dif):
                                             $nuevo = $dif['nuevo'] ?? null;
                                             $actual = $dif['actual'] ?? null;
-                                            $codigo = (string)($nuevo['codigo_centro'] ?? $actual['acp_codigo'] ?? $actual['acr_codigo_centro'] ?? '');
-                                            $territorio = (string)($nuevo['centro_zonal'] ?? $nuevo['regional'] ?? $actual['acp_nombre'] ?? $actual['acr_centro_zonal'] ?? $actual['acr_regional'] ?? '');
+                                            $codigo = trim((string)($nuevo['codigo_centro'] ?? $actual['acp_codigo'] ?? $actual['acr_codigo_centro'] ?? ''));
+                                            $territorioVista = acCargaSectorizadaTerritorioVista($nuevo, $actual);
                                         ?>
                                             <tr>
                                                 <td><?php echo acEscape((string)$dif['tipo']); ?></td>
-                                                <td><?php echo acEscape($codigo); ?></td>
-                                                <td><?php echo acEscape($territorio); ?></td>
+                                                <td><?php echo acEscape($codigo !== '' ? $codigo : '—'); ?></td>
+                                                <td>
+                                                    <div class="ac-territory-preview">
+                                                        <?php if ($territorioVista['tipo'] !== ''): ?>
+                                                            <span class="ac-territory-preview__type"><?php echo acEscape($territorioVista['tipo']); ?></span>
+                                                        <?php endif; ?>
+                                                        <span class="ac-territory-preview__name"><?php echo acEscape($territorioVista['nombre']); ?></span>
+                                                    </div>
+                                                </td>
                                                 <td><?php echo acEscape((string)($actual['acr_nombre'] ?? $actual['acp_nombre'] ?? '—')); ?><br><small><?php echo acEscape((string)($actual['acr_correo'] ?? '')); ?></small></td>
                                                 <td><?php echo acEscape((string)($nuevo['nombre'] ?? $nuevo['centro_zonal'] ?? $nuevo['regional'] ?? '—')); ?><br><small><?php echo acEscape((string)($nuevo['correo'] ?? '')); ?></small></td>
                                             </tr>
