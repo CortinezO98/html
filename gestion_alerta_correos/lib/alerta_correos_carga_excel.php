@@ -129,6 +129,63 @@ function acCargaAlertasEstadoClase(string $estado): string
     };
 }
 
+function acCargaAlertasBuscarTerritorioPorCodigo(mysqli $db, string $codigo): ?array
+{
+    $codigo = trim($codigo);
+    if ($codigo === '') {
+        return null;
+    }
+
+    $stmt = $db->prepare(
+        "SELECT p.acp_id, p.acp_padre_id, p.acp_codigo, p.acp_tipo, p.acp_regional, p.acp_nombre, p.acp_activo,
+                r.acp_id AS regional_id, r.acp_nombre AS regional_nombre, r.acp_activo AS regional_activo
+         FROM tb_alerta_correo_punto_atencion p
+         LEFT JOIN tb_alerta_correo_punto_atencion r
+           ON r.acp_id=p.acp_padre_id AND r.acp_tipo='REGIONAL'
+         WHERE p.acp_codigo=? AND p.acp_activo=1
+         LIMIT 2"
+    );
+    $stmt->bind_param('s', $codigo);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    if (count($rows) !== 1) {
+        return null;
+    }
+
+    $row = $rows[0];
+    $tipo = strtoupper(trim((string)$row['acp_tipo']));
+
+    if ($tipo === 'CENTRO_ZONAL') {
+        if ((int)($row['regional_id'] ?? 0) <= 0 || (int)($row['regional_activo'] ?? 0) !== 1) {
+            return null;
+        }
+
+        return [
+            'tipo' => 'CENTRO_ZONAL',
+            'regional_id' => (int)$row['regional_id'],
+            'punto_id' => (int)$row['acp_id'],
+            'regional' => (string)$row['regional_nombre'],
+            'punto' => (string)$row['acp_nombre'],
+            'codigo' => (string)$row['acp_codigo'],
+        ];
+    }
+
+    if ($tipo === 'REGIONAL') {
+        return [
+            'tipo' => 'REGIONAL',
+            'regional_id' => (int)$row['acp_id'],
+            'punto_id' => 0,
+            'regional' => (string)$row['acp_nombre'],
+            'punto' => (string)$row['acp_nombre'],
+            'codigo' => (string)$row['acp_codigo'],
+        ];
+    }
+
+    return null;
+}
+
 function acCargaAlertasParsear(mysqli $db, string $ruta, string $nombreArchivo, string $prioridadDefecto = 'MEDIA'): array
 {
     if (strtolower(pathinfo($nombreArchivo, PATHINFO_EXTENSION)) !== 'xlsx') {
@@ -143,6 +200,7 @@ function acCargaAlertasParsear(mysqli $db, string $ruta, string $nombreArchivo, 
         ['SIM_ASOCIADO', 'SIM'],
         ['REGIONAL_AFECTADA_POR_LA_ALERTA', 'REGIONAL'],
         ['PUNTO_DE_ATENCION_AFECTADO_POR_LA_ALERTA_REGIONAL_O_CENTRO_ZONAL', 'PUNTO_DE_ATENCION', 'CENTRO_ZONAL'],
+        ['CODIGO_CENTRO', 'CODIGO_DEL_CENTRO', 'CODIGO'],
         ['DESCRIPCION_DE_LA_ALERTA', 'DESCRIPCION'],
     ];
 
@@ -157,7 +215,7 @@ function acCargaAlertasParsear(mysqli $db, string $ruta, string $nombreArchivo, 
 
     if ($filas === null) {
         throw new RuntimeException(
-            'No fue posible identificar el formato de alertas. El archivo debe contener SIM asociado, Regional afectada, Punto de atención afectado y Descripción de la alerta.'
+            'No fue posible identificar el formato de alertas. El archivo debe contener SIM asociado, Regional afectada, Punto de atención afectado, CODIGO_CENTRO y Descripción de la alerta.'
         );
     }
 
@@ -189,9 +247,10 @@ function acCargaAlertasParsear(mysqli $db, string $ruta, string $nombreArchivo, 
             'PUNTO_DE_ATENCION',
             'CENTRO_ZONAL',
         ]));
+        $codigoCentro = trim(acImportacionValor($row, $map, ['CODIGO_CENTRO', 'CODIGO_DEL_CENTRO', 'CODIGO']));
         $descripcion = trim(acImportacionValor($row, $map, ['DESCRIPCION_DE_LA_ALERTA', 'DESCRIPCION']));
 
-        if ($sim === '' && $regionalArchivo === '' && $puntoArchivo === '' && $descripcion === '') {
+        if ($sim === '' && $regionalArchivo === '' && $puntoArchivo === '' && $codigoCentro === '' && $descripcion === '') {
             continue;
         }
         $totalNoVacias++;
@@ -264,6 +323,11 @@ function acCargaAlertasParsear(mysqli $db, string $ruta, string $nombreArchivo, 
         if ($puntoArchivo === '') {
             $erroresDatos[] = 'Falta el Punto de atención afectado.';
         }
+        if ($codigoCentro === '') {
+            $erroresDatos[] = 'Falta CODIGO_CENTRO.';
+        } elseif (mb_strlen($codigoCentro, 'UTF-8') > 50) {
+            $erroresDatos[] = 'CODIGO_CENTRO supera 50 caracteres.';
+        }
         if ($descripcion === '') {
             $erroresDatos[] = 'Falta la Descripción de la alerta.';
         } elseif (mb_strlen($descripcion, 'UTF-8') > 20000) {
@@ -288,24 +352,39 @@ function acCargaAlertasParsear(mysqli $db, string $ruta, string $nombreArchivo, 
         $puntoCanonico = '';
         $erroresTerritorio = [];
 
-        if ($regionalArchivo !== '' && $puntoArchivo !== '') {
-            $mapeo = acSimFuenteMapearTerritorio($db, $regionalArchivo, $puntoArchivo);
-            $regionalId = (int)($mapeo['regional_id'] ?? 0);
-            $puntoId = (int)($mapeo['punto_id'] ?? 0);
+        if ($codigoCentro !== '') {
+            $territorioCodigo = acCargaAlertasBuscarTerritorioPorCodigo($db, $codigoCentro);
 
-            if ($regionalId <= 0) {
-                $erroresTerritorio[] = 'La Regional no existe en la maestra territorial.';
-            } elseif ($puntoId <= 0) {
-                $erroresTerritorio[] = 'El Punto de atención no coincide con un Centro Zonal activo de esa Regional.';
+            if (!$territorioCodigo) {
+                $erroresTerritorio[] = 'CODIGO_CENTRO no existe, está inactivo o no es único en la maestra territorial.';
             } else {
-                $territorio = acTerritorioValidarSeleccion($db, $regionalId, $puntoId);
-                if (!$territorio) {
-                    $erroresTerritorio[] = 'La relación Regional / Punto de atención no es válida o está inactiva.';
-                    $regionalId = 0;
-                    $puntoId = 0;
-                } else {
-                    $regionalCanonica = (string)$territorio['regional']['acp_nombre'];
-                    $puntoCanonico = (string)$territorio['punto']['acp_nombre'];
+                $regionalId = (int)$territorioCodigo['regional_id'];
+                $puntoId = (int)$territorioCodigo['punto_id'];
+                $regionalCanonica = (string)$territorioCodigo['regional'];
+                $puntoCanonico = (string)$territorioCodigo['punto'];
+
+                if (
+                    $regionalArchivo !== ''
+                    && acTerritorioNormalizarClave($regionalArchivo) !== acTerritorioNormalizarClave($regionalCanonica)
+                ) {
+                    $erroresTerritorio[] = 'CODIGO_CENTRO pertenece a la Regional ' . $regionalCanonica . ', no a ' . $regionalArchivo . '.';
+                }
+
+                if ($puntoArchivo !== '') {
+                    $tipoTerritorio = (string)$territorioCodigo['tipo'];
+                    if ($tipoTerritorio === 'CENTRO_ZONAL') {
+                        $puntoArchivoClave = acSimFuentePuntoCanonico($regionalCanonica, $puntoArchivo);
+                        $puntoCanonicoClave = acSimFuentePuntoCanonico($regionalCanonica, $puntoCanonico);
+                        if ($puntoArchivoClave !== $puntoCanonicoClave) {
+                            $erroresTerritorio[] = 'CODIGO_CENTRO corresponde a ' . $puntoCanonico . ', no a ' . $puntoArchivo . '.';
+                        }
+                    } else {
+                        $puntoArchivoClave = acTerritorioNormalizarClave($puntoArchivo);
+                        $regionalClave = acTerritorioNormalizarClave($regionalCanonica);
+                        if (!in_array($puntoArchivoClave, [$regionalClave, 'REGIONAL ' . $regionalClave], true)) {
+                            $erroresTerritorio[] = 'CODIGO_CENTRO corresponde a la Regional ' . $regionalCanonica . ', no al punto ' . $puntoArchivo . '.';
+                        }
+                    }
                 }
             }
         }
@@ -315,6 +394,7 @@ function acCargaAlertasParsear(mysqli $db, string $ruta, string $nombreArchivo, 
             'sim' => $sim,
             'regional_archivo' => $regionalArchivo,
             'punto_archivo' => $puntoArchivo,
+            'codigo_centro' => $codigoCentro,
             'regional_id' => $regionalId,
             'punto_atencion_id' => $puntoId,
             'regional_canonica' => $regionalCanonica,
@@ -364,7 +444,7 @@ function acCargaAlertasParsear(mysqli $db, string $ruta, string $nombreArchivo, 
                     $registro['mensaje'] = 'Alerta informativa: no enviará correo al aprobar. Clasificación de espera: '
                         . acAlertaTiempoRangoLabel($rangoEspera) . '.';
                 } else {
-                    $registro['mensaje'] = 'Regional y Punto de atención reconocidos. La fila puede convertirse en caso notificable.';
+                    $registro['mensaje'] = 'CODIGO_CENTRO, Regional y Punto de atención reconocidos. La fila puede convertirse en caso notificable.';
                 }
             }
         }
@@ -700,6 +780,7 @@ function acCargaAlertasAplicar(mysqli $db, array $preview, string $usuario): arr
             [
                 'carga_id' => $cargaId,
                 'fila_excel' => (int)$fila['fila_excel'],
+                'codigo_centro' => (string)($fila['codigo_centro'] ?? ''),
                 'archivo' => (string)$preview['nombre_archivo'],
                 'tipo_gestion' => (string)($fila['tipo_gestion'] ?? 'NOTIFICABLE'),
                 'envia_correo' => (int)($fila['envia_correo'] ?? 1),
