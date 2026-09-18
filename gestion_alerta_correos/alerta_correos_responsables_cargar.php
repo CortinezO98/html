@@ -61,6 +61,12 @@ while ($row = $rs->fetch_assoc()) {
         .ac-carga-card__body{padding:1.1rem;display:flex;flex-direction:column;flex:1}
         .ac-carga-card__body p{color:#607d8b;font-size:.9rem;line-height:1.5}
         .ac-carga-card__actions{margin-top:auto;display:flex;gap:.5rem;flex-wrap:wrap}
+        .ac-instructions{display:none;margin-top:.9rem;padding:.95rem 1rem;background:#f8fbf9;border:1px solid #dce9df;border-radius:9px;color:#455a64;font-size:.86rem;line-height:1.5}
+        .ac-instructions.is-open{display:block}
+        .ac-instructions h3{font-size:.92rem;font-weight:800;color:#2f5f3a;margin:0 0 .6rem}
+        .ac-instructions ol,.ac-instructions ul{padding-left:1.15rem;margin-bottom:.6rem}
+        .ac-instructions li{margin-bottom:.32rem}
+        .ac-instructions .ac-instructions__note{margin-top:.65rem;padding:.6rem .7rem;background:#fff;border-left:3px solid #4caf50;border-radius:5px}
         .ac-cargas-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.75rem;margin-bottom:1rem}
         .ac-cargas-kpi{background:#fff;border:1px solid #e1e8e4;border-left:4px solid #4caf50;border-radius:9px;padding:.8rem 1rem}
         .ac-cargas-kpi strong{display:block;font-size:1.35rem;color:#263238}
@@ -110,6 +116,20 @@ while ($row = $rs->fetch_assoc()) {
                 <div class="ac-carga-card__actions">
                     <a href="alerta_correos_territorios_cargar.php" class="btn ac-btn-green-outline"><span class="fas fa-upload"></span> Ir a cargar</a>
                     <a href="alerta_correos_plantilla_sectorizada.php?tipo=territorios" class="btn btn-outline-secondary"><span class="fas fa-download"></span> Plantilla</a>
+                    <button type="button" class="btn btn-outline-info" data-ac-instructions-button="inst-territorios" aria-expanded="false">
+                        <span class="fas fa-info-circle"></span> Instrucciones
+                    </button>
+                </div>
+                <div id="inst-territorios" class="ac-instructions" data-ac-instructions>
+                    <h3><span class="fas fa-map-marked-alt mr-1"></span> ¿Cómo cargar Regionales y Centros Zonales?</h3>
+                    <ol>
+                        <li>Descargue la plantilla y conserve los encabezados sin modificarlos.</li>
+                        <li>Use <strong>REGIONAL</strong> para una Regional y <strong>ZONAL</strong> para un Centro Zonal.</li>
+                        <li>Registre <strong>REGIONAL</strong>, <strong>CENTRO_ZONAL</strong> cuando aplique, <strong>CODIGO_CENTRO</strong> y <strong>ESTADO</strong>.</li>
+                        <li>El <strong>CODIGO_CENTRO</strong> debe identificar un único territorio y no debe reutilizarse para otro centro.</li>
+                        <li>Cargue el archivo, revise la previsualización y confirme únicamente cuando no existan errores.</li>
+                    </ol>
+                    <div class="ac-instructions__note"><strong>Importante:</strong> esta es la carga maestra. Coordinadores y responsables solo podrán asociarse a códigos registrados aquí.</div>
                 </div>
             </div>
         </section>
@@ -124,6 +144,20 @@ while ($row = $rs->fetch_assoc()) {
                 <div class="ac-carga-card__actions">
                     <a href="alerta_correos_coordinadores_cargar.php" class="btn ac-btn-green-outline"><span class="fas fa-user-tie"></span> Ir a cargar</a>
                     <a href="alerta_correos_plantilla_sectorizada.php?tipo=coordinadores" class="btn btn-outline-secondary"><span class="fas fa-download"></span> Plantilla</a>
+                    <button type="button" class="btn btn-outline-info" data-ac-instructions-button="inst-coordinadores" aria-expanded="false">
+                        <span class="fas fa-info-circle"></span> Instrucciones
+                    </button>
+                </div>
+                <div id="inst-coordinadores" class="ac-instructions" data-ac-instructions>
+                    <h3><span class="fas fa-user-tie mr-1"></span> ¿Cómo cargar Coordinadores?</h3>
+                    <ol>
+                        <li>Verifique primero que el territorio exista en la carga maestra.</li>
+                        <li>Use la plantilla de Coordinadores y diligencie <strong>CODIGO_CENTRO, DOCUMENTO, NOMBRE, CORREO, EXTENSION_IP y ESTADO</strong>.</li>
+                        <li>No escriba Regional ni Centro Zonal: el sistema los obtiene automáticamente mediante <strong>CODIGO_CENTRO</strong>.</li>
+                        <li>Si el territorio ya tiene coordinador y cambia la persona, se cierra la vigencia anterior y se registra la nueva versión.</li>
+                        <li>Revise la previsualización antes de confirmar la carga.</li>
+                    </ol>
+                    <div class="ac-instructions__note"><strong>Control:</strong> un código inexistente en el maestro territorial será rechazado y no creará un territorio nuevo.</div>
                 </div>
             </div>
         </section>
@@ -138,6 +172,20 @@ while ($row = $rs->fetch_assoc()) {
                 <div class="ac-carga-card__actions">
                     <a href="alerta_correos_enlaces_cargar.php" class="btn ac-btn-green-outline"><span class="fas fa-user-check"></span> Ir a cargar</a>
                     <a href="alerta_correos_plantilla_sectorizada.php?tipo=responsables" class="btn btn-outline-secondary"><span class="fas fa-download"></span> Plantilla</a>
+                    <button type="button" class="btn btn-outline-info" data-ac-instructions-button="inst-responsables" aria-expanded="false">
+                        <span class="fas fa-info-circle"></span> Instrucciones
+                    </button>
+                </div>
+                <div id="inst-responsables" class="ac-instructions" data-ac-instructions>
+                    <h3><span class="fas fa-user-check mr-1"></span> ¿Cómo cargar Responsables / Enlaces?</h3>
+                    <ol>
+                        <li>Verifique que la Regional o Centro Zonal ya exista en el maestro territorial.</li>
+                        <li>Use la plantilla y diligencie <strong>CODIGO_CENTRO, DOCUMENTO, NOMBRE, CORREO, EXTENSION_IP y ESTADO</strong>.</li>
+                        <li>Regional y Centro Zonal no se solicitan porque se resuelven por <strong>CODIGO_CENTRO</strong>.</li>
+                        <li>Si cambia el responsable, la asignación anterior queda cerrada y se conserva el histórico.</li>
+                        <li>Cargue, analice las diferencias y confirme cuando el archivo esté correcto.</li>
+                    </ol>
+                    <div class="ac-instructions__note"><strong>Control:</strong> esta carga administra únicamente responsables/enlaces; no modifica coordinadores ni crea territorios.</div>
                 </div>
             </div>
         </section>
@@ -150,5 +198,19 @@ while ($row = $rs->fetch_assoc()) {
 </div>
 
 <?php include '../footer.php'; include '../config/configuracion_js.php'; ?>
+<script>
+document.querySelectorAll('[data-ac-instructions-button]').forEach(function(button) {
+    button.addEventListener('click', function() {
+        var id = button.getAttribute('data-ac-instructions-button');
+        var panel = document.getElementById(id);
+        if (!panel) return;
+        var open = panel.classList.toggle('is-open');
+        button.setAttribute('aria-expanded', open ? 'true' : 'false');
+        button.innerHTML = open
+            ? '<span class="fas fa-times-circle"></span> Cerrar instrucciones'
+            : '<span class="fas fa-info-circle"></span> Instrucciones';
+    });
+});
+</script>
 </body>
 </html>
