@@ -50,9 +50,10 @@ while ($row = $rs->fetch_assoc()) {
     <?php include '../config/configuracion_estilos.php'; ?>
     <link rel="stylesheet" href="assets/alerta_correos.css?v=20260917">
     <style>
-        .ac-cargas-page{padding-top:5.75rem}
+        .ac-cargas-page{padding-top:3.5rem}
         .ac-cargas-top{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1rem}
         .ac-cargas-top .ac-breadcrumb{margin:0}
+        .ac-cargas-top > .btn{margin-top:2.25rem}
         .ac-cargas-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1rem}
         .ac-carga-card{background:#fff;border:1px solid #dfe7e2;border-radius:12px;overflow:hidden;box-shadow:0 3px 12px rgba(0,0,0,.05);display:flex;flex-direction:column;min-height:100%}
         .ac-carga-card__head{background:#4caf50;color:#fff;padding:1rem 1.1rem;display:flex;align-items:center;gap:.75rem}
@@ -73,7 +74,7 @@ while ($row = $rs->fetch_assoc()) {
         .ac-cargas-kpi span{font-size:.78rem;color:#78909c}
         .ac-cargas-rule{margin-top:1rem;padding:1rem 1.1rem;background:#f6faf7;border-left:4px solid #4caf50;border-radius:8px;color:#455a64}
         @media(max-width:991.98px){.ac-cargas-grid{grid-template-columns:1fr}.ac-cargas-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
-        @media(max-width:767.98px){.ac-cargas-page{padding-top:6.5rem}.ac-cargas-top{flex-direction:column;align-items:stretch}.ac-cargas-kpis{grid-template-columns:1fr}}
+        @media(max-width:767.98px){.ac-cargas-page{padding-top:4.75rem}.ac-cargas-top > .btn{margin-top:0}.ac-cargas-top{flex-direction:column;align-items:stretch}.ac-cargas-kpis{grid-template-columns:1fr}}
     </style>
 </head>
 <body>
