@@ -207,7 +207,7 @@ $instruccionesCarga = match ($acCargaTipo) {
     <?php include '../config/configuracion_estilos.php'; ?>
     <link rel="stylesheet" href="assets/alerta_correos.css?v=20260917">
     <style>
-        .ac-sector-page{padding-top:3.25rem}
+        .ac-sector-page{padding-top:5.75rem}
         .ac-sector-top{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1rem}
         .ac-sector-top .ac-breadcrumb{margin:0}
         .ac-sector-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.75rem}
@@ -225,7 +225,7 @@ $instruccionesCarga = match ($acCargaTipo) {
         .ac-territory-preview__type{display:inline-flex;align-items:center;padding:.18rem .48rem;border-radius:999px;background:#e8f5e9;color:#2e7d32;font-size:.68rem;font-weight:800;letter-spacing:.02em;white-space:nowrap}
         .ac-territory-preview__name{font-weight:600;color:#37474f}
         @media(max-width:991.98px){.ac-sector-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
-        @media(max-width:767.98px){.ac-sector-page{padding-top:4.5rem}.ac-sector-top{flex-direction:column;align-items:stretch}.ac-sector-summary{grid-template-columns:1fr}}
+        @media(max-width:767.98px){.ac-sector-page{padding-top:6.5rem}.ac-sector-top{flex-direction:column;align-items:stretch}.ac-sector-summary{grid-template-columns:1fr}}
     </style>
 
 <style>
