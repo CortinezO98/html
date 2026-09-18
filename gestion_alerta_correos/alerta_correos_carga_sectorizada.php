@@ -121,6 +121,43 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 }
 
 $plantillaTipo = strtolower($acCargaTipo);
+
+$instruccionesCarga = match ($acCargaTipo) {
+    'TERRITORIOS' => [
+        'titulo' => 'Instrucciones para Regionales y Centros Zonales',
+        'pasos' => [
+            'Descargue la plantilla y no modifique los nombres de las columnas.',
+            'Use NIVEL = REGIONAL para Regionales y NIVEL = ZONAL para Centros Zonales.',
+            'Diligencie REGIONAL, CENTRO_ZONAL cuando aplique, CODIGO_CENTRO y ESTADO.',
+            'CODIGO_CENTRO debe ser único para cada territorio.',
+            'Suba el archivo y revise la previsualización. Si existen errores, corríjalos antes de confirmar.',
+        ],
+        'nota' => 'Esta carga es el maestro territorial. Las cargas de Coordinadores y Responsables dependen de estos códigos.',
+    ],
+    'COORDINADORES' => [
+        'titulo' => 'Instrucciones para Coordinadores',
+        'pasos' => [
+            'Antes de cargar, asegúrese de que el territorio ya exista en el maestro de Regionales y Centros Zonales.',
+            'Diligencie CODIGO_CENTRO, DOCUMENTO, NOMBRE, CORREO, EXTENSION_IP y ESTADO.',
+            'No es necesario incluir Regional ni Centro Zonal: el sistema los obtiene automáticamente usando CODIGO_CENTRO.',
+            'Si ya existe un coordinador para ese territorio y cambia la persona, se conserva el histórico y se registra la nueva vigencia.',
+            'Revise los registros Nuevos, Actualizados, Sin cambios y Errores antes de confirmar.',
+        ],
+        'nota' => 'Si CODIGO_CENTRO no existe en el maestro territorial, la fila será rechazada y no se creará un territorio automáticamente.',
+    ],
+    'RESPONSABLES' => [
+        'titulo' => 'Instrucciones para Responsables / Enlaces',
+        'pasos' => [
+            'Verifique primero que la Regional o Centro Zonal exista en el maestro territorial.',
+            'Diligencie CODIGO_CENTRO, DOCUMENTO, NOMBRE, CORREO, EXTENSION_IP y ESTADO.',
+            'Regional y Centro Zonal se resuelven automáticamente mediante CODIGO_CENTRO.',
+            'Si cambia el responsable o enlace, la asignación anterior se cierra y permanece en el histórico.',
+            'Analice el archivo y confirme únicamente cuando la previsualización no tenga errores.',
+        ],
+        'nota' => 'Esta carga afecta únicamente al Responsable / Enlace del territorio; no modifica al Coordinador.',
+    ],
+    default => ['titulo' => 'Instrucciones', 'pasos' => [], 'nota' => ''],
+};
 ?>
 <!DOCTYPE html>
 <html lang="ES">
@@ -136,6 +173,12 @@ $plantillaTipo = strtolower($acCargaTipo);
         .ac-sector-stat strong{display:block;font-size:1.35rem;color:#2e7d32}
         .ac-upload-zone{border:2px dashed #b8c8bd;border-radius:12px;padding:2rem;text-align:center;background:#fbfdfb}
         .ac-upload-zone__icon{font-size:2rem;color:#4caf50;margin-bottom:.5rem}
+        .ac-sector-instructions{display:none;margin-top:1rem;padding:1rem 1.1rem;background:#f8fbf9;border:1px solid #dce9df;border-radius:10px;color:#455a64}
+        .ac-sector-instructions.is-open{display:block}
+        .ac-sector-instructions h3{font-size:1rem;font-weight:800;color:#2f5f3a;margin:0 0 .7rem}
+        .ac-sector-instructions ol{padding-left:1.2rem;margin-bottom:.7rem}
+        .ac-sector-instructions li{margin-bottom:.38rem}
+        .ac-sector-instructions__note{padding:.65rem .75rem;background:#fff;border-left:3px solid #4caf50;border-radius:5px}
         @media(max-width:991.98px){.ac-sector-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
         @media(max-width:767.98px){.ac-sector-page{padding-top:4.5rem}.ac-sector-top{flex-direction:column;align-items:stretch}.ac-sector-summary{grid-template-columns:1fr}}
     </style>
@@ -195,9 +238,25 @@ $plantillaTipo = strtolower($acCargaTipo);
                             <div class="small text-muted">Regional y Centro Zonal se obtienen automáticamente desde el maestro territorial.</div>
                         <?php endif; ?>
                     </div>
-                    <a class="btn ac-btn-green-outline" href="alerta_correos_plantilla_sectorizada.php?tipo=<?php echo urlencode($plantillaTipo); ?>">
-                        <span class="fas fa-file-download"></span> Descargar plantilla
-                    </a>
+                    <div class="d-flex flex-wrap" style="gap:.5rem">
+                        <a class="btn ac-btn-green-outline" href="alerta_correos_plantilla_sectorizada.php?tipo=<?php echo urlencode($plantillaTipo); ?>">
+                            <span class="fas fa-file-download"></span> Descargar plantilla
+                        </a>
+                        <button type="button" class="btn btn-outline-info" id="ac-toggle-instructions" aria-expanded="false">
+                            <span class="fas fa-info-circle"></span> Instrucciones
+                        </button>
+                    </div>
+                </div>
+                <div id="ac-sector-instructions" class="ac-sector-instructions">
+                    <h3><span class="fas fa-info-circle mr-1"></span> <?php echo acEscape($instruccionesCarga['titulo']); ?></h3>
+                    <ol>
+                        <?php foreach ($instruccionesCarga['pasos'] as $paso): ?>
+                            <li><?php echo acEscape($paso); ?></li>
+                        <?php endforeach; ?>
+                    </ol>
+                    <div class="ac-sector-instructions__note">
+                        <strong>Importante:</strong> <?php echo acEscape($instruccionesCarga['nota']); ?>
+                    </div>
                 </div>
             </section>
         </div>
@@ -314,6 +373,18 @@ document.querySelectorAll('[data-ac-file-input]').forEach(function(input){
         if (target) target.textContent = input.files && input.files[0] ? input.files[0].name : 'Ningún archivo seleccionado';
     });
 });
+
+var instructionButton = document.getElementById('ac-toggle-instructions');
+var instructionPanel = document.getElementById('ac-sector-instructions');
+if (instructionButton && instructionPanel) {
+    instructionButton.addEventListener('click', function() {
+        var open = instructionPanel.classList.toggle('is-open');
+        instructionButton.setAttribute('aria-expanded', open ? 'true' : 'false');
+        instructionButton.innerHTML = open
+            ? '<span class="fas fa-times-circle"></span> Cerrar instrucciones'
+            : '<span class="fas fa-info-circle"></span> Instrucciones';
+    });
+}
 </script>
 </body>
 </html>
