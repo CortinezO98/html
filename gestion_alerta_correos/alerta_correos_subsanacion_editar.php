@@ -172,8 +172,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
      * calcular si el caso debe o no enviar correo.
      */
     $esInformativaNueva =
-        strtoupper((string)($caso['acc_origen'] ?? '')) === 'CARGA_EXCEL'
-        && acAlertaEsCategoriaTiempoEspera($categoria);
+        acAlertaEsCategoriaTiempoEspera($categoria);
 
     $tipoGestion = $esInformativaNueva
         ? 'INFORMATIVA'
