@@ -139,6 +139,7 @@ function acEmailConsultarResponsables(mysqli $db, string $sql, string $types, ar
 /** @return array{regional:array<int,array<string,mixed>>,zonal:array<int,array<string,mixed>>} */
 function acEmailResolverDestinatariosVigentes(mysqli $db, array $caso): array
 {
+    $soloRegional = acAlertaEsCategoriaActitudInadecuada((string)($caso['acc_categoria'] ?? ''));
     $regionalId = (int)($caso['acc_regional_id'] ?? 0);
     $puntoId = (int)($caso['acc_punto_atencion_id'] ?? 0);
     $regionalTxt = trim((string)($caso['acc_regional'] ?? ''));
@@ -146,34 +147,42 @@ function acEmailResolverDestinatariosVigentes(mysqli $db, array $caso): array
 
     $regional = [];
     if ($regionalId > 0) {
-        $regional = acEmailConsultarResponsables(
-            $db,
-            "SELECT * FROM tb_alerta_correo_responsable
+        $sqlRegionalId = "SELECT * FROM tb_alerta_correo_responsable
              WHERE acr_activo=1
                AND UPPER(acr_nivel)='REGIONAL'
-               AND acr_punto_atencion_id=?
-             ORDER BY CASE WHEN UPPER(COALESCE(acr_tipo_responsable,''))='ENLACE_RELACION_CIUDADANO' THEN 0 ELSE 1 END,
-                      acr_id DESC",
+               AND acr_punto_atencion_id=?";
+        if ($soloRegional) {
+            $sqlRegionalId .= " AND UPPER(TRIM(COALESCE(acr_tipo_responsable,'')))='ENLACE_RELACION_CIUDADANO'";
+        }
+        $sqlRegionalId .= " ORDER BY CASE WHEN UPPER(COALESCE(acr_tipo_responsable,''))='ENLACE_RELACION_CIUDADANO' THEN 0 ELSE 1 END,
+                      acr_id DESC";
+        $regional = acEmailConsultarResponsables(
+            $db,
+            $sqlRegionalId,
             'i',
             [$regionalId]
         );
     }
     if (!$regional && $regionalTxt !== '') {
-        $regional = acEmailConsultarResponsables(
-            $db,
-            "SELECT * FROM tb_alerta_correo_responsable
+        $sqlRegionalTxt = "SELECT * FROM tb_alerta_correo_responsable
              WHERE acr_activo=1
                AND UPPER(acr_nivel)='REGIONAL'
-               AND UPPER(TRIM(acr_regional))=UPPER(TRIM(?))
-             ORDER BY CASE WHEN UPPER(COALESCE(acr_tipo_responsable,''))='ENLACE_RELACION_CIUDADANO' THEN 0 ELSE 1 END,
-                      acr_id DESC",
+               AND UPPER(TRIM(acr_regional))=UPPER(TRIM(?))";
+        if ($soloRegional) {
+            $sqlRegionalTxt .= " AND UPPER(TRIM(COALESCE(acr_tipo_responsable,'')))='ENLACE_RELACION_CIUDADANO'";
+        }
+        $sqlRegionalTxt .= " ORDER BY CASE WHEN UPPER(COALESCE(acr_tipo_responsable,''))='ENLACE_RELACION_CIUDADANO' THEN 0 ELSE 1 END,
+                      acr_id DESC";
+        $regional = acEmailConsultarResponsables(
+            $db,
+            $sqlRegionalTxt,
             's',
             [$regionalTxt]
         );
     }
 
     $zonal = [];
-    if ($puntoId > 0) {
+    if (!$soloRegional && $puntoId > 0) {
         $zonal = acEmailConsultarResponsables(
             $db,
             "SELECT * FROM tb_alerta_correo_responsable
@@ -186,7 +195,7 @@ function acEmailResolverDestinatariosVigentes(mysqli $db, array $caso): array
             [$puntoId]
         );
     }
-    if (!$zonal && $regionalTxt !== '' && $czTxt !== '') {
+    if (!$soloRegional && !$zonal && $regionalTxt !== '' && $czTxt !== '') {
         $zonal = acEmailConsultarResponsables(
             $db,
             "SELECT * FROM tb_alerta_correo_responsable
@@ -251,10 +260,11 @@ function acEmailObtenerSnapshot(mysqli $db, int $casoId): array
     return $out;
 }
 
-function acEmailAsegurarSnapshot(mysqli $db, int $casoId, array $destinatarios): array
+function acEmailAsegurarSnapshot(mysqli $db, int $casoId, array $destinatarios, array $caso = []): array
 {
+    $soloRegional = acAlertaEsCategoriaActitudInadecuada((string)($caso['acc_categoria'] ?? ''));
     $snapshot = acEmailObtenerSnapshot($db, $casoId);
-    if ($snapshot['regional'] && $snapshot['zonal']) {
+    if ($snapshot['regional'] && ($soloRegional || $snapshot['zonal'])) {
         return $snapshot;
     }
 
@@ -293,8 +303,12 @@ function acEmailAsegurarSnapshot(mysqli $db, int $casoId, array $destinatarios):
     $stmt->close();
 
     $snapshot = acEmailObtenerSnapshot($db, $casoId);
-    if (!$snapshot['regional'] || !$snapshot['zonal']) {
-        throw new RuntimeException('No fue posible consolidar el snapshot regional y zonal del caso.');
+    if (!$snapshot['regional'] || (!$soloRegional && !$snapshot['zonal'])) {
+        throw new RuntimeException(
+            $soloRegional
+                ? 'No fue posible consolidar el snapshot del Enlace Regional del caso.'
+                : 'No fue posible consolidar el snapshot regional y zonal del caso.'
+        );
     }
     return $snapshot;
 }
@@ -380,57 +394,77 @@ function acEmailConstruirPlantilla(
     string $fechaAprobacion
 ): array
 {
+    $soloRegional = acAlertaEsCategoriaActitudInadecuada((string)($caso['acc_categoria'] ?? ''));
+
     if (!$destinatarios['regional']) {
-        throw new RuntimeException('No existe un responsable regional vigente con correo válido.');
+        throw new RuntimeException('No existe un Enlace Regional vigente con correo válido.');
     }
-    if (!$destinatarios['zonal']) {
+    if (!$soloRegional && !$destinatarios['zonal']) {
         throw new RuntimeException('No existe un responsable zonal vigente con correo válido.');
     }
 
-    // TO = Zonal. CC = Regional. La deduplicación ocurre después de comprobar que ambos roles existen.
-    $toPersonas = $destinatarios['zonal'];
     $emailsTo = [];
-    foreach ($toPersonas as $p) $emailsTo[strtolower((string)$p['correo'])] = true;
     $ccPersonas = [];
     $emailsCc = [];
 
-    foreach ($destinatarios['regional'] as $p) {
-        $correo = strtolower(trim((string)($p['correo'] ?? '')));
-
-        if ($correo === '' || isset($emailsTo[$correo]) || isset($emailsCc[$correo])) {
-            continue;
+    if ($soloRegional) {
+        // Regla especial "Actitud inadecuada":
+        // TO = únicamente el Enlace Regional. No se envía al zonal ni se agrega CC global.
+        $toPersonas = $destinatarios['regional'];
+        foreach ($toPersonas as $p) {
+            $emailsTo[strtolower((string)$p['correo'])] = true;
+        }
+    } else {
+        // Regla general: TO = Zonal, CC = Regional.
+        $toPersonas = $destinatarios['zonal'];
+        foreach ($toPersonas as $p) {
+            $emailsTo[strtolower((string)$p['correo'])] = true;
         }
 
-        $emailsCc[$correo] = true;
-        $ccPersonas[] = $p;
-    }
+        foreach ($destinatarios['regional'] as $p) {
+            $correo = strtolower(trim((string)($p['correo'] ?? '')));
 
-    // Copia global configurable para cada aprobación.
-    $correoCcAprobacion = acEmailObtenerCcAprobacion($db);
+            if ($correo === '' || isset($emailsTo[$correo]) || isset($emailsCc[$correo])) {
+                continue;
+            }
 
-    if (
-        $correoCcAprobacion !== ''
-        && !isset($emailsTo[$correoCcAprobacion])
-        && !isset($emailsCc[$correoCcAprobacion])
-    ) {
-        $emailsCc[$correoCcAprobacion] = true;
+            $emailsCc[$correo] = true;
+            $ccPersonas[] = $p;
+        }
 
-        $ccPersonas[] = [
-            'responsable_id' => null,
-            'punto_atencion_id' => null,
-            'nivel' => 'COPIA_APROBACION',
-            'regional' => '',
-            'centro_zonal' => '',
-            'nombre' => $correoCcAprobacion,
-            'correo' => $correoCcAprobacion,
-            'documento' => '',
-            'tipo_responsable' => 'CC_APROBACION',
-        ];
+        // Copia global configurable para aprobaciones de la regla general.
+        $correoCcAprobacion = acEmailObtenerCcAprobacion($db);
+
+        if (
+            $correoCcAprobacion !== ''
+            && !isset($emailsTo[$correoCcAprobacion])
+            && !isset($emailsCc[$correoCcAprobacion])
+        ) {
+            $emailsCc[$correoCcAprobacion] = true;
+
+            $ccPersonas[] = [
+                'responsable_id' => null,
+                'punto_atencion_id' => null,
+                'nivel' => 'COPIA_APROBACION',
+                'regional' => '',
+                'centro_zonal' => '',
+                'nombre' => $correoCcAprobacion,
+                'correo' => $correoCcAprobacion,
+                'documento' => '',
+                'tipo_responsable' => 'CC_APROBACION',
+            ];
+        }
     }
 
     $to = acEmailFormatoCentral($toPersonas);
     $cc = acEmailFormatoCentral($ccPersonas);
-    if ($to === '') throw new RuntimeException('No fue posible construir la lista de destinatarios zonales.');
+    if ($to === '') {
+        throw new RuntimeException(
+            $soloRegional
+                ? 'No fue posible construir el destinatario del Enlace Regional.'
+                : 'No fue posible construir la lista de destinatarios zonales.'
+        );
+    }
 
     $radicado = acEmailTexto($caso['acc_radicado'] ?? '');
     $sim = acEmailTexto($caso['acc_sim'] ?? '');
