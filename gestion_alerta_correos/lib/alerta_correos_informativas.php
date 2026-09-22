@@ -6,7 +6,8 @@ require_once __DIR__ . '/alerta_correos_territorio.php';
 /**
  * Reglas para alertas informativas.
  *
- * La regla solicitada aplica únicamente a casos creados por carga masiva:
+ * Regla de negocio para alertas informativas de tiempos de espera:
+ * - Aplica sin importar si el caso fue creado manualmente o por carga masiva.
  * - Categorías: "Tiempos de espera muy largos" o "Tiempos de espera muy altos".
  * - Se conserva el ciclo de revisión/aprobación.
  * - Al aprobar NO se genera ni se encola correo electrónico.
@@ -36,9 +37,9 @@ function acAlertaEsInformativa(array $caso): bool
         return true;
     }
 
-    // Compatibilidad defensiva para casos masivos anteriores a la migración nueva.
-    return strtoupper(trim((string)($caso['acc_origen'] ?? ''))) === 'CARGA_EXCEL'
-        && acAlertaEsCategoriaTiempoEspera((string)($caso['acc_categoria'] ?? ''));
+    // Compatibilidad defensiva para casos anteriores a esta regla:
+    // la categoría prevalece sobre el origen y sobre valores históricos por defecto.
+    return acAlertaEsCategoriaTiempoEspera((string)($caso['acc_categoria'] ?? ''));
 }
 
 function acAlertaTiempoRangos(): array
