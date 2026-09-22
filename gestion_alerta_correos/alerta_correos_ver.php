@@ -255,7 +255,7 @@ include '../menu_header.php';
     <?php if ($esInformativa): ?>
         <div class="ac-alert-box ac-alert-box--info mb-3">
             <strong><span class="fas fa-info-circle mr-1"></span>Alerta informativa · sin correo.</strong>
-            Este caso proviene de <strong>Carga Masiva</strong> y su categoría es <strong>Tiempos de espera muy largos</strong>. Puede continuar por revisión, subsanación, rechazo o aprobación, pero <strong>el sistema no generará ni encolará correo electrónico</strong>.
+            Este caso pertenece a una categoría de <strong>tiempos de espera muy largos/altos</strong>. Puede continuar por revisión, subsanación, rechazo o aprobación, pero <strong>el sistema no generará ni encolará correo electrónico</strong>, independientemente de si fue creado manualmente o por carga masiva.
             Rango de espera: <strong><?php echo acEscape(acAlertaTiempoRangoLabel((string)($caso['acc_tiempo_espera_rango'] ?? ''))); ?></strong>.
         </div>
     <?php endif; ?>
