@@ -9,6 +9,7 @@ require_once __DIR__ . '/lib/alerta_correos_datos.php';
 require_once __DIR__ . '/lib/alerta_correos_notificaciones.php';
 require_once __DIR__ . '/lib/alerta_correos_territorio.php';
 require_once __DIR__ . '/lib/alerta_correos_informativas.php';
+require_once __DIR__ . '/lib/alerta_correos_email_oficial.php';
 
 acExigirPerfil(['Usuario', 'Supervisor', 'Cliente', 'Administrador']);
 
@@ -26,9 +27,23 @@ if (!$caso) {
 
 $historial = acHistorialCaso($enlace_db, (int)$id);
 $esInformativa = acAlertaEsInformativa($caso);
-$responsables = $esInformativa
-    ? ['regional' => [], 'zonal' => [], '_origen' => 'NO_APLICA', '_fecha' => null]
-    : acTerritorioDestinatariosParaVista($enlace_db, $caso);
+$soloRegional = acAlertaEsCategoriaActitudInadecuada((string)($caso['acc_categoria'] ?? ''));
+
+if ($esInformativa) {
+    $responsables = ['regional' => [], 'zonal' => [], '_origen' => 'NO_APLICA', '_fecha' => null];
+} elseif ($soloRegional) {
+    if (strtoupper((string)($caso['acc_estado'] ?? '')) === 'APROBADO') {
+        $responsables = acEmailObtenerSnapshot($enlace_db, (int)$id);
+        $responsables['_origen'] = 'SNAPSHOT';
+        $responsables['_fecha'] = null;
+    } else {
+        $responsables = acEmailResolverDestinatariosVigentes($enlace_db, $caso);
+        $responsables['_origen'] = 'VIGENTE';
+        $responsables['_fecha'] = null;
+    }
+} else {
+    $responsables = acTerritorioDestinatariosParaVista($enlace_db, $caso);
+}
 $flash = acFlashTomar();
 $titulo_header = 'Alertas Correos | ' . $caso['acc_radicado'];
 $origenLabel = match ((string)($caso['acc_origen'] ?? '')) {
@@ -351,6 +366,14 @@ include '../menu_header.php';
                             <strong>No requiere destinatarios.</strong> Esta alerta es informativa y, por regla de negocio, no genera correo al ser aprobada.
                         </div>
                     <?php else: ?>
+                    <?php if ($soloRegional): ?>
+                        <div class="ac-alert-box ac-alert-box--info mb-3">
+                            <span class="fas fa-info-circle mr-1"></span>
+                            <strong>Regla especial · Actitud inadecuada:</strong>
+                            la notificación se enviará únicamente al <strong>Enlace Regional</strong>. No aplica destinatario zonal.
+                        </div>
+                    <?php endif; ?>
+
                     <?php if ($esSnapshot): ?>
                         <div class="ac-alert-box ac-alert-box--info mb-3">
                             <span class="fas fa-lock mr-1"></span>
@@ -364,13 +387,14 @@ include '../menu_header.php';
                     <?php endif; ?>
 
                     <div class="mb-3">
-                        <span class="ac-detail-label">Responsable regional</span>
+                        <span class="ac-detail-label"><?php echo $soloRegional ? 'Enlace Regional' : 'Responsable regional'; ?></span>
                         <?php if (!$tieneRegional): ?><div class="ac-alert-box ac-alert-box--danger mt-2"><span class="fas fa-exclamation-triangle mr-1"></span>No hay responsable regional disponible.</div><?php endif; ?>
                         <?php foreach ($responsables['regional'] as $responsable): ?>
                             <div class="ac-person"><div class="ac-person__name"><?php echo acEscape($responsable['acr_nombre']); ?></div><div class="ac-person__mail"><span class="fas fa-envelope"></span><?php echo acEscape($responsable['acr_correo']); ?></div></div>
                         <?php endforeach; ?>
                     </div>
 
+                    <?php if (!$soloRegional): ?>
                     <div>
                         <span class="ac-detail-label">Responsable zonal</span>
                         <?php if (!$tieneZonal): ?><div class="ac-alert-box ac-alert-box--warning mt-2"><span class="fas fa-exclamation-triangle mr-1"></span>No hay responsable zonal disponible para este punto.</div><?php endif; ?>
@@ -378,6 +402,7 @@ include '../menu_header.php';
                             <div class="ac-person"><div class="ac-person__name"><?php echo acEscape($responsable['acr_nombre']); ?></div><div class="ac-person__mail"><span class="fas fa-envelope"></span><?php echo acEscape($responsable['acr_correo']); ?></div></div>
                         <?php endforeach; ?>
                     </div>
+                    <?php endif; ?>
                     <?php endif; ?>
                 </div>
             </section>
@@ -423,11 +448,11 @@ include '../menu_header.php';
                                 </form>
                             </div>
                         <?php else: ?>
-                            <?php if (!$tieneRegional || !$tieneZonal): ?><div class="ac-alert-box ac-alert-box--warning mb-3"><strong>Antes de aprobar:</strong> configure los destinatarios faltantes.</div><?php endif; ?>
+                            <?php if (!$tieneRegional || (!$soloRegional && !$tieneZonal)): ?><div class="ac-alert-box ac-alert-box--warning mb-3"><strong>Antes de aprobar:</strong> configure los destinatarios faltantes.</div><?php endif; ?>
                             <div class="ac-action-group">
                                 <form method="post" action="alerta_correos_aprobar.php" data-ac-lock-submit="1" data-ac-swal-confirm="1" data-ac-swal-title="¿Aprobar y notificar?" data-ac-swal-text="Se resolverán los responsables vigentes y la notificación quedará encolada para envío." data-ac-swal-confirm-text="Sí, aprobar" data-ac-swal-icon="warning">
                                     <input type="hidden" name="_csrf" value="<?php echo acEscape(acCsrfToken()); ?>"><input type="hidden" name="id" value="<?php echo (int)$id; ?>">
-                                    <button class="btn btn-success btn-block ac-btn-approve" type="submit" <?php echo (!$tieneRegional || !$tieneZonal) ? 'disabled' : ''; ?>><span class="fas fa-check"></span> Aprobar y notificar</button>
+                                    <button class="btn btn-success btn-block ac-btn-approve" type="submit" <?php echo (!$tieneRegional || (!$soloRegional && !$tieneZonal)) ? 'disabled' : ''; ?>><span class="fas fa-check"></span> Aprobar y notificar</button>
                                 </form>
                             </div>
                         <?php endif; ?>
