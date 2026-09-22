@@ -137,10 +137,19 @@ $titulo_header = $esInformativa ? 'Alertas Correos | Alerta informativa' : 'Aler
                     </div>
                     <div class="col-md-6 mb-2">
                         <span class="ac-detail-label"><?php echo $soloRegional ? 'CC · No aplica' : 'CC · Regional'; ?></span>
-                        <?php foreach ($destinatarios['regional'] as $p): ?>
-                            <div class="ac-person mt-2"><div class="ac-person__name"><?php echo acEscape((string)$p['nombre']); ?></div><div class="ac-person__mail"><span class="fas fa-envelope"></span><?php echo acEscape((string)$p['correo']); ?></div></div>
-                        <?php endforeach; ?>
-                        <?php if ((string)$plantilla['cc'] === ''): ?><div class="small text-muted mt-2">Si el correo regional coincide con uno de PARA, se deduplica y no se agrega nuevamente en CC.</div><?php endif; ?>
+
+                        <?php if ($soloRegional): ?>
+                            <div class="small text-muted mt-2">
+                                Para la categoría <strong>Actitud inadecuada</strong> el correo se envía únicamente al Enlace Regional. No se agregan destinatarios en CC.
+                            </div>
+                        <?php else: ?>
+                            <?php foreach ($destinatarios['regional'] as $p): ?>
+                                <div class="ac-person mt-2"><div class="ac-person__name"><?php echo acEscape((string)$p['nombre']); ?></div><div class="ac-person__mail"><span class="fas fa-envelope"></span><?php echo acEscape((string)$p['correo']); ?></div></div>
+                            <?php endforeach; ?>
+                            <?php if ((string)$plantilla['cc'] === ''): ?>
+                                <div class="small text-muted mt-2">Si el correo regional coincide con uno de PARA, se deduplica y no se agrega nuevamente en CC.</div>
+                            <?php endif; ?>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <hr>
