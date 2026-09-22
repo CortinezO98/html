@@ -25,7 +25,7 @@ $estadoCentral = null;
 
 try {
     if ($esInformativa) {
-        $error = 'Este caso es una alerta informativa de Tiempos de espera muy largos. Por regla de negocio no genera correo electrónico ni requiere vista previa.';
+        $error = 'Este caso es una alerta informativa de Tiempos de espera muy largos/altos. Por regla de negocio no genera correo electrónico ni requiere vista previa.';
     } else {
     $ncId = (int)($caso['acc_notificacion_central_id'] ?? 0);
 
