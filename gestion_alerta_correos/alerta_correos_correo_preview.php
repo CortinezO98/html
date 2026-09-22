@@ -20,6 +20,7 @@ $error = '';
 $plantilla = null;
 $destinatarios = ['regional' => [], 'zonal' => []];
 $esInformativa = acAlertaEsInformativa($caso);
+$soloRegional = acAlertaEsCategoriaActitudInadecuada((string)($caso['acc_categoria'] ?? ''));
 $esCorreoYaGenerado = false;
 $estadoCentral = null;
 
@@ -128,14 +129,14 @@ $titulo_header = $esInformativa ? 'Alertas Correos | Alerta informativa' : 'Aler
                 <?php endif; ?>
                 <div class="row">
                     <div class="col-md-6 mb-2">
-                        <span class="ac-detail-label">PARA · Zonal</span>
+                        <span class="ac-detail-label"><?php echo $soloRegional ? 'PARA · Enlace Regional' : 'PARA · Zonal'; ?></span>
                         <?php foreach ($destinatarios['zonal'] as $p): ?>
                             <div class="ac-person mt-2"><div class="ac-person__name"><?php echo acEscape((string)$p['nombre']); ?></div><div class="ac-person__mail"><span class="fas fa-envelope"></span><?php echo acEscape((string)$p['correo']); ?></div></div>
                         <?php endforeach; ?>
                         <?php if (!$destinatarios['zonal']): ?><div class="small text-muted mt-2"><?php echo acEscape((string)$plantilla['to']); ?></div><?php endif; ?>
                     </div>
                     <div class="col-md-6 mb-2">
-                        <span class="ac-detail-label">CC · Regional</span>
+                        <span class="ac-detail-label"><?php echo $soloRegional ? 'CC · No aplica' : 'CC · Regional'; ?></span>
                         <?php foreach ($destinatarios['regional'] as $p): ?>
                             <div class="ac-person mt-2"><div class="ac-person__name"><?php echo acEscape((string)$p['nombre']); ?></div><div class="ac-person__mail"><span class="fas fa-envelope"></span><?php echo acEscape((string)$p['correo']); ?></div></div>
                         <?php endforeach; ?>
