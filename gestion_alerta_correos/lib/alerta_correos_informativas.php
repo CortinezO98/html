@@ -28,6 +28,11 @@ function acAlertaEsCategoriaTiempoEspera(?string $categoria): bool
     );
 }
 
+function acAlertaEsCategoriaActitudInadecuada(?string $categoria): bool
+{
+    return acTerritorioNormalizarClave((string)$categoria) === 'ACTITUD INADECUADA';
+}
+
 function acAlertaEsInformativa(array $caso): bool
 {
     if (array_key_exists('acc_envia_correo', $caso) && (int)$caso['acc_envia_correo'] === 0) {
