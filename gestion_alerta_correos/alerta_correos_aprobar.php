@@ -95,12 +95,14 @@ try {
         exit;
     }
 
-    // Preflight: antes de tocar el estado, comprobar que existen ambos roles con correo válido.
+    // Preflight de destinatarios.
+    // "Actitud inadecuada" requiere únicamente el Enlace Regional.
+    $soloRegional = acAlertaEsCategoriaActitudInadecuada((string)($caso['acc_categoria'] ?? ''));
     $vigentes = acEmailResolverDestinatariosVigentes($enlace_db, $caso);
     if (!$vigentes['regional']) {
-        throw new RuntimeException('No es posible aprobar: la Regional seleccionada no tiene un responsable vigente con correo válido.');
+        throw new RuntimeException('No es posible aprobar: la Regional seleccionada no tiene un Enlace Regional vigente con correo válido.');
     }
-    if (!$vigentes['zonal']) {
+    if (!$soloRegional && !$vigentes['zonal']) {
         throw new RuntimeException('No es posible aprobar: el Centro Zonal / Punto seleccionado no tiene un responsable vigente con correo válido.');
     }
 
@@ -120,7 +122,7 @@ try {
 
     // Usar SIEMPRE el snapshot inmutable como fuente de la plantilla. Si no hay trigger,
     // se crea manualmente con los responsables validados justo antes de aprobar.
-    $snapshot = acEmailAsegurarSnapshot($enlace_db, (int)$id, $vigentes);
+    $snapshot = acEmailAsegurarSnapshot($enlace_db, (int)$id, $vigentes, $caso);
     $plantilla = acEmailConstruirPlantilla(
         $enlace_db,
         $caso,
@@ -174,7 +176,12 @@ try {
         }
     }
 
-    acFlash('success', 'Caso aprobado correctamente. La notificación oficial quedó encolada para envío con los responsables regional y zonal del snapshot de aprobación.');
+    acFlash(
+        'success',
+        $soloRegional
+            ? 'Caso aprobado correctamente. La notificación oficial quedó encolada únicamente para el Enlace Regional.'
+            : 'Caso aprobado correctamente. La notificación oficial quedó encolada para envío con los responsables regional y zonal del snapshot de aprobación.'
+    );
 } catch (Throwable $e) {
     try { $enlace_db->rollback(); } catch (Throwable $ignored) {}
     error_log('Alertas Correos / aprobar: ' . $e->getMessage());
