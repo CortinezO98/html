@@ -10,6 +10,7 @@ require_once __DIR__ . '/lib/alerta_correos_datos.php';
 require_once __DIR__ . '/lib/alerta_correos_territorio.php';
 require_once __DIR__ . '/lib/alerta_correos_sim.php';
 require_once __DIR__ . '/lib/alerta_correos_sim_admin.php';
+require_once __DIR__ . '/lib/alerta_correos_informativas.php';
 
 acExigirPerfil(['Usuario', 'Supervisor', 'Administrador']);
 
@@ -275,6 +276,41 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
             error_log('Alertas Correos / crear etapa: creando caso');
             $id = acCrearCasoSeguro($enlace_db, $datos);
+
+            // Regla global: Tiempos de espera muy largos/altos siempre es
+            // informativa, incluso cuando el caso se registra manualmente.
+            if (acAlertaEsCategoriaTiempoEspera($categoriaPost)) {
+                $clasificacionEspera = acAlertaClasificarTiempoEspera(
+                    $justificacionPost,
+                    $descripcionPost
+                );
+
+                $tiempoMinutos = $clasificacionEspera['minutos'];
+                $tiempoRango = (string)($clasificacionEspera['rango'] ?? '');
+                $tiempoFuente = (string)($clasificacionEspera['fuente'] ?? '');
+
+                $stmtInformativa = $enlace_db->prepare(
+                    "UPDATE tb_alerta_correo_caso
+                     SET acc_tipo_gestion='INFORMATIVA',
+                         acc_envia_correo=0,
+                         acc_tiempo_espera_minutos=NULLIF(?,0),
+                         acc_tiempo_espera_rango=NULLIF(?, ''),
+                         acc_tiempo_espera_fuente=NULLIF(?, '')
+                     WHERE acc_id=?"
+                );
+
+                $minutosDb = $tiempoMinutos === null ? 0 : (int)$tiempoMinutos;
+                $stmtInformativa->bind_param(
+                    'issi',
+                    $minutosDb,
+                    $tiempoRango,
+                    $tiempoFuente,
+                    $id
+                );
+                $stmtInformativa->execute();
+                $stmtInformativa->close();
+            }
+
             error_log('Alertas Correos / crear etapa: vinculando territorio');
             acTerritorioVincularCaso($enlace_db, $id, $regionalSeleccionada, $puntoSeleccionado);
             $enlace_db->commit();
