@@ -16,20 +16,22 @@ function acCargaSectorizadaConfiguracion(string $tipo): array
             'fuente' => 'MAESTRO_TERRITORIAL',
         ],
         'COORDINADORES' => [
-            'titulo' => 'Cargar coordinadores',
-            'subtitulo' => 'Asocia o actualiza el coordinador de una Regional o Centro Zonal existente.',
+            'titulo' => 'Cargar coordinadores zonales',
+            'subtitulo' => 'Asocia o actualiza el coordinador únicamente de un Centro Zonal existente.',
             'tipo_carga' => 'COORDINADORES_SECTORIZADOS',
             'tipo_responsable' => 'COORDINADOR',
             'perfil' => 'Coordinador',
             'fuente' => 'COORDINADORES_SECTORIZADOS',
+            'acp_tipo_permitido' => 'CENTRO_ZONAL',
         ],
         'RESPONSABLES' => [
-            'titulo' => 'Cargar responsables / enlaces',
-            'subtitulo' => 'Asocia o actualiza el enlace responsable de una Regional o Centro Zonal existente.',
+            'titulo' => 'Cargar enlaces regionales',
+            'subtitulo' => 'Asocia o actualiza el Enlace de Relación con el Ciudadano únicamente de una Regional existente.',
             'tipo_carga' => 'RESPONSABLES_SECTORIZADOS',
             'tipo_responsable' => 'ENLACE_RELACION_CIUDADANO',
             'perfil' => 'Enlace',
             'fuente' => 'RESPONSABLES_SECTORIZADOS',
+            'acp_tipo_permitido' => 'REGIONAL',
         ],
         default => throw new InvalidArgumentException('Tipo de carga no válido.'),
     };
@@ -249,6 +251,17 @@ function acCargaSectorizadaPersonas(mysqli $db, string $ruta, string $nombreArch
             $territorio = acCargaSectorizadaBuscarTerritorioCodigo($db, $codigo);
         } catch (Throwable $e) {
             $errores[] = 'Fila ' . ($i + 1) . ': ' . $e->getMessage();
+            continue;
+        }
+
+        $tipoTerritorio = strtoupper(trim((string)($territorio['acp_tipo'] ?? '')));
+        $tipoPermitido = strtoupper(trim((string)($config['acp_tipo_permitido'] ?? '')));
+
+        if ($tipoPermitido !== '' && $tipoTerritorio !== $tipoPermitido) {
+            $esperado = $tipoPermitido === 'CENTRO_ZONAL' ? 'un Centro Zonal' : 'una Regional';
+            $errores[] = 'Fila ' . ($i + 1) . ': el CODIGO_CENTRO ' . $codigo
+                . ' corresponde a ' . ($tipoTerritorio === 'REGIONAL' ? 'una Regional' : 'un Centro Zonal')
+                . '. Para esta carga debe corresponder a ' . $esperado . '.';
             continue;
         }
 
