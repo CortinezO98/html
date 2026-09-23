@@ -409,7 +409,8 @@ function acEmailConstruirPlantilla(
 
     if ($soloRegional) {
         // Regla especial "Actitud inadecuada":
-        // TO = únicamente el Enlace Regional. No se envía al zonal ni se agrega CC global.
+        // TO = únicamente el Enlace Regional. No se envía a destinatarios zonales.
+        // La copia obligatoria configurada en el módulo SÍ se conserva.
         $toPersonas = $destinatarios['regional'];
         foreach ($toPersonas as $p) {
             $emailsTo[strtolower((string)$p['correo'])] = true;
@@ -431,29 +432,30 @@ function acEmailConstruirPlantilla(
             $emailsCc[$correo] = true;
             $ccPersonas[] = $p;
         }
+    }
 
-        // Copia global configurable para aprobaciones de la regla general.
-        $correoCcAprobacion = acEmailObtenerCcAprobacion($db);
+    // Copia obligatoria configurada para TODA aprobación notificable.
+    // No aplica a alertas informativas porque esas nunca llegan a construir/enviar correo.
+    $correoCcAprobacion = acEmailObtenerCcAprobacion($db);
 
-        if (
-            $correoCcAprobacion !== ''
-            && !isset($emailsTo[$correoCcAprobacion])
-            && !isset($emailsCc[$correoCcAprobacion])
-        ) {
-            $emailsCc[$correoCcAprobacion] = true;
+    if (
+        $correoCcAprobacion !== ''
+        && !isset($emailsTo[$correoCcAprobacion])
+        && !isset($emailsCc[$correoCcAprobacion])
+    ) {
+        $emailsCc[$correoCcAprobacion] = true;
 
-            $ccPersonas[] = [
-                'responsable_id' => null,
-                'punto_atencion_id' => null,
-                'nivel' => 'COPIA_APROBACION',
-                'regional' => '',
-                'centro_zonal' => '',
-                'nombre' => $correoCcAprobacion,
-                'correo' => $correoCcAprobacion,
-                'documento' => '',
-                'tipo_responsable' => 'CC_APROBACION',
-            ];
-        }
+        $ccPersonas[] = [
+            'responsable_id' => null,
+            'punto_atencion_id' => null,
+            'nivel' => 'COPIA_APROBACION',
+            'regional' => '',
+            'centro_zonal' => '',
+            'nombre' => $correoCcAprobacion,
+            'correo' => $correoCcAprobacion,
+            'documento' => '',
+            'tipo_responsable' => 'CC_APROBACION',
+        ];
     }
 
     $to = acEmailFormatoCentral($toPersonas);
