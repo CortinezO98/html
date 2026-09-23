@@ -27,7 +27,7 @@ if ($tipo === 'territorios') {
     $nombre = 'Plantilla_Responsables_Alertas_Correos.csv';
     $filas = [
         ['CODIGO_CENTRO','DOCUMENTO','NOMBRE','CORREO','EXTENSION_IP','ESTADO'],
-        ['1108','1000000002','Nombre Enlace','enlace@icbf.gov.co','1234','ACTIVO'],
+        ['1100','1000000002','Nombre Enlace Regional','enlace.regional@icbf.gov.co','1234','ACTIVO'],
     ];
 } else {
     http_response_code(400);
