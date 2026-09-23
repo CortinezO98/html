@@ -121,16 +121,69 @@ function acHistorialCaso(mysqli $db, int $id): array
     return $rows;
 }
 
-function acListarResponsables(mysqli $db, string $q = ''): array
+function acListarResponsables(mysqli $db, string $q = '', array $filtros = []): array
 {
-    if ($q === '') {
-        $rs = $db->query('SELECT * FROM tb_alerta_correo_responsable ORDER BY acr_activo DESC, acr_regional, acr_centro_zonal, acr_nombre LIMIT 500');
+    $where = ['acr_activo=1'];
+    $types = '';
+    $params = [];
+
+    if ($q !== '') {
+        $like = '%' . $q . '%';
+        $where[] = '(acr_nombre LIKE ? OR acr_correo LIKE ? OR acr_documento LIKE ? OR acr_regional LIKE ? OR acr_centro_zonal LIKE ? OR acr_codigo_centro LIKE ?)';
+        $types .= 'ssssss';
+        array_push($params, $like, $like, $like, $like, $like, $like);
+    }
+
+    $nivel = strtoupper(trim((string)($filtros['nivel'] ?? '')));
+    if (in_array($nivel, ['REGIONAL', 'ZONAL'], true)) {
+        $where[] = 'UPPER(TRIM(COALESCE(acr_nivel,\'\')))=?';
+        $types .= 's';
+        $params[] = $nivel;
+    }
+
+    $regional = trim((string)($filtros['regional'] ?? ''));
+    if ($regional !== '') {
+        $where[] = 'TRIM(COALESCE(acr_regional,\'\'))=?';
+        $types .= 's';
+        $params[] = $regional;
+    }
+
+    $centroZonal = trim((string)($filtros['centro_zonal'] ?? ''));
+    if ($centroZonal !== '') {
+        $where[] = 'TRIM(COALESCE(acr_centro_zonal,\'\'))=?';
+        $types .= 's';
+        $params[] = $centroZonal;
+    }
+
+    $tipo = strtoupper(trim((string)($filtros['tipo_responsable'] ?? '')));
+    if (in_array($tipo, ['COORDINADOR', 'ENLACE_RELACION_CIUDADANO'], true)) {
+        $where[] = 'UPPER(TRIM(COALESCE(acr_tipo_responsable,\'\')))=?';
+        $types .= 's';
+        $params[] = $tipo;
+    }
+
+    $sql = 'SELECT *
+            FROM tb_alerta_correo_responsable
+            WHERE ' . implode(' AND ', $where) . '
+            ORDER BY
+                CASE WHEN UPPER(TRIM(COALESCE(acr_nivel,\'\')))=\'REGIONAL\' THEN 0 ELSE 1 END,
+                acr_regional,
+                acr_centro_zonal,
+                acr_nombre
+            LIMIT 1000';
+
+    if (!$params) {
+        $rs = $db->query($sql);
         return $rs->fetch_all(MYSQLI_ASSOC);
     }
-    $like = '%' . $q . '%';
-    $stmt = $db->prepare('SELECT * FROM tb_alerta_correo_responsable WHERE acr_nombre LIKE ? OR acr_correo LIKE ? OR acr_regional LIKE ? OR acr_centro_zonal LIKE ? ORDER BY acr_activo DESC, acr_regional, acr_centro_zonal, acr_nombre LIMIT 500');
-    $stmt->bind_param('ssss', $like,$like,$like,$like);
-    $stmt->execute(); $rows=$stmt->get_result()->fetch_all(MYSQLI_ASSOC); $stmt->close(); return $rows;
+
+    $stmt = $db->prepare($sql);
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    return $rows;
 }
 
 function acGuardarResponsable(mysqli $db, array $d): int
