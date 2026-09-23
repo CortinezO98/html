@@ -31,15 +31,20 @@ while ($row = $rs->fetch_assoc()) {
 }
 
 $rs = $enlace_db->query(
-    "SELECT UPPER(TRIM(COALESCE(acr_tipo_responsable,''))) tipo, COUNT(*) total
+    "SELECT
+        UPPER(TRIM(COALESCE(acr_nivel,''))) nivel,
+        UPPER(TRIM(COALESCE(acr_tipo_responsable,''))) tipo,
+        COUNT(*) total
      FROM tb_alerta_correo_responsable
      WHERE acr_activo=1
-     GROUP BY UPPER(TRIM(COALESCE(acr_tipo_responsable,'')))"
+     GROUP BY
+        UPPER(TRIM(COALESCE(acr_nivel,''))),
+        UPPER(TRIM(COALESCE(acr_tipo_responsable,'')))"
 );
 while ($row = $rs->fetch_assoc()) {
-    if ((string)$row['tipo'] === 'COORDINADOR') {
+    if ((string)$row['nivel'] === 'ZONAL' && (string)$row['tipo'] === 'COORDINADOR') {
         $kpis['coordinadores'] = (int)$row['total'];
-    } elseif ((string)$row['tipo'] === 'ENLACE_RELACION_CIUDADANO') {
+    } elseif ((string)$row['nivel'] === 'REGIONAL' && (string)$row['tipo'] === 'ENLACE_RELACION_CIUDADANO') {
         $kpis['responsables'] = (int)$row['total'];
     }
 }
@@ -96,14 +101,14 @@ while ($row = $rs->fetch_assoc()) {
 
     <header class="ac-page-header">
         <h1 class="ac-page-title"><span class="fas fa-sitemap"></span> Cargas territoriales</h1>
-        <p class="ac-page-subtitle">Administre por separado el catálogo territorial, los coordinadores y los responsables/enlaces. El territorio se crea una sola vez; las personas se asocian mediante el código del centro.</p>
+        <p class="ac-page-subtitle">Administre por separado el catálogo territorial, los coordinadores zonales y los enlaces regionales. El territorio se crea una sola vez; las personas se asocian mediante el código del centro.</p>
     </header>
 
     <div class="ac-cargas-kpis">
         <div class="ac-cargas-kpi"><strong><?php echo $kpis['regionales']; ?></strong><span>Regionales activas</span></div>
         <div class="ac-cargas-kpi"><strong><?php echo $kpis['zonales']; ?></strong><span>Centros zonales activos</span></div>
-        <div class="ac-cargas-kpi"><strong><?php echo $kpis['coordinadores']; ?></strong><span>Coordinadores activos</span></div>
-        <div class="ac-cargas-kpi"><strong><?php echo $kpis['responsables']; ?></strong><span>Responsables / enlaces activos</span></div>
+        <div class="ac-cargas-kpi"><strong><?php echo $kpis['coordinadores']; ?></strong><span>Coordinadores zonales activos</span></div>
+        <div class="ac-cargas-kpi"><strong><?php echo $kpis['responsables']; ?></strong><span>Enlaces regionales activos</span></div>
     </div>
 
     <div class="ac-cargas-grid">
@@ -139,10 +144,10 @@ while ($row = $rs->fetch_assoc()) {
         <section class="ac-carga-card">
             <div class="ac-carga-card__head">
                 <span class="ac-carga-card__step">2</span>
-                <h2 class="ac-carga-card__title">Coordinadores</h2>
+                <h2 class="ac-carga-card__title">Coordinadores zonales</h2>
             </div>
             <div class="ac-carga-card__body">
-                <p>Asocia el coordinador a un territorio existente. Solo se solicita el código del centro y los datos de la persona.</p>
+                <p>Asocia el coordinador únicamente a un Centro Zonal existente. El código de una Regional será rechazado.</p>
                 <div class="ac-carga-card__actions">
                     <a href="alerta_correos_coordinadores_cargar.php" class="btn ac-btn-green-outline"><span class="fas fa-user-tie"></span> Ir a cargar</a>
                     <a href="alerta_correos_plantilla_sectorizada.php?tipo=coordinadores" class="btn btn-outline-secondary"><span class="fas fa-download"></span> Plantilla</a>
@@ -152,15 +157,15 @@ while ($row = $rs->fetch_assoc()) {
                     </button>
                 </div>
                 <div id="inst-coordinadores" class="ac-instructions" data-ac-instructions>
-                    <h3><span class="fas fa-user-tie mr-1"></span> ¿Cómo cargar Coordinadores?</h3>
+                    <h3><span class="fas fa-user-tie mr-1"></span> ¿Cómo cargar Coordinadores zonales?</h3>
                     <ol>
-                        <li>Verifique primero que el territorio exista en la carga maestra.</li>
+                        <li>Verifique primero que el Centro Zonal exista en la carga maestra.</li>
                         <li>Use la plantilla de Coordinadores y diligencie <strong>CODIGO_CENTRO, DOCUMENTO, NOMBRE, CORREO, EXTENSION_IP y ESTADO</strong>.</li>
-                        <li>No escriba Regional ni Centro Zonal: el sistema los obtiene automáticamente mediante <strong>CODIGO_CENTRO</strong>.</li>
+                        <li>No escriba Regional ni Centro Zonal: el sistema los obtiene automáticamente mediante <strong>CODIGO_CENTRO</strong>. El código debe pertenecer a un <strong>Centro Zonal</strong>.</li>
                         <li>Si el territorio ya tiene coordinador y cambia la persona, se cierra la vigencia anterior y se registra la nueva versión.</li>
                         <li>Revise la previsualización antes de confirmar la carga.</li>
                     </ol>
-                    <div class="ac-instructions__note"><strong>Control:</strong> un código inexistente en el maestro territorial será rechazado y no creará un territorio nuevo.</div>
+                    <div class="ac-instructions__note"><strong>Control:</strong> un código inexistente o perteneciente a una Regional será rechazado en la carga de Coordinadores.</div>
                 </div>
             </div>
         </section>
@@ -168,10 +173,10 @@ while ($row = $rs->fetch_assoc()) {
         <section class="ac-carga-card">
             <div class="ac-carga-card__head">
                 <span class="ac-carga-card__step">3</span>
-                <h2 class="ac-carga-card__title">Responsables / Enlaces</h2>
+                <h2 class="ac-carga-card__title">Enlaces regionales</h2>
             </div>
             <div class="ac-carga-card__body">
-                <p>Asocia el enlace o responsable operativo al territorio existente. No vuelve a crear la Regional ni el Centro Zonal.</p>
+                <p>Asocia el Enlace de Relación con el Ciudadano únicamente a una Regional existente. El código de un Centro Zonal será rechazado.</p>
                 <div class="ac-carga-card__actions">
                     <a href="alerta_correos_enlaces_cargar.php" class="btn ac-btn-green-outline"><span class="fas fa-user-check"></span> Ir a cargar</a>
                     <a href="alerta_correos_plantilla_sectorizada.php?tipo=responsables" class="btn btn-outline-secondary"><span class="fas fa-download"></span> Plantilla</a>
@@ -181,15 +186,15 @@ while ($row = $rs->fetch_assoc()) {
                     </button>
                 </div>
                 <div id="inst-responsables" class="ac-instructions" data-ac-instructions>
-                    <h3><span class="fas fa-user-check mr-1"></span> ¿Cómo cargar Responsables / Enlaces?</h3>
+                    <h3><span class="fas fa-user-check mr-1"></span> ¿Cómo cargar Enlaces regionales?</h3>
                     <ol>
-                        <li>Verifique que la Regional o Centro Zonal ya exista en el maestro territorial.</li>
+                        <li>Verifique que la Regional ya exista en el maestro territorial.</li>
                         <li>Use la plantilla y diligencie <strong>CODIGO_CENTRO, DOCUMENTO, NOMBRE, CORREO, EXTENSION_IP y ESTADO</strong>.</li>
-                        <li>Regional y Centro Zonal no se solicitan porque se resuelven por <strong>CODIGO_CENTRO</strong>.</li>
+                        <li>La Regional no se solicita porque se resuelve por <strong>CODIGO_CENTRO</strong>. El código debe pertenecer a una <strong>Regional</strong>.</li>
                         <li>Si cambia el responsable, la asignación anterior queda cerrada y se conserva el histórico.</li>
                         <li>Cargue, analice las diferencias y confirme cuando el archivo esté correcto.</li>
                     </ol>
-                    <div class="ac-instructions__note"><strong>Control:</strong> esta carga administra únicamente responsables/enlaces; no modifica coordinadores ni crea territorios.</div>
+                    <div class="ac-instructions__note"><strong>Control:</strong> esta carga administra únicamente Enlaces Regionales; un código de Centro Zonal será rechazado.</div>
                 </div>
             </div>
         </section>
@@ -197,7 +202,7 @@ while ($row = $rs->fetch_assoc()) {
 
     <div class="ac-cargas-rule">
         <strong><span class="fas fa-shield-alt mr-1"></span> Regla principal:</strong>
-        Coordinadores y responsables no crean territorios. Si un <strong>CODIGO_CENTRO</strong> no existe en el maestro territorial, la fila se rechaza y debe corregirse antes de confirmar la carga.
+        Los <strong>Coordinadores</strong> solo se cargan sobre Centros Zonales y los <strong>Enlaces</strong> solo sobre Regionales. Si el CODIGO_CENTRO no existe o pertenece al nivel incorrecto, la fila se rechaza.
     </div>
 </div>
 
