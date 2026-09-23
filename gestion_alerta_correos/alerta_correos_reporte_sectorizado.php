@@ -38,7 +38,8 @@ if ($tipo === 'territorios') {
 } elseif (in_array($tipo, ['coordinadores', 'responsables'], true)) {
     $esCoordinador = $tipo === 'coordinadores';
     $tipoResponsable = $esCoordinador ? 'COORDINADOR' : 'ENLACE_RELACION_CIUDADANO';
-    $nombre = ($esCoordinador ? 'Reporte_Actual_Coordinadores_Alertas_Correos_' : 'Reporte_Actual_Responsables_Enlaces_Alertas_Correos_') . $fecha . '.csv';
+    $tipoTerritorio = $esCoordinador ? 'CENTRO_ZONAL' : 'REGIONAL';
+    $nombre = ($esCoordinador ? 'Reporte_Actual_Coordinadores_Zonales_Alertas_Correos_' : 'Reporte_Actual_Enlaces_Regionales_Alertas_Correos_') . $fecha . '.csv';
     $filas[] = ['CODIGO_CENTRO', 'DOCUMENTO', 'NOMBRE', 'CORREO', 'EXTENSION_IP', 'ESTADO'];
 
     $stmt = $enlace_db->prepare(
@@ -53,11 +54,12 @@ if ($tipo === 'territorios') {
            ON p.acp_id=r.acr_punto_atencion_id
          WHERE r.acr_activo=1
            AND UPPER(TRIM(COALESCE(r.acr_tipo_responsable,'')))=?
+           AND UPPER(TRIM(COALESCE(p.acp_tipo,'')))=?
          ORDER BY COALESCE(p.acp_regional, r.acr_regional) ASC,
                   COALESCE(p.acp_nombre, r.acr_centro_zonal) ASC,
                   r.acr_nombre ASC"
     );
-    $stmt->bind_param('s', $tipoResponsable);
+    $stmt->bind_param('ss', $tipoResponsable, $tipoTerritorio);
     $stmt->execute();
     $rs = $stmt->get_result();
 
