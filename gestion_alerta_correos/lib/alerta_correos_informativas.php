@@ -33,6 +33,24 @@ function acAlertaEsCategoriaActitudInadecuada(?string $categoria): bool
     return acTerritorioNormalizarClave((string)$categoria) === 'ACTITUD INADECUADA';
 }
 
+/**
+ * Regla específica de "Actitud inadecuada".
+ *
+ * Si existe acc_punto_atencion_id (> 0), la alerta está dirigida a un Centro Zonal.
+ * Si no existe punto de atención, la atención corresponde directamente a la Regional.
+ */
+function acAlertaActitudTieneCentroZonal(array $caso): bool
+{
+    return acAlertaEsCategoriaActitudInadecuada((string)($caso['acc_categoria'] ?? ''))
+        && (int)($caso['acc_punto_atencion_id'] ?? 0) > 0;
+}
+
+function acAlertaActitudSoloRegional(array $caso): bool
+{
+    return acAlertaEsCategoriaActitudInadecuada((string)($caso['acc_categoria'] ?? ''))
+        && !acAlertaActitudTieneCentroZonal($caso);
+}
+
 function acAlertaEsInformativa(array $caso): bool
 {
     if (array_key_exists('acc_envia_correo', $caso) && (int)$caso['acc_envia_correo'] === 0) {
