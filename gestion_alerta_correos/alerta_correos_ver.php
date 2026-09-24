@@ -27,11 +27,13 @@ if (!$caso) {
 
 $historial = acHistorialCaso($enlace_db, (int)$id);
 $esInformativa = acAlertaEsInformativa($caso);
-$soloRegional = acAlertaEsCategoriaActitudInadecuada((string)($caso['acc_categoria'] ?? ''));
+$esActitud = acAlertaEsCategoriaActitudInadecuada((string)($caso['acc_categoria'] ?? ''));
+$actitudConCentroZonal = acAlertaActitudTieneCentroZonal($caso);
+$soloRegional = acAlertaActitudSoloRegional($caso);
 
 if ($esInformativa) {
     $responsables = ['regional' => [], 'zonal' => [], '_origen' => 'NO_APLICA', '_fecha' => null];
-} elseif ($soloRegional) {
+} elseif ($esActitud) {
     if (strtoupper((string)($caso['acc_estado'] ?? '')) === 'APROBADO') {
         $responsables = acEmailObtenerSnapshot($enlace_db, (int)$id);
         $responsables['_origen'] = 'SNAPSHOT';
@@ -366,11 +368,15 @@ include '../menu_header.php';
                             <strong>No requiere destinatarios.</strong> Esta alerta es informativa y, por regla de negocio, no genera correo al ser aprobada.
                         </div>
                     <?php else: ?>
-                    <?php if ($soloRegional): ?>
+                    <?php if ($esActitud): ?>
                         <div class="ac-alert-box ac-alert-box--info mb-3">
                             <span class="fas fa-info-circle mr-1"></span>
                             <strong>Regla especial · Actitud inadecuada:</strong>
-                            la notificación se enviará únicamente al <strong>Enlace Regional</strong>. No aplica destinatario zonal.
+                            <?php if ($actitudConCentroZonal): ?>
+                                <strong>PARA:</strong> Enlace Regional · <strong>CC:</strong> Coordinador del Centro Zonal + copia obligatoria configurada.
+                            <?php else: ?>
+                                <strong>PARA:</strong> Enlace Regional · <strong>CC:</strong> copia obligatoria configurada.
+                            <?php endif; ?>
                         </div>
                     <?php endif; ?>
 
@@ -387,7 +393,7 @@ include '../menu_header.php';
                     <?php endif; ?>
 
                     <div class="mb-3">
-                        <span class="ac-detail-label"><?php echo $soloRegional ? 'Enlace Regional' : 'Responsable regional'; ?></span>
+                        <span class="ac-detail-label"><?php echo $esActitud ? 'Enlace Regional' : 'Responsable regional'; ?></span>
                         <?php if (!$tieneRegional): ?><div class="ac-alert-box ac-alert-box--danger mt-2"><span class="fas fa-exclamation-triangle mr-1"></span>No hay responsable regional disponible.</div><?php endif; ?>
                         <?php foreach ($responsables['regional'] as $responsable): ?>
                             <div class="ac-person"><div class="ac-person__name"><?php echo acEscape($responsable['acr_nombre']); ?></div><div class="ac-person__mail"><span class="fas fa-envelope"></span><?php echo acEscape($responsable['acr_correo']); ?></div></div>
@@ -396,8 +402,8 @@ include '../menu_header.php';
 
                     <?php if (!$soloRegional): ?>
                     <div>
-                        <span class="ac-detail-label">Responsable zonal</span>
-                        <?php if (!$tieneZonal): ?><div class="ac-alert-box ac-alert-box--warning mt-2"><span class="fas fa-exclamation-triangle mr-1"></span>No hay responsable zonal disponible para este punto.</div><?php endif; ?>
+                        <span class="ac-detail-label"><?php echo $esActitud ? 'Coordinador del Centro Zonal' : 'Responsable zonal'; ?></span>
+                        <?php if (!$tieneZonal): ?><div class="ac-alert-box ac-alert-box--warning mt-2"><span class="fas fa-exclamation-triangle mr-1"></span><?php echo $esActitud ? 'No hay Coordinador vigente disponible para este Centro Zonal.' : 'No hay responsable zonal disponible para este punto.'; ?></div><?php endif; ?>
                         <?php foreach ($responsables['zonal'] as $responsable): ?>
                             <div class="ac-person"><div class="ac-person__name"><?php echo acEscape($responsable['acr_nombre']); ?></div><div class="ac-person__mail"><span class="fas fa-envelope"></span><?php echo acEscape($responsable['acr_correo']); ?></div></div>
                         <?php endforeach; ?>
