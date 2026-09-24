@@ -96,14 +96,23 @@ try {
     }
 
     // Preflight de destinatarios.
-    // "Actitud inadecuada" requiere únicamente el Enlace Regional.
-    $soloRegional = acAlertaEsCategoriaActitudInadecuada((string)($caso['acc_categoria'] ?? ''));
+    // Para "Actitud inadecuada":
+    // - atención Regional: PARA Enlace Regional + CC obligatoria;
+    // - atención Centro Zonal: PARA Enlace Regional + CC Coordinador Zonal + CC obligatoria.
+    $esActitud = acAlertaEsCategoriaActitudInadecuada((string)($caso['acc_categoria'] ?? ''));
+    $actitudConCentroZonal = acAlertaActitudTieneCentroZonal($caso);
+    $requiereZonal = !$esActitud || $actitudConCentroZonal;
+
     $vigentes = acEmailResolverDestinatariosVigentes($enlace_db, $caso);
     if (!$vigentes['regional']) {
         throw new RuntimeException('No es posible aprobar: la Regional seleccionada no tiene un Enlace Regional vigente con correo válido.');
     }
-    if (!$soloRegional && !$vigentes['zonal']) {
-        throw new RuntimeException('No es posible aprobar: el Centro Zonal / Punto seleccionado no tiene un responsable vigente con correo válido.');
+    if ($requiereZonal && !$vigentes['zonal']) {
+        throw new RuntimeException(
+            $esActitud
+                ? 'No es posible aprobar: el Centro Zonal seleccionado no tiene un Coordinador vigente con correo válido.'
+                : 'No es posible aprobar: el Centro Zonal / Punto seleccionado no tiene un responsable vigente con correo válido.'
+        );
     }
 
     // Cambio de estado. El trigger territorial, si existe, genera el snapshot automáticamente.
@@ -178,8 +187,12 @@ try {
 
     acFlash(
         'success',
-        $soloRegional
-            ? 'Caso aprobado correctamente. La notificación oficial quedó encolada únicamente para el Enlace Regional.'
+        $esActitud
+            ? (
+                $actitudConCentroZonal
+                    ? 'Caso aprobado correctamente. La notificación quedó encolada para el Enlace Regional, con copia al Coordinador del Centro Zonal y a la copia obligatoria configurada.'
+                    : 'Caso aprobado correctamente. La notificación quedó encolada para el Enlace Regional, con la copia obligatoria configurada.'
+            )
             : 'Caso aprobado correctamente. La notificación oficial quedó encolada para envío con los responsables regional y zonal del snapshot de aprobación.'
     );
 } catch (Throwable $e) {
