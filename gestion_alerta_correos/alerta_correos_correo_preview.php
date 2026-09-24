@@ -20,7 +20,9 @@ $error = '';
 $plantilla = null;
 $destinatarios = ['regional' => [], 'zonal' => []];
 $esInformativa = acAlertaEsInformativa($caso);
-$soloRegional = acAlertaEsCategoriaActitudInadecuada((string)($caso['acc_categoria'] ?? ''));
+$esActitud = acAlertaEsCategoriaActitudInadecuada((string)($caso['acc_categoria'] ?? ''));
+$actitudConCentroZonal = acAlertaActitudTieneCentroZonal($caso);
+$soloRegional = acAlertaActitudSoloRegional($caso);
 $esCorreoYaGenerado = false;
 $estadoCentral = null;
 
@@ -129,14 +131,16 @@ $titulo_header = $esInformativa ? 'Alertas Correos | Alerta informativa' : 'Aler
                 <?php endif; ?>
                 <div class="row">
                     <div class="col-md-6 mb-2">
-                        <span class="ac-detail-label"><?php echo $soloRegional ? 'PARA · Enlace Regional' : 'PARA · Zonal'; ?></span>
+                        <span class="ac-detail-label"><?php echo $esActitud ? 'PARA · Enlace Regional' : 'PARA · Zonal'; ?></span>
                         <?php foreach (($plantilla['to_personas'] ?? []) as $p): ?>
                             <div class="ac-person mt-2"><div class="ac-person__name"><?php echo acEscape((string)($p['nombre'] ?? '')); ?></div><div class="ac-person__mail"><span class="fas fa-envelope"></span><?php echo acEscape((string)($p['correo'] ?? '')); ?></div></div>
                         <?php endforeach; ?>
                         <?php if (empty($plantilla['to_personas'])): ?><div class="small text-muted mt-2"><?php echo acEscape((string)$plantilla['to']); ?></div><?php endif; ?>
                     </div>
                     <div class="col-md-6 mb-2">
-                        <span class="ac-detail-label"><?php echo $soloRegional ? 'CC · Copia obligatoria' : 'CC · Regional / copia obligatoria'; ?></span>
+                        <span class="ac-detail-label"><?php echo $esActitud
+                            ? ($actitudConCentroZonal ? 'CC · Coordinador Zonal / copia obligatoria' : 'CC · Copia obligatoria')
+                            : 'CC · Regional / copia obligatoria'; ?></span>
 
                         <?php foreach (($plantilla['cc_personas'] ?? []) as $p): ?>
                             <div class="ac-person mt-2"><div class="ac-person__name"><?php echo acEscape((string)($p['nombre'] ?? '')); ?></div><div class="ac-person__mail"><span class="fas fa-envelope"></span><?php echo acEscape((string)($p['correo'] ?? '')); ?></div></div>
@@ -144,9 +148,13 @@ $titulo_header = $esInformativa ? 'Alertas Correos | Alerta informativa' : 'Aler
 
                         <?php if ((string)$plantilla['cc'] === ''): ?>
                             <div class="small text-muted mt-2">Sin destinatarios adicionales en CC.</div>
-                        <?php elseif ($soloRegional): ?>
+                        <?php elseif ($esActitud): ?>
                             <div class="small text-muted mt-2">
-                                En <strong>Actitud inadecuada</strong> no se agrega destinatario zonal; se conserva únicamente la copia obligatoria configurada para aprobaciones.
+                                <?php if ($actitudConCentroZonal): ?>
+                                    En <strong>Actitud inadecuada</strong>, el Enlace Regional recibe el correo en PARA; el Coordinador del Centro Zonal y la copia obligatoria configurada reciben CC.
+                                <?php else: ?>
+                                    En <strong>Actitud inadecuada</strong> con atención directa de Regional, el Enlace Regional recibe el correo en PARA y se conserva la copia obligatoria configurada en CC.
+                                <?php endif; ?>
                             </div>
                         <?php endif; ?>
                     </div>
