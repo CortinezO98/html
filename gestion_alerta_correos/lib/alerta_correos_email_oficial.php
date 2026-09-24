@@ -139,7 +139,8 @@ function acEmailConsultarResponsables(mysqli $db, string $sql, string $types, ar
 /** @return array{regional:array<int,array<string,mixed>>,zonal:array<int,array<string,mixed>>} */
 function acEmailResolverDestinatariosVigentes(mysqli $db, array $caso): array
 {
-    $soloRegional = acAlertaEsCategoriaActitudInadecuada((string)($caso['acc_categoria'] ?? ''));
+    $esActitud = acAlertaEsCategoriaActitudInadecuada((string)($caso['acc_categoria'] ?? ''));
+    $actitudConCentroZonal = acAlertaActitudTieneCentroZonal($caso);
     $regionalId = (int)($caso['acc_regional_id'] ?? 0);
     $puntoId = (int)($caso['acc_punto_atencion_id'] ?? 0);
     $regionalTxt = trim((string)($caso['acc_regional'] ?? ''));
@@ -151,7 +152,7 @@ function acEmailResolverDestinatariosVigentes(mysqli $db, array $caso): array
              WHERE acr_activo=1
                AND UPPER(acr_nivel)='REGIONAL'
                AND acr_punto_atencion_id=?";
-        if ($soloRegional) {
+        if ($esActitud) {
             $sqlRegionalId .= " AND UPPER(TRIM(COALESCE(acr_tipo_responsable,'')))='ENLACE_RELACION_CIUDADANO'";
         }
         $sqlRegionalId .= " ORDER BY CASE WHEN UPPER(COALESCE(acr_tipo_responsable,''))='ENLACE_RELACION_CIUDADANO' THEN 0 ELSE 1 END,
@@ -168,7 +169,7 @@ function acEmailResolverDestinatariosVigentes(mysqli $db, array $caso): array
              WHERE acr_activo=1
                AND UPPER(acr_nivel)='REGIONAL'
                AND UPPER(TRIM(acr_regional))=UPPER(TRIM(?))";
-        if ($soloRegional) {
+        if ($esActitud) {
             $sqlRegionalTxt .= " AND UPPER(TRIM(COALESCE(acr_tipo_responsable,'')))='ENLACE_RELACION_CIUDADANO'";
         }
         $sqlRegionalTxt .= " ORDER BY CASE WHEN UPPER(COALESCE(acr_tipo_responsable,''))='ENLACE_RELACION_CIUDADANO' THEN 0 ELSE 1 END,
@@ -182,29 +183,42 @@ function acEmailResolverDestinatariosVigentes(mysqli $db, array $caso): array
     }
 
     $zonal = [];
-    if (!$soloRegional && $puntoId > 0) {
-        $zonal = acEmailConsultarResponsables(
-            $db,
-            "SELECT * FROM tb_alerta_correo_responsable
+    $resolverZonal = !$esActitud || $actitudConCentroZonal;
+
+    if ($resolverZonal && $puntoId > 0) {
+        $sqlZonalId = "SELECT * FROM tb_alerta_correo_responsable
              WHERE acr_activo=1
                AND UPPER(acr_nivel) IN ('ZONAL','CENTRO_ZONAL')
-               AND acr_punto_atencion_id=?
-             ORDER BY CASE WHEN UPPER(COALESCE(acr_tipo_responsable,''))='COORDINADOR' THEN 0 ELSE 1 END,
-                      acr_id DESC",
+               AND acr_punto_atencion_id=?";
+        if ($esActitud) {
+            $sqlZonalId .= " AND UPPER(TRIM(COALESCE(acr_tipo_responsable,'')))='COORDINADOR'";
+        }
+        $sqlZonalId .= " ORDER BY CASE WHEN UPPER(COALESCE(acr_tipo_responsable,''))='COORDINADOR' THEN 0 ELSE 1 END,
+                      acr_id DESC";
+
+        $zonal = acEmailConsultarResponsables(
+            $db,
+            $sqlZonalId,
             'i',
             [$puntoId]
         );
     }
-    if (!$soloRegional && !$zonal && $regionalTxt !== '' && $czTxt !== '') {
-        $zonal = acEmailConsultarResponsables(
-            $db,
-            "SELECT * FROM tb_alerta_correo_responsable
+
+    if ($resolverZonal && !$zonal && $regionalTxt !== '' && $czTxt !== '') {
+        $sqlZonalTxt = "SELECT * FROM tb_alerta_correo_responsable
              WHERE acr_activo=1
                AND UPPER(acr_nivel) IN ('ZONAL','CENTRO_ZONAL')
                AND UPPER(TRIM(acr_regional))=UPPER(TRIM(?))
-               AND UPPER(TRIM(acr_centro_zonal))=UPPER(TRIM(?))
-             ORDER BY CASE WHEN UPPER(COALESCE(acr_tipo_responsable,''))='COORDINADOR' THEN 0 ELSE 1 END,
-                      acr_id DESC",
+               AND UPPER(TRIM(acr_centro_zonal))=UPPER(TRIM(?))";
+        if ($esActitud) {
+            $sqlZonalTxt .= " AND UPPER(TRIM(COALESCE(acr_tipo_responsable,'')))='COORDINADOR'";
+        }
+        $sqlZonalTxt .= " ORDER BY CASE WHEN UPPER(COALESCE(acr_tipo_responsable,''))='COORDINADOR' THEN 0 ELSE 1 END,
+                      acr_id DESC";
+
+        $zonal = acEmailConsultarResponsables(
+            $db,
+            $sqlZonalTxt,
             'ss',
             [$regionalTxt, $czTxt]
         );
@@ -262,9 +276,10 @@ function acEmailObtenerSnapshot(mysqli $db, int $casoId): array
 
 function acEmailAsegurarSnapshot(mysqli $db, int $casoId, array $destinatarios, array $caso = []): array
 {
-    $soloRegional = acAlertaEsCategoriaActitudInadecuada((string)($caso['acc_categoria'] ?? ''));
+    $esActitud = acAlertaEsCategoriaActitudInadecuada((string)($caso['acc_categoria'] ?? ''));
+    $requiereZonal = !$esActitud || acAlertaActitudTieneCentroZonal($caso);
     $snapshot = acEmailObtenerSnapshot($db, $casoId);
-    if ($snapshot['regional'] && ($soloRegional || $snapshot['zonal'])) {
+    if ($snapshot['regional'] && (!$requiereZonal || $snapshot['zonal'])) {
         return $snapshot;
     }
 
@@ -303,11 +318,11 @@ function acEmailAsegurarSnapshot(mysqli $db, int $casoId, array $destinatarios, 
     $stmt->close();
 
     $snapshot = acEmailObtenerSnapshot($db, $casoId);
-    if (!$snapshot['regional'] || (!$soloRegional && !$snapshot['zonal'])) {
+    if (!$snapshot['regional'] || ($requiereZonal && !$snapshot['zonal'])) {
         throw new RuntimeException(
-            $soloRegional
+            !$requiereZonal
                 ? 'No fue posible consolidar el snapshot del Enlace Regional del caso.'
-                : 'No fue posible consolidar el snapshot regional y zonal del caso.'
+                : 'No fue posible consolidar el snapshot del Enlace Regional y Coordinador del Centro Zonal.'
         );
     }
     return $snapshot;
@@ -394,29 +409,49 @@ function acEmailConstruirPlantilla(
     string $fechaAprobacion
 ): array
 {
-    $soloRegional = acAlertaEsCategoriaActitudInadecuada((string)($caso['acc_categoria'] ?? ''));
+    $esActitud = acAlertaEsCategoriaActitudInadecuada((string)($caso['acc_categoria'] ?? ''));
+    $actitudConCentroZonal = acAlertaActitudTieneCentroZonal($caso);
+    $requiereZonal = !$esActitud || $actitudConCentroZonal;
 
     if (!$destinatarios['regional']) {
         throw new RuntimeException('No existe un Enlace Regional vigente con correo válido.');
     }
-    if (!$soloRegional && !$destinatarios['zonal']) {
-        throw new RuntimeException('No existe un responsable zonal vigente con correo válido.');
+    if ($requiereZonal && !$destinatarios['zonal']) {
+        throw new RuntimeException(
+            $esActitud
+                ? 'No existe un Coordinador vigente para el Centro Zonal seleccionado.'
+                : 'No existe un responsable zonal vigente con correo válido.'
+        );
     }
 
     $emailsTo = [];
     $ccPersonas = [];
     $emailsCc = [];
 
-    if ($soloRegional) {
+    if ($esActitud) {
         // Regla especial "Actitud inadecuada":
-        // TO = únicamente el Enlace Regional. No se envía a destinatarios zonales.
-        // La copia obligatoria configurada en el módulo SÍ se conserva.
+        // SIEMPRE PARA = Enlace Regional.
+        // Si la alerta corresponde a un Centro Zonal, CC incluye su Coordinador.
+        // La copia obligatoria configurada (Yudy) se agrega después en ambos escenarios.
         $toPersonas = $destinatarios['regional'];
         foreach ($toPersonas as $p) {
             $emailsTo[strtolower((string)$p['correo'])] = true;
         }
+
+        if ($actitudConCentroZonal) {
+            foreach ($destinatarios['zonal'] as $p) {
+                $correo = strtolower(trim((string)($p['correo'] ?? '')));
+
+                if ($correo === '' || isset($emailsTo[$correo]) || isset($emailsCc[$correo])) {
+                    continue;
+                }
+
+                $emailsCc[$correo] = true;
+                $ccPersonas[] = $p;
+            }
+        }
     } else {
-        // Regla general: TO = Zonal, CC = Regional.
+        // Regla general ORIGINAL: TO = Zonal, CC = Regional.
         $toPersonas = $destinatarios['zonal'];
         foreach ($toPersonas as $p) {
             $emailsTo[strtolower((string)$p['correo'])] = true;
@@ -462,7 +497,7 @@ function acEmailConstruirPlantilla(
     $cc = acEmailFormatoCentral($ccPersonas);
     if ($to === '') {
         throw new RuntimeException(
-            $soloRegional
+            $esActitud
                 ? 'No fue posible construir el destinatario del Enlace Regional.'
                 : 'No fue posible construir la lista de destinatarios zonales.'
         );
